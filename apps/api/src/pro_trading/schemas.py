@@ -2044,3 +2044,30 @@ class DirectPreviewOut(BaseModel):
     total: Decimal
     stock: list[DirectStockOut]
     stock_ok: bool
+
+
+class OcrToReceivingIn(BaseModel):
+    """Approve a reviewed supplier document into Receiving (declared lines only)."""
+
+    version: int = Field(ge=1)
+    vendor_id: uuid.UUID
+    shipment_id: uuid.UUID | None = Field(default=None, description="An OPEN shipment; else new")
+    document_no: str | None = Field(default=None, max_length=64)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    reviewed_all: Literal[True]
+
+
+class OcrHeaderFixIn(BaseModel):
+    version: int = Field(ge=1)
+    field: Literal[
+        "supplier",
+        "document_no",
+        "document_date",
+        "due_date",
+        "currency",
+        "subtotal",
+        "tax",
+        "total",
+    ]
+    value: str | None = Field(default=None, max_length=120)
+    reason: str = Field(default="", max_length=300)

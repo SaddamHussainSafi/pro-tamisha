@@ -148,3 +148,68 @@ def test_bad_math_and_duplicate_are_flagged(user, world, setup, vendor, tesserac
     items = sales.get(f"{P}/ocr/extractions").json()["items"]
     newest = sales.get(f"{P}/ocr/extractions/{items[0]['id']}").json()
     assert any(w.startswith("POSSIBLE_DUPLICATE") for w in newest["warnings"])
+
+
+@real
+def test_approve_into_receiving(owner, user, world, setup, vendor, tesseract, tmp_path):
+    from sqlalchemy import text
+
+    from pro_trading.db import get_sessionmaker
+
+    from .test_ocr import resolve
+
+    ex = read_one(owner, world, scan(invoice_pdf(no="ARX-7001"), tmp_path))
+    # a header correction keeps what was read next to the fix
+    r = owner.post(
+        f"{P}/ocr/extractions/{ex['id']}/header",
+        json={
+            "version": ex["version"],
+            "field": "currency",
+            "value": "CAD",
+            "reason": "paid in CAD",
+        },
+    )
+    assert r.status_code == 200, r.text
+    ex = r.json()
+    assert (
+        ex["header"]["currency"]["value"] == "USD"
+        and ex["header"]["currency"]["corrected"] == "CAD"
+    )
+    body = {
+        "version": ex["version"],
+        "vendor_id": vendor["id"],
+        "document_no": "ARX-7001",
+        "reviewed_all": True,
+    }
+    r = owner.post(f"{P}/ocr/extractions/{ex['id']}/to-receiving", json=body, headers=idem())
+    assert r.status_code == 409 and r.json()["error"]["code"] == "FIELDS_UNRESOLVED"
+    for f in ex["fields"]:
+        ex = resolve(owner, ex, f, "CONFIRM").json()
+    # sales can review but not receive; ordering path refuses supplier documents
+    body["version"] = ex["version"]
+    assert (
+        user("sales")
+        .post(f"{P}/ocr/extractions/{ex['id']}/to-receiving", json=body, headers=idem())
+        .status_code
+        == 403
+    )
+    acc = {"version": ex["version"], "customer_id": setup["cust"], "reviewed_all": True}
+    r = owner.post(f"{P}/ocr/extractions/{ex['id']}/accept", json=acc, headers=idem())
+    assert r.json()["error"]["code"] == "USE_RECEIVING"
+    r = owner.post(f"{P}/ocr/extractions/{ex['id']}/to-receiving", json=body, headers=idem())
+    assert r.status_code == 200, r.text
+    done = r.json()
+    assert done["status"] == "ACCEPTED" and done["shipment_id"]
+    shp = owner.get(f"{P}/shipments/{done['shipment_id']}").json()
+    assert shp["status"] == "OPEN" and shp["vendor_invoice_no"] == "ARX-7001"
+    assert len(shp["documents"]) == 1
+    declared = {(d["sku"], d["declared_qty"], d["unit_cost"]) for d in shp["declared"]}
+    assert declared == {("CAS-01", "25.0000", "12.5000"), ("YAM-01", "30.0000", "7.7500")}
+    with get_sessionmaker()() as db:
+        moves = db.execute(
+            text("select count(*) from stock_movements where company_id=:c"),
+            {"c": world.company_id},
+        ).scalar_one()
+    assert moves == 0  # nothing posted: the count and GRN stay manual steps
+    r = owner.post(f"{P}/ocr/extractions/{ex['id']}/to-receiving", json=body, headers=idem())
+    assert r.status_code == 409

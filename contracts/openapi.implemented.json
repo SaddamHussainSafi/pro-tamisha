@@ -6211,6 +6211,53 @@
         "title": "OcrFieldOut",
         "type": "object"
       },
+      "OcrHeaderFixIn": {
+        "properties": {
+          "field": {
+            "enum": [
+              "supplier",
+              "document_no",
+              "document_date",
+              "due_date",
+              "currency",
+              "subtotal",
+              "tax",
+              "total"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Reason",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "field"
+        ],
+        "title": "OcrHeaderFixIn",
+        "type": "object"
+      },
       "OcrManualLineIn": {
         "properties": {
           "product_id": {
@@ -6355,6 +6402,70 @@
           "action"
         ],
         "title": "OcrResolveIn",
+        "type": "object"
+      },
+      "OcrToReceivingIn": {
+        "description": "Approve a reviewed supplier document into Receiving (declared lines only).",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "document_no": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document No"
+          },
+          "reviewed_all": {
+            "const": true,
+            "title": "Reviewed All",
+            "type": "boolean"
+          },
+          "shipment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An OPEN shipment; else new",
+            "title": "Shipment Id"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "vendor_id",
+          "reviewed_all"
+        ],
+        "title": "OcrToReceivingIn",
         "type": "object"
       },
       "OpeningBalanceIn": {
@@ -16622,6 +16733,60 @@
         ]
       }
     },
+    "/api/v1/ocr/extractions/{extraction_id}/header": {
+      "post": {
+        "description": "Correct a header value. What the engine read stays next to it; the change is audited.",
+        "operationId": "fix_header_api_v1_ocr_extractions__extraction_id__header_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extraction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Extraction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrHeaderFixIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrExtractionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fix Header",
+        "tags": [
+          "ocr"
+        ]
+      }
+    },
     "/api/v1/ocr/extractions/{extraction_id}/lines": {
       "post": {
         "description": "A line the reading missed. Counted as a miss in accuracy.",
@@ -16747,6 +16912,71 @@
           }
         },
         "summary": "Reject",
+        "tags": [
+          "ocr"
+        ]
+      }
+    },
+    "/api/v1/ocr/extractions/{extraction_id}/to-receiving": {
+      "post": {
+        "description": "Every line reviewed \u2192 the document is attached to a shipment (an OPEN one, or a new one)\nand the kept lines become its declared lines. Never stock, never a cost or liability: the\ncount and the GRN posting stay the warehouse/manager steps they always were.",
+        "operationId": "to_receiving_api_v1_ocr_extractions__extraction_id__to_receiving_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extraction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Extraction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrToReceivingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrExtractionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "To Receiving",
         "tags": [
           "ocr"
         ]

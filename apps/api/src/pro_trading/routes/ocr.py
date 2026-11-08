@@ -17,14 +17,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .. import idempotency, ocr
+from .. import audit, idempotency, ocr
 from .. import inventory as inv
 from .. import orders as order_svc
+from .. import receiving as recv
 from ..deps import DbDep, Principal, PrincipalDep, authorize
 from ..errors import ApiError
 from ..models import (
     Company,
     Customer,
+    DeclaredLine,
     Employee,
     OcrCorrection,
     OcrExtraction,
@@ -32,7 +34,9 @@ from ..models import (
     Product,
     SalesOrder,
     ScanJob,
+    Shipment,
     SourceDocument,
+    Vendor,
     Warehouse,
 )
 from ..schemas import (
@@ -40,15 +44,19 @@ from ..schemas import (
     OcrAccuracyOut,
     OcrExtractionDetail,
     OcrExtractionPage,
+    OcrHeaderFixIn,
     OcrManualLineIn,
     OcrQueueIn,
     OcrResolveIn,
+    OcrToReceivingIn,
     OrderIn,
     OrderLineIn,
     ReasonIn,
+    ShipmentDocKind,
 )
 from ._common import esc, mutate
 from .orders import insert_order
+from .receiving import _attach
 
 router = APIRouter(tags=["ocr"])
 
@@ -501,6 +509,8 @@ def accept(
     no reservation, no invoice, no stock movement."""
     ex0 = get_extraction(db, request, p, extraction_id)
     authorize(request, p, "sales_order.manage", ex0.warehouse_id)
+    if ex0.header:
+        raise ApiError(409, "USE_RECEIVING", "Supplier documents go to Receiving, not to an order")
 
     def fn() -> Result:
         ex = get_extraction(db, request, p, extraction_id, lock=True)
@@ -591,3 +601,124 @@ def reject(
     return mutate(
         db, request, p, key, f"ocr.reject:{extraction_id}", body, 200, "ocr_extraction.reject", fn
     )
+
+
+# ------------------------------------------------------------------ supplier documents
+
+_DOC_KIND: dict[str, ShipmentDocKind] = {
+    "VENDOR_DOCUMENT": "INVOICE",
+    "PACKING_LIST": "PACKING_LIST",
+}
+
+
+@router.post("/ocr/extractions/{extraction_id}/header", response_model=OcrExtractionDetail)
+def fix_header(
+    extraction_id: uuid.UUID, body: OcrHeaderFixIn, request: Request, db: DbDep, p: PrincipalDep
+) -> dict[str, Any]:
+    """Correct a header value. What the engine read stays next to it; the change is audited."""
+    ex = get_extraction(db, request, p, extraction_id, lock=True)
+    authorize(request, p, "scan.review", ex.warehouse_id)
+    _reviewable(ex, body.version)
+    if not ex.header:
+        raise ApiError(409, "NO_HEADER", "Only supplier documents have header values")
+    h = {k: dict(v) for k, v in ex.header.items()}
+    cell = h.get(body.field, {"value": None, "confidence": None})
+    before = cell.get("corrected", cell.get("value"))
+    value = (body.value or "").strip() or None
+    if value == cell.get("value"):
+        cell.pop("corrected", None)
+    else:
+        cell["corrected"] = value
+    h[body.field] = cell
+    ex.header = h
+    ex.version += 1
+    audit.record(
+        db, action="ocr_extraction.header_fix", success=True, company_id=p.company_id,
+        actor_id=p.employee.id, target_type="ocr_extraction", target_id=str(ex.id),
+        warehouse_id=ex.warehouse_id, request_id=request.state.request_id,
+        detail={"field": body.field, "before": before, "after": value, "reason": body.reason},
+    )  # fmt: skip
+    db.commit()
+    return extraction_out(db, ex, True)
+
+
+@router.post("/ocr/extractions/{extraction_id}/to-receiving", response_model=OcrExtractionDetail)
+def to_receiving(
+    extraction_id: uuid.UUID,
+    body: OcrToReceivingIn,
+    request: Request,
+    db: DbDep,
+    key: idempotency.IdemKey,
+    p: PrincipalDep,
+) -> JSONResponse:
+    """Every line reviewed → the document is attached to a shipment (an OPEN one, or a new one)
+    and the kept lines become its declared lines. Never stock, never a cost or liability: the
+    count and the GRN posting stay the warehouse/manager steps they always were."""
+    ex0 = get_extraction(db, request, p, extraction_id)
+    authorize(request, p, "grn.record", ex0.warehouse_id)
+
+    def fn() -> Result:
+        ex = get_extraction(db, request, p, extraction_id, lock=True)
+        _reviewable(ex, body.version)
+        if not ex.header:
+            raise ApiError(409, "NOT_SUPPLIER_DOC", "This scan is not a supplier document")
+        fields = db.scalars(
+            select(OcrField).where(OcrField.extraction_id == ex.id).order_by(OcrField.seq)
+        ).all()
+        if open_ := [f.seq for f in fields if f.resolution == "NONE"]:
+            raise ApiError(
+                409, "FIELDS_UNRESOLVED", f"{len(open_)} line(s) still need review",
+                open_lines=open_,
+            )  # fmt: skip
+        keep = [f for f in fields if f.resolution in ("CONFIRMED", "CORRECTED")]
+        if not keep:
+            raise ApiError(422, "NO_LINES", "There are no lines to declare")
+        v = db.get(Vendor, body.vendor_id)
+        if v is None or v.company_id != p.company_id:
+            raise ApiError(422, "INVALID_VENDOR", "Supplier not found")
+        doc_no = (body.document_no or "").strip() or None
+        if body.shipment_id is not None:
+            s = db.get(Shipment, body.shipment_id, with_for_update=True)
+            if s is None or s.company_id != p.company_id or s.vendor_id != v.id:
+                raise ApiError(422, "INVALID_SHIPMENT", "That shipment is not from this supplier")
+            if s.status != "OPEN":
+                raise ApiError(409, "INVALID_STATE", f"Shipment {s.shipment_no} is not open")
+        else:
+            s = Shipment(
+                company_id=p.company_id, warehouse_id=ex.warehouse_id, vendor_id=v.id,
+                shipment_no=recv.next_shipment_no(db, p.company_id), vendor_invoice_no=doc_no,
+                currency=body.currency or v.currency, note="From scanned document",
+                created_by=p.employee.id,
+            )  # fmt: skip
+            db.add(s)
+            db.flush()
+        job = db.get(ScanJob, ex.scan_job_id)
+        assert job is not None
+        link = _attach(
+            db, s, p, ex.document_id, job.id, _DOC_KIND.get(job.job_type, "OTHER"), doc_no
+        )
+        for f in keep:
+            assert f.final_product_id and f.final_unit_code and f.final_qty
+            db.add(
+                DeclaredLine(
+                    shipment_id=s.id, shipment_document_id=link.id,
+                    raw_label=(f.raw_text or f.label)[:500], product_id=f.final_product_id,
+                    unit_code=f.final_unit_code, declared_qty=inv.q4(f.final_qty),
+                    unit_cost=f.read_unit_price if f.resolution == "CONFIRMED" else None,
+                    created_by=p.employee.id,
+                )
+            )  # fmt: skip
+        ex.status, ex.shipment_id, ex.vendor_id = "ACCEPTED", s.id, v.id
+        ex.reviewed_by, ex.reviewed_at = p.employee.id, _now()
+        ex.version += 1
+        db.flush()
+        return (
+            extraction_out(db, ex, True),
+            str(ex.id),
+            {"shipment_no": s.shipment_no, "lines": len(keep), "removed": len(fields) - len(keep)},
+        )
+
+    return mutate(
+        db, request, p, key, f"ocr.to_receiving:{extraction_id}", body, 200,
+        "ocr_extraction.to_receiving", fn,
+    )  # fmt: skip
