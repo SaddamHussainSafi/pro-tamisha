@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, canInWarehouse, invoicePdfUrl, type Invoice, type InvoicePreview, type InvoiceSummary, type Pick } from "../api";
+import { api, ApiError, canInWarehouse, has, invoicePdfUrl, type Invoice, type InvoicePreview, type InvoiceSummary, type Pick } from "../api";
 import { useAuth } from "../auth";
 import { defaultCaseWeight } from "../lib/caseSizes";
 import { cad, dec, qty, toFixed } from "../lib/decimal";
@@ -30,6 +30,7 @@ const VIEWS: { value: View; label: string }[] = [
 
 export function InvoicesPage() {
   const nav = useNavigate();
+  const { session } = useAuth();
   const [view, setView] = useState<View>("all");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<InvoiceSummary[] | null>(null);
@@ -69,7 +70,17 @@ export function InvoicesPage() {
   ];
   return (
     <div className="space-y-5">
-      <PageHeader title="Invoices" subtitle="Issued invoices never change. Prices and PDFs stay exactly as issued." />
+      <PageHeader
+        title="Invoices"
+        subtitle="Issued invoices never change. Prices and PDFs stay exactly as issued."
+        actions={
+          session && (has(session, "invoice.prepare") || has(session, "invoice.issue")) ? (
+            <Link className="btn-accent" to="/invoices/new">
+              Create invoice
+            </Link>
+          ) : undefined
+        }
+      />
       <FilterBar search={q} onSearch={setQ} options={VIEWS} value={view} onChange={setView} placeholder="Invoice no., order no. or customer" />
       {error ? (
         <ErrorState title="Couldn't load invoices" onRetry={() => void load()} />

@@ -50,6 +50,11 @@ Built with the choices below; each needs an owner/accountant answer before the f
 - **Who records supplier payments.** Placeholder: Owner/Admin and Finance record; Managers see the ledger. Confirm.
 - **Freight, duty, brokerage.** Listed per shipment but not in any balance. Are these paid to the supplier or to other parties (forwarder, broker) who need their own ledger?
 
+## Open questions from direct invoices (2026-11-08)
+
+- **No warehouse check on direct invoices.** The owner asked to invoice small sales without a picking sheet, so nobody counts the goods before the invoice is issued; the issuer confirms the hand-over. Should a second person confirm, or a value limit apply?
+- **Weighted products.** A direct invoice bills the unit chosen (box, piece, lb). Billing boxes by scale weight still goes through a picking sheet. Needed for counter sales?
+
 ## Known issues
 
 - **New browser tab is signed out on its first save.** The CSRF token is kept in per-tab `sessionStorage`, so a tab opened fresh (not duplicated) sends no token; the first change it saves fails with `CSRF_FAILED` and the app returns to the login screen. Reading works. Found while testing the Customers screen; not fixed (affects every page).

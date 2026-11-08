@@ -811,6 +811,18 @@ paths:
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: documentFileId, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
       responses: {'200': {description: 'DocumentFileOut PENDING'}, '409': {description: 'INVALID_STATE | DRIVE_DISABLED | VERSION_CONFLICT'}}
+  /invoices/direct/preview:
+    post:
+      operationId: previewDirectInvoice
+      description: 'invoice.prepare or invoice.issue in the warehouse. Prices (resolved now), totals and stock for a sale without a picking sheet. Nothing is kept.'
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [customer_id, warehouse_id, lines], properties: {customer_id: {type: string, format: uuid}, warehouse_id: {type: string, format: uuid}, note: {type: string, maxLength: 500}, lines: {type: array, minItems: 1, maxItems: 100, items: {type: object, required: [product_id, unit_code, qty], properties: {product_id: {type: string, format: uuid}, unit_code: {type: string, enum: [BOX, PIECE, LB, KG]}, qty: {$ref: '#/components/schemas/Decimal'}, note: {type: string}}}}}}}}}
+      responses: {'200': {description: 'DirectPreviewOut {lines, subtotal, tax_amount, total, stock[], stock_ok}'}, '422': {description: 'NO_PRICE | PRODUCT_INACTIVE | INVALID_WAREHOUSE | VALIDATION'}}
+  /invoices/direct:
+    post:
+      operationId: issueDirectInvoice
+      description: 'Owner direction 2026-11-08: small sales billed without a picking sheet. Needs invoice.issue. One transaction: CONFIRMED order (source_text "Direct invoice"), VERIFIED sheet "<order>-D" with every line packed and no lot chosen, then the normal issue path (number, stock first-expiry-first-out under locks, PDF, email outbox). Same body as preview + dispatch_confirmed (D-01).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: InvoiceOut}, '409': {description: 'INSUFFICIENT_STOCK | TAX_RULES_UNVERIFIED'}, '422': {description: 'DISPATCH_NOT_CONFIRMED | NO_PRICE | PRODUCT_INACTIVE'}}
   /invoices/{invoiceId}/pod:
     post:
       operationId: uploadProofOfDelivery

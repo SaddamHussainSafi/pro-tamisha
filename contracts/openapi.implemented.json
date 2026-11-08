@@ -2284,6 +2284,206 @@
         "title": "DiffRow",
         "type": "object"
       },
+      "DirectInvoiceIn": {
+        "description": "A counter / small sale billed without a picking sheet (owner direction 2026-11-08).\nPrices resolve now; stock leaves first-expiry-first-out; one transaction.",
+        "properties": {
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DirectInvoiceLineIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customer_id",
+          "warehouse_id",
+          "lines"
+        ],
+        "title": "DirectInvoiceIn",
+        "type": "object"
+      },
+      "DirectInvoiceIssueIn": {
+        "properties": {
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "dispatch_confirmed": {
+            "title": "Dispatch Confirmed",
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DirectInvoiceLineIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customer_id",
+          "warehouse_id",
+          "lines",
+          "dispatch_confirmed"
+        ],
+        "title": "DirectInvoiceIssueIn",
+        "type": "object"
+      },
+      "DirectInvoiceLineIn": {
+        "properties": {
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Qty"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "unit_code",
+          "qty"
+        ],
+        "title": "DirectInvoiceLineIn",
+        "type": "object"
+      },
+      "DirectPreviewOut": {
+        "properties": {
+          "lines": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "stock": {
+            "items": {
+              "$ref": "#/components/schemas/DirectStockOut"
+            },
+            "title": "Stock",
+            "type": "array"
+          },
+          "stock_ok": {
+            "title": "Stock Ok",
+            "type": "boolean"
+          },
+          "subtotal": {
+            "title": "Subtotal",
+            "type": "string"
+          },
+          "tax_amount": {
+            "title": "Tax Amount",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "subtotal",
+          "tax_amount",
+          "total",
+          "stock",
+          "stock_ok"
+        ],
+        "title": "DirectPreviewOut",
+        "type": "object"
+      },
+      "DirectStockOut": {
+        "properties": {
+          "available_qty": {
+            "title": "Available Qty",
+            "type": "string"
+          },
+          "deduct_qty": {
+            "title": "Deduct Qty",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "unit_code": {
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sku",
+          "unit_code",
+          "deduct_qty",
+          "available_qty",
+          "ok"
+        ],
+        "title": "DirectStockOut",
+        "type": "object"
+      },
       "DiscrepancyOut": {
         "properties": {
           "active_reserved": {
@@ -15512,6 +15712,103 @@
           }
         },
         "summary": "List Invoices",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/invoices/direct": {
+      "post": {
+        "description": "Issue an invoice without a picking sheet: numbered, stock posted, PDF stored and email\nqueued in one transaction (same rules as issuing from a sheet). Needs invoice.issue.",
+        "operationId": "issue_direct_api_v1_invoices_direct_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectInvoiceIssueIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue Direct",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/invoices/direct/preview": {
+      "post": {
+        "description": "Prices, totals and stock for a direct invoice. Nothing is kept (rolled back).",
+        "operationId": "preview_direct_api_v1_invoices_direct_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectInvoiceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Direct",
         "tags": [
           "invoices"
         ]

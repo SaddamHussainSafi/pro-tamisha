@@ -997,6 +997,8 @@ export const api = {
     request<Page<InvoiceSummary>>("GET", `/invoices?${qs(q)}`),
   invoice: (id: string) => request<Invoice>("GET", `/invoices/${id}`),
   resendInvoiceEmail: (id: string) => request<Invoice>("POST", `/invoices/${id}/email`, undefined, true),
+  previewDirectInvoice: (b: DirectInvoiceIn) => request<DirectPreview>("POST", "/invoices/direct/preview", b),
+  issueDirectInvoice: (b: DirectInvoiceIn & { dispatch_confirmed: boolean }) => request<Invoice>("POST", "/invoices/direct", b, true),
   scanDevices: (q: { warehouse_id?: string; include_revoked?: boolean } = {}) =>
     request<ScanDevice[]>("GET", `/scan-devices?${qs(q)}`),
   pairScanDevice: (b: { warehouse_id: string; name: string }) =>
@@ -1366,4 +1368,15 @@ export type SupplierLedger = {
   }[];
   payments: SupplierPayment[];
   entries: { on: string; kind: "SHIPMENT" | "PAYMENT"; ref: string; id: string; currency: string; billed: string; paid: string; balance: string; voided: boolean }[];
+};
+
+/* ---------- Direct invoices (no picking sheet) ---------- */
+export type DirectInvoiceIn = { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string }[]; note?: string };
+export type DirectPreview = {
+  lines: { sku: string; description: string; unit_code: UnitCode; billed_qty: string; unit_rate: string; line_amount: string; tax_amount: string }[];
+  subtotal: string;
+  tax_amount: string;
+  total: string;
+  stock: { sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean }[];
+  stock_ok: boolean;
 };

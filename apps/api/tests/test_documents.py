@@ -109,7 +109,9 @@ def test_issue_files_invoice_and_syncs_once(owner, sales, wh, world, setup, driv
     f2 = owner.get(f"{P}/documents/{f['id']}").json()
     assert f2["sync_status"] == "SYNCED" and f2["sync_attempts"] == 1
     assert f2["drive_file_id"] == f"local-{uuid.UUID(f['id']).hex}"
-    copies = list(drive_root.rglob("*.pdf"))
+    copies = list(
+        (drive_root / str(world.company_id)).rglob("*.pdf")
+    )  # other tests share the outbox
     assert len(copies) == 1
     assert hashlib.sha256(copies[0].read_bytes()).hexdigest() == inv["pdf_sha256"]
 
@@ -136,7 +138,9 @@ def test_drive_timeout_keeps_invoice_then_retry_syncs(
     _sync()
     cur = owner.get(f"{P}/documents/{f['id']}").json()
     assert cur["sync_status"] == "FAILED" and cur["sync_attempts"] == outbox.MAX_ATTEMPTS
-    assert cur["drive_file_id"] is None and not list(drive_root.rglob("*.pdf"))
+    assert cur["drive_file_id"] is None and not list(
+        (drive_root / str(world.company_id)).rglob("*.pdf")
+    )
     # the invoice itself is untouched and still printable
     assert owner.get(f"{P}/invoices/{inv['id']}").json()["invoice_no"] == inv["invoice_no"]
     assert owner.get(f"{P}/invoices/{inv['id']}/pdf").status_code == 200

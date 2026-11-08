@@ -8,6 +8,7 @@ import { InventoryPage, LotPage } from "./pages/Inventory";
 import { InvoicePage, InvoicesPage, IssueInvoicePage } from "./pages/Invoices";
 import { LoginPage } from "./pages/Login";
 import { MfaPage } from "./pages/Mfa";
+import { NewInvoicePage } from "./pages/NewInvoice";
 import { NewOrderPage, OrderPage, OrdersPage } from "./pages/Orders";
 import { OverviewPage } from "./pages/Overview";
 import { PaymentDetailPage, PaymentsPage, ReceivablesPage } from "./pages/Payments";
@@ -54,6 +55,7 @@ export function App() {
         <Route path="picking/:id" element={<PickSheetPage />} />
         <Route path="picking/:id/invoice" element={<IssueInvoicePage />} />
         <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="invoices/new" element={<NewInvoicePage />} />
         <Route path="invoices/:id" element={<InvoicePage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="payments/:id" element={<PaymentDetailPage />} />

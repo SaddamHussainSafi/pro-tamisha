@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import inventory as inv
+from . import pricing
 from .errors import ApiError
 from .models import (
     OPEN_PICK_STATUSES,
@@ -370,3 +371,23 @@ def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
             for pl, ol, sku, pname, lot_code in rows
         ],
     }
+
+
+def price_lines(db: Session, company_id: uuid.UUID, o: SalesOrder, at: datetime) -> None:
+    """Freeze each line's rate (customer > group > standard) as of `at`. Used on confirm and by
+    direct invoices; later price books never change these lines."""
+    cust = get_customer(db, company_id, o.customer_id)
+    for ln in order_lines(db, o.id):
+        prod = db.get(Product, ln.product_id)
+        assert prod is not None
+        if not prod.active:
+            raise ApiError(
+                422, "PRODUCT_INACTIVE", f"Line {ln.line_no}: {prod.sku} is inactive",
+                line=ln.line_no,
+            )  # fmt: skip
+        try:
+            qt = pricing.resolve(db, company_id, ln.product_id, ln.unit_code, cust, at)
+        except pricing.NoPriceError:
+            msg = f"Line {ln.line_no}: no active price for {prod.sku} per {ln.unit_code}"
+            raise ApiError(422, "NO_PRICE", msg, line=ln.line_no) from None
+        ln.rate, ln.price_snapshot = qt.rate, qt.snapshot()

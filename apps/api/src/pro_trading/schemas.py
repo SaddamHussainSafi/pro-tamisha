@@ -1980,3 +1980,42 @@ class SupplierLedgerOut(BaseModel):
     shipments: list[LedgerShipmentOut]
     payments: list[SupplierPaymentOut]
     entries: list[LedgerEntryOut]
+
+
+# ---------------------------------------------------------------- direct invoices (no pick sheet)
+class DirectInvoiceLineIn(BaseModel):
+    product_id: uuid.UUID
+    unit_code: UnitCode
+    qty: Qty
+    note: str = Field(default="", max_length=500)
+
+
+class DirectInvoiceIn(BaseModel):
+    """A counter / small sale billed without a picking sheet (owner direction 2026-11-08).
+    Prices resolve now; stock leaves first-expiry-first-out; one transaction."""
+
+    customer_id: uuid.UUID
+    warehouse_id: uuid.UUID
+    lines: list[DirectInvoiceLineIn] = Field(min_length=1, max_length=100)
+    note: str = Field(default="", max_length=500)
+
+
+class DirectInvoiceIssueIn(DirectInvoiceIn):
+    dispatch_confirmed: bool  # D-01 gate: goods handed over / loaded
+
+
+class DirectStockOut(BaseModel):
+    sku: str
+    unit_code: str
+    deduct_qty: Decimal
+    available_qty: Decimal
+    ok: bool
+
+
+class DirectPreviewOut(BaseModel):
+    lines: list[dict[str, Any]]
+    subtotal: Decimal
+    tax_amount: Decimal
+    total: Decimal
+    stock: list[DirectStockOut]
+    stock_ok: bool

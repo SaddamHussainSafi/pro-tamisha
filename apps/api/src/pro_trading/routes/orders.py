@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .. import idempotency, pricing
+from .. import idempotency
 from .. import inventory as inv
 from .. import orders as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize
@@ -22,7 +22,6 @@ from ..models import (
     Customer,
     PickingAttempt,
     PickingLine,
-    Product,
     SalesOrder,
     SalesOrderAmendment,
     SalesOrderLine,
@@ -310,28 +309,8 @@ def confirm_order(
         o = get_order(db, p, order_id, lock=True)
         state(o, ("DRAFT",), "Order")
         check_version(o.version, body.version, "Order")
-        cust = svc.get_customer(db, p.company_id, o.customer_id)
         at = svc.now()
-        for ln in svc.order_lines(db, o.id):
-            prod = db.get(Product, ln.product_id)
-            assert prod is not None
-            if not prod.active:
-                raise ApiError(
-                    422,
-                    "PRODUCT_INACTIVE",
-                    f"Line {ln.line_no}: {prod.sku} is inactive",
-                    line=ln.line_no,
-                )
-            try:
-                qt = pricing.resolve(db, p.company_id, ln.product_id, ln.unit_code, cust, at)
-            except pricing.NoPriceError:
-                raise ApiError(
-                    422,
-                    "NO_PRICE",
-                    f"Line {ln.line_no}: no active price for {prod.sku} per {ln.unit_code}",
-                    line=ln.line_no,
-                ) from None
-            ln.rate, ln.price_snapshot = qt.rate, qt.snapshot()
+        svc.price_lines(db, p.company_id, o, at)
         o.status, o.confirmed_by, o.confirmed_at = "CONFIRMED", p.employee.id, at
         bump(o)
         db.flush()

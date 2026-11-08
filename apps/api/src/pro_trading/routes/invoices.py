@@ -15,12 +15,32 @@ from sqlalchemy.orm import Session
 
 from .. import idempotency
 from .. import invoicing as svc
+from .. import orders as osvc
 from ..deps import DbDep, Principal, PrincipalDep, authorize
 from ..errors import ApiError
-from ..models import Customer, Invoice, InvoiceDocument, Warehouse
-from ..schemas import InvoiceIssueIn, InvoiceOut, InvoicePage, InvoicePreviewIn, InvoicePreviewOut
+from ..models import (
+    Customer,
+    Invoice,
+    InvoiceDocument,
+    PickingAttempt,
+    PickingLine,
+    SalesOrder,
+    Warehouse,
+)
+from ..schemas import (
+    DirectInvoiceIn,
+    DirectInvoiceIssueIn,
+    DirectPreviewOut,
+    InvoiceIssueIn,
+    InvoiceOut,
+    InvoicePage,
+    InvoicePreviewIn,
+    InvoicePreviewOut,
+    OrderIn,
+    OrderLineIn,
+)
 from ._common import esc, mutate
-from .orders import _locked, check_version, get_attempt, get_order, state
+from .orders import _locked, check_version, get_attempt, get_order, insert_order, state
 
 router = APIRouter(tags=["invoices"])
 
@@ -255,3 +275,114 @@ def resend_email(
     return mutate(
         db, request, p, key, f"invoice.email:{invoice_id}", _Empty(), 200, "invoice.email", fn
     )
+
+
+# ------------------------------------------------------------------ direct invoices
+
+
+def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrder, PickingAttempt]:
+    """Small sale without a picking sheet: a CONFIRMED order (prices frozen now) and a VERIFIED
+    sheet marked "Direct invoice", every line packed in full with no lot chosen, so the issue
+    path takes stock first-expiry-first-out under the usual locks. Caller owns the transaction."""
+    lines = [
+        OrderLineIn(product_id=ln.product_id, unit_code=ln.unit_code, qty=ln.qty,
+                    source_line_text="Direct invoice", note=ln.note)
+        for ln in body.lines
+    ]  # fmt: skip
+    o = insert_order(
+        db, p,
+        OrderIn(customer_id=body.customer_id, warehouse_id=body.warehouse_id, source="MANUAL",
+                source_text="Direct invoice (no picking sheet)", note=body.note, lines=lines),
+    )  # fmt: skip
+    at = osvc.now()
+    osvc.price_lines(db, p.company_id, o, at)
+    o.status, o.confirmed_by, o.confirmed_at = "CONFIRMED", p.employee.id, at
+    a = PickingAttempt(
+        company_id=p.company_id,
+        order_id=o.id,
+        warehouse_id=o.warehouse_id,
+        attempt_no=1,
+        pick_code=f"{o.order_no}-D",
+        status="VERIFIED",
+        created_by=p.employee.id,
+        picked_by=p.employee.id,
+        submitted_at=at,
+        verified_by=p.employee.id,
+        verified_at=at,
+        status_note="Direct invoice: no picking sheet",
+    )
+    db.add(a)
+    db.flush()
+    for ln in osvc.order_lines(db, o.id):
+        db.add(
+            PickingLine(
+                attempt_id=a.id,
+                order_line_id=ln.id,
+                requested_qty=ln.ordered_qty,
+                picked_qty=ln.ordered_qty,
+                outcome="PICKED",
+            )
+        )
+    db.flush()
+    osvc.refresh_status(db, o)
+    db.flush()
+    return o, a
+
+
+@router.post("/invoices/direct/preview", response_model=DirectPreviewOut)
+def preview_direct(
+    body: DirectInvoiceIn, request: Request, db: DbDep, p: PrincipalDep
+) -> dict[str, Any]:
+    """Prices, totals and stock for a direct invoice. Nothing is kept (rolled back)."""
+    if not p.can("invoice.prepare", body.warehouse_id):
+        authorize(request, p, "invoice.issue", body.warehouse_id)
+    try:
+        o, a = _direct(db, p, body)
+        customer = db.get(Customer, o.customer_id)
+        assert customer is not None
+        draft = svc.compute(db, o, a, customer, {})
+        stock = svc.stock_check(db, o, draft)
+        out = {
+            "lines": [ln.out() for ln in draft.lines],
+            "subtotal": draft.subtotal,
+            "tax_amount": draft.tax_amount,
+            "total": draft.total,
+            "stock": stock,
+            "stock_ok": all(x["ok"] for x in stock),
+        }
+    finally:
+        db.rollback()
+    return out
+
+
+@router.post("/invoices/direct", status_code=201, response_model=InvoiceOut)
+def issue_direct(
+    body: DirectInvoiceIssueIn,
+    request: Request,
+    db: DbDep,
+    key: idempotency.IdemKey,
+    p: PrincipalDep,
+) -> JSONResponse:
+    """Issue an invoice without a picking sheet: numbered, stock posted, PDF stored and email
+    queued in one transaction (same rules as issuing from a sheet). Needs invoice.issue."""
+    authorize(request, p, "invoice.issue", body.warehouse_id)
+    if not body.dispatch_confirmed:
+        raise ApiError(
+            422,
+            "DISPATCH_NOT_CONFIRMED",
+            "Confirm the goods were handed over before issuing the invoice (D-01)",
+        )
+
+    def fn() -> Result:
+        o, a = _direct(db, p, body)
+        invoice = svc.issue(db, p.employee, o, a, {}, body.note.strip())
+        db.flush()
+        out = svc.invoice_out(db, invoice)
+        return out, str(invoice.id), {"invoice_no": invoice.invoice_no,
+                                      "total": str(invoice.total), "order": o.order_no,
+                                      "direct": True}  # fmt: skip
+
+    return mutate(
+        db, request, p, key, "invoice.issue_direct", body, 201, "invoice.issue", fn,
+        "This invoice was already issued",
+    )  # fmt: skip
