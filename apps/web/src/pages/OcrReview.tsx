@@ -16,6 +16,7 @@ import {
   type Warehouse,
 } from "../api";
 import { useAuth } from "../auth";
+import { DocViewer, PriceList, SupplierHeader, ToReceiving } from "./OcrSupplier";
 import { stockUnits, wholeOnly } from "../lib/inventory";
 import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, trimQty, warningText } from "../lib/ocr";
 import { DataGrid, type Column } from "../ui/DataGrid";
@@ -239,6 +240,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const id = given ?? params.id ?? "";
   const { session } = useAuth();
   const [ex, setEx] = useState<OcrExtractionDetail | null>(null);
+  const [focusSeq, setFocusSeq] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -312,6 +314,9 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const canAccept = canInWarehouse(session, "sales_order.manage", ex.warehouse_id);
   const open = openLines(ex.fields);
   const kept = ex.fields.filter((f) => f.resolution === "CONFIRMED" || f.resolution === "CORRECTED");
+  const supplierDoc = !!ex.header && Object.keys(ex.header).length > 0;
+  const canReceive = canInWarehouse(session, "grn.record", ex.warehouse_id);
+  const lit = ex.fields.find((f) => f.seq === focusSeq)?.bbox as { page: number; x0: string; y0: string; x1: string; y1: string } | undefined;
   const url = scanDocumentUrl(ex.document_id);
 
   const startEdit = async (f: OcrField | null) => {
@@ -406,18 +411,11 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
 
       <div className={embedded ? "space-y-5" : "grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"}>
         {!embedded && <section aria-label="Original scan" className="card min-h-[24rem] overflow-hidden xl:sticky xl:top-4 xl:h-[calc(100vh-8rem)]">
-          {ex.document_mime === "application/pdf" ? (
-            <iframe title={`Original scan ${ex.scan_job_no}`} src={url} className="h-full min-h-[24rem] w-full" />
-          ) : ex.document_mime.startsWith("image/") && ex.document_mime !== "image/tiff" ? (
-            <img alt={`Original scan ${ex.scan_job_no}`} src={url} className="mx-auto max-h-full" />
-          ) : (
-            <div className="grid h-full place-items-center p-6 text-sm">
-              <a className="btn-ghost" href={url} download>Download original</a>
-            </div>
-          )}
+          <DocViewer documentId={ex.document_id} title={`Original scan ${ex.scan_job_no}`} highlight={lit ?? null} />
         </section>}
 
         <div className="space-y-4">
+          {supplierDoc && <SupplierHeader ex={ex} threshold={0.9} editable={reviewing} onFixed={setEx} />}
           <section aria-labelledby="lines-h" className="card overflow-hidden">
             <div className="flex flex-wrap items-center gap-4 p-5 sm:p-6">
               <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-primary text-white"><Icon name="scan" size={26} /></span>
@@ -444,7 +442,17 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
             {ex.fields.length === 0 ? (
               <p className="px-6 pb-6 text-sm text-ink-muted">No lines were read.</p>
             ) : (
-              <ol className="divide-y divide-line">
+              <ol
+                className="divide-y divide-line"
+                onMouseOver={(e) => {
+                  const li = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
+                  if (li) setFocusSeq(Number(li.getAttribute("data-testid")?.slice(9)));
+                }}
+                onFocus={(e) => {
+                  const li = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
+                  if (li) setFocusSeq(Number(li.getAttribute("data-testid")?.slice(9)));
+                }}
+              >
                 {ex.fields.map((f) => (
                   <FieldRow
                     key={f.id}
@@ -493,7 +501,15 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
             </div>
           </section>
 
-          {reviewing && (
+          {supplierDoc && (reviewing || ex.shipment_id) && (
+            <>
+              <section aria-label="Prices as read" className="card p-4">
+                <PriceList fields={ex.fields} />
+              </section>
+              <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} />
+            </>
+          )}
+          {reviewing && !supplierDoc && (
             <section aria-labelledby="accept-h" className="card space-y-3 p-4">
               <h2 id="accept-h" className="font-semibold">Create the draft order</h2>
               <p className="text-sm text-ink-muted">

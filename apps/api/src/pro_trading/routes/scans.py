@@ -564,15 +564,9 @@ def manual_upload(
     return mutate(db, request, p, key, "scan.upload", params, 201, "scan_job.upload", fn)
 
 
-@router.get(
-    "/scans/documents/{document_id}/content",
-    response_class=Response,
-    responses={200: {"content": {"application/pdf": {}, "image/png": {}, "image/jpeg": {}}}},
-)
-def document_content(
-    document_id: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep
-) -> Response:
-    """Original bytes, private. Allowed when the caller can read a scan that holds them."""
+def _readable_doc(
+    db: Session, request: Request, p: Principal, document_id: uuid.UUID
+) -> SourceDocument:
     doc = db.get(SourceDocument, document_id)
     if doc is None or doc.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Document not found")
@@ -589,6 +583,56 @@ def document_content(
         p.can(perm, w) for w in ship_whs for perm in ("grn.record", "grn.approve")
     ):
         authorize(request, p, "scan.review", next(iter(whs), None))
+    return doc
+
+
+_PAGE_CACHE: dict[tuple[str, int], tuple[bytes, int]] = {}
+
+
+@router.get(
+    "/scans/documents/{document_id}/pages/{page}",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}}},
+)
+def document_page(
+    document_id: uuid.UUID,
+    page: int,
+    request: Request,
+    db: DbDep,
+    p: PrincipalDep,
+) -> Response:
+    """One page as a PNG for the review viewer (PDF pages rendered at 110 dpi; TIFF/JPEG/PNG
+    converted). The original stays untouched. Header X-Page-Count gives the number of pages."""
+    doc = _readable_doc(db, request, p, document_id)
+    if page < 1 or page > 500:
+        raise ApiError(404, "NOT_FOUND", "No such page")
+    key = (doc.sha256, page)
+    if key not in _PAGE_CACHE:
+        _PAGE_CACHE[key] = svc.render_page(doc.content, doc.mime_type, page)
+        while len(_PAGE_CACHE) > 64:
+            _PAGE_CACHE.pop(next(iter(_PAGE_CACHE)))
+    png, count = _PAGE_CACHE[key]
+    return Response(
+        png,
+        media_type="image/png",
+        headers={
+            "X-Page-Count": str(count),
+            "Cache-Control": "private, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get(
+    "/scans/documents/{document_id}/content",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}, "image/png": {}, "image/jpeg": {}}}},
+)
+def document_content(
+    document_id: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep
+) -> Response:
+    """Original bytes, private. Allowed when the caller can read a scan that holds them."""
+    doc = _readable_doc(db, request, p, document_id)
     etag = f'"{doc.sha256}"'
     headers = {
         "ETag": etag,

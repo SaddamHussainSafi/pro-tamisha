@@ -599,6 +599,8 @@ export type OcrCorrection = {
   created_at: string;
 };
 export type OcrField = {
+  read_unit_price?: string | null;
+  read_amount?: string | null;
   id: string;
   seq: number;
   kind: "LINE" | "EXTRA" | "MANUAL";
@@ -622,6 +624,9 @@ export type OcrField = {
   corrections: OcrCorrection[];
 };
 export type OcrExtraction = {
+  header?: Record<string, OcrHeaderValue>;
+  vendor_id?: string | null;
+  shipment_id?: string | null;
   id: string;
   scan_job_id: string;
   scan_job_no: string;
@@ -1058,6 +1063,11 @@ export const api = {
     request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/fields/${fieldId}/resolve`, b, true),
   addOcrLine: (id: string, b: { version: number; product_id: string; unit_code: UnitCode; qty: string; reason: string }) =>
     request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/lines`, b, true),
+  fixOcrHeader: (id: string, b: { version: number; field: string; value: string | null; reason: string }) =>
+    request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/header`, b),
+  ocrToReceiving: (id: string, b: { version: number; vendor_id: string; shipment_id?: string | null; document_no?: string | null; currency?: string | null; reviewed_all: true }) =>
+    request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/to-receiving`, b, true),
+  documentPageUrl: (documentId: string, page: number) => `/api/v1/scans/documents/${documentId}/pages/${page}`,
   acceptOcr: (id: string, b: { version: number; customer_id: string; requested_for?: string | null; note: string; reviewed_all: true }) =>
     request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/accept`, b, true),
   rejectOcr: (id: string, version: number, reason: string) =>
@@ -1409,3 +1419,5 @@ export type DirectPreview = {
   stock: { sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean }[];
   stock_ok: boolean;
 };
+
+export type OcrHeaderValue = { value: string | null; confidence: string | null; corrected?: string | null; matched?: boolean; ambiguous?: boolean; supplier_default?: string };

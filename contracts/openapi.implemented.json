@@ -21851,6 +21851,55 @@
         ]
       }
     },
+    "/api/v1/scans/documents/{document_id}/pages/{page}": {
+      "get": {
+        "description": "One page as a PNG for the review viewer (PDF pages rendered at 110 dpi; TIFF/JPEG/PNG\nconverted). The original stays untouched. Header X-Page-Count gives the number of pages.",
+        "operationId": "document_page_api_v1_scans_documents__document_id__pages__page__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Document Page",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
     "/api/v1/scans/jobs": {
       "get": {
         "operationId": "list_jobs_api_v1_scans_jobs_get",

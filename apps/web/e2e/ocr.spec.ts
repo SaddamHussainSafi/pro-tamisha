@@ -48,7 +48,7 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
   await row.click();
 
   await expect(page.getByRole("heading", { name: /Review scan/ })).toBeVisible();
-  await expect(page.locator("iframe[title^='Original scan']")).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Original scan .*page 1$/ })).toBeVisible();
   const lines = page.locator("[data-testid^='ocr-line-']");
   await expect(lines).toHaveCount(3);
   const cassava = lines.filter({ hasText: "CAS-FZ" });

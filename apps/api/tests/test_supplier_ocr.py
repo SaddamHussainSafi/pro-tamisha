@@ -213,3 +213,18 @@ def test_approve_into_receiving(owner, user, world, setup, vendor, tesseract, tm
     assert moves == 0  # nothing posted: the count and GRN stay manual steps
     r = owner.post(f"{P}/ocr/extractions/{ex['id']}/to-receiving", json=body, headers=idem())
     assert r.status_code == 409
+
+
+@real
+def test_page_images_for_the_viewer(owner, user, world, setup, tmp_path):
+    two = invoice_pdf()
+    job = upload(owner, world, two)
+    doc = job["document_id"]
+    r = owner.get(f"{P}/scans/documents/{doc}/pages/1")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert r.content.startswith(b"\x89PNG") and r.headers["x-page-count"] == "1"
+    assert owner.get(f"{P}/scans/documents/{doc}/pages/2").status_code == 404
+    png = scan(two, tmp_path)
+    img = upload(owner, world, png, ctype="image/png")
+    assert owner.get(f"{P}/scans/documents/{img['document_id']}/pages/1").status_code == 200
+    assert user("wh_a").get(f"{P}/scans/documents/{doc}/pages/1").status_code == 403

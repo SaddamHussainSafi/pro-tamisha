@@ -33,7 +33,7 @@ test("several files upload with real progress and each reaches review", async ({
   const items = page.getByTestId("upload-item");
   await expect(items).toHaveCount(2);
   for (const i of [0, 1]) {
-    await expect(items.nth(i).getByRole("link", { name: /^Open SCN-/ })).toBeVisible({ timeout: 30_000 });
+    await expect(items.nth(i).getByRole("link", { name: /SCN-/ })).toBeVisible({ timeout: 30_000 });
     await expect(items.nth(i).getByRole("link", { name: "Review" })).toBeVisible({ timeout: 90_000 });
     await expect(items.nth(i).getByText("Ready for review")).toBeVisible();
   }

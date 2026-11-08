@@ -334,3 +334,46 @@ def capability_rejected(request: Request, code: str, detail: dict[str, Any]) -> 
         "CAPABILITY_USED": "This scan request was already used",
     }.get(code, "This scan request is not valid")
     return ApiError(403, code, msg)
+
+
+def render_page(content: bytes, mime: str, page: int) -> tuple[bytes, int]:
+    """(PNG bytes of one page, page count). Raises 404-style ApiError for a missing page."""
+    import io
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    from PIL import Image, ImageOps
+
+    if mime != "application/pdf":
+        if page != 1:
+            raise ApiError(404, "NOT_FOUND", "No such page")
+        try:
+            with Image.open(io.BytesIO(content)) as im:
+                out = io.BytesIO()
+                ImageOps.exif_transpose(im).convert("RGB").save(out, format="PNG")
+        except OSError:
+            raise ApiError(422, "UNREADABLE", "The image could not be opened") from None
+        return out.getvalue(), 1
+    with tempfile.TemporaryDirectory(prefix="ptpage-") as tmp:
+        src = Path(tmp) / "d.pdf"
+        src.write_bytes(content)
+        info = subprocess.run(  # noqa: S603, S607 - fixed poppler tool, list args
+            ["pdfinfo", str(src)],  # noqa: S607
+            capture_output=True,
+            timeout=30,
+            check=False,  # noqa: S607
+        )
+        m = re.search(rb"Pages:\s+(\d+)", info.stdout)
+        count = int(m.group(1)) if m else 1
+        if page > count:
+            raise ApiError(404, "NOT_FOUND", "No such page")
+        subprocess.run(  # noqa: S603
+            ["pdftoppm", "-f", str(page), "-l", str(page), "-r", "110", "-png",  # noqa: S607
+             "-singlefile", str(src), str(Path(tmp) / "p")],
+            capture_output=True, timeout=60, check=False,
+        )  # fmt: skip
+        out_png = Path(tmp) / "p.png"
+        if not out_png.exists():
+            raise ApiError(422, "UNREADABLE", "The PDF page could not be drawn")
+        return out_png.read_bytes(), count
