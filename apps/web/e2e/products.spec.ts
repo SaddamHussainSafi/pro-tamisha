@@ -41,6 +41,7 @@ test("owner adds a 35 lb case size and changes a price from the product page", a
   await page.getByRole("button", { name: "Products sections" }).click();
   await page.getByRole("link", { name: "Case sizes", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Case sizes" })).toBeVisible();
+  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "List" }).click(); // table assertions below
   const grid = page.getByRole("table", { name: /^Case sizes/ });
   await expect(grid.getByRole("row", { name: /CAS-FZ/ }).first()).toBeVisible();
   await page.getByRole("button", { name: "New case size" }).click();
@@ -83,7 +84,7 @@ test("sales sees prices and case sizes but cannot change them", async ({ page })
   await page.goto("/products/case-sizes");
   await expect(page.getByRole("heading", { level: 1, name: "Case sizes" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New case size" })).toHaveCount(0);
-  await page.getByRole("table", { name: /^Case sizes/ }).getByRole("row", { name: /CAS-FZ/ }).first().getByRole("link").click();
+  await page.getByRole("list", { name: /^Case sizes/ }).getByRole("link", { name: "Cassava frozen" }).click(); // product card
   const prices = page.getByRole("region", { name: "Prices" });
   await expect(prices.getByRole("row", { name: /per lb/ }).first()).toBeVisible();
   await expect(prices.getByRole("button", { name: "Change price" })).toHaveCount(0);

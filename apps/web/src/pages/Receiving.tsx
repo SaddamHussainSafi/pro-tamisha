@@ -15,7 +15,10 @@ import {
   type Vendor,
   type Warehouse, hasCompanyWide, type SupplierBalance } from "../api";
 import { useAuth } from "../auth";
-import { amountIn } from "../lib/suppliers";
+import { amountIn, balanceWords } from "../lib/suppliers";
+import { useViewMode } from "../lib/viewMode";
+import { CardGrid, EntityCard, Tile } from "../ui/CardGrid";
+import { ViewToggle } from "../ui/ViewToggle";
 import { stockUnits, qtyText } from "../lib/inventory";
 import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
 import { ACCEPT, checkFile, fileSize } from "../lib/scans";
@@ -915,6 +918,7 @@ export function SuppliersPage() {
 
   const [balances, setBalances] = useState<Record<string, SupplierBalance>>({});
   const canLedger = !!session && hasCompanyWide(session, "supplier.ledger.read");
+  const [view, setView] = useViewMode("suppliers");
   const load = useCallback(async () => {
     try {
       setRows(await api.vendors());
@@ -1004,7 +1008,7 @@ export function SuppliersPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Suppliers" subtitle="Who you buy from. Their document descriptions are remembered per supplier." />
+      <PageHeader title="Suppliers" subtitle="Who you buy from. Their document descriptions are remembered per supplier." actions={<ViewToggle value={view} onChange={setView} />} />
       {error && <Notice tone="error">{error}</Notice>}
       {ok && <Notice tone="ok">{ok}</Notice>}
       {canManage && (
@@ -1036,6 +1040,43 @@ export function SuppliersPage() {
         <ErrorState title="Couldn't load suppliers" onRetry={() => void load()} />
       ) : rows === null ? (
         <LoadingRows cols={6} />
+      ) : view === "grid" ? (
+        <CardGrid
+          items={rows}
+          keyOf={(v) => v.id}
+          caption="Suppliers"
+          empty={<EmptyState title="No suppliers yet" />}
+          render={(v) => {
+            const b = balances[v.id];
+            return (
+              <EntityCard
+                to={canLedger ? `/suppliers/${v.id}` : undefined}
+                title={v.name}
+                subtitle={[v.code, v.country_code, `pays in ${v.currency}`].filter(Boolean).join(" · ")}
+                media={<Tile text={v.name} muted={!v.active} />}
+                dim={!v.active}
+                facts={[
+                  ...(canLedger && b
+                    ? [
+                        ...(b.totals.length ? b.totals : [{ currency: v.currency, balance: "0.00" }]).map((t) => ({ label: `Balance ${t.currency}`, value: <span className="num font-semibold">{balanceWords(t.currency, t.balance)}</span> })),
+                        { label: "Shipments", value: <span className="num">{b.shipments}</span> },
+                        { label: "Last received", value: b.last_received_at ? new Date(b.last_received_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—" },
+                      ]
+                    : []),
+                  { label: "Email", value: v.email ?? <span className="text-ink-muted">—</span> },
+                ]}
+                chips={v.active ? <StatusChip tone="success">Active</StatusChip> : <StatusChip tone="neutral">Inactive</StatusChip>}
+                actions={
+                  canManage ? (
+                    <button className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Edit ${v.name}`} onClick={() => setEditing({ ...v })}>
+                      Edit
+                    </button>
+                  ) : undefined
+                }
+              />
+            );
+          }}
+        />
       ) : (
         <DataGrid rows={rows} columns={columns} rowKey={(v) => v.id} caption="Suppliers" empty={<EmptyState title="No suppliers yet" />} />
       )}

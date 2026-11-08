@@ -4,7 +4,10 @@ import { api, hasCompanyWide, type RoleCode, type StaffMember } from "../api";
 import { useAuth } from "../auth";
 import { passwordProblem, roleLabel, ROLES, staffMessage, tempPassword } from "../lib/staff";
 import { DataGrid, type Column } from "../ui/DataGrid";
-import { CardTitle, ConfirmDialog, EmptyState, ErrorState, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { CardGrid, EntityCard } from "../ui/CardGrid";
+import { ViewToggle } from "../ui/ViewToggle";
+import { useViewMode } from "../lib/viewMode";
+import { Avatar, CardTitle, ConfirmDialog, EmptyState, ErrorState, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
 
 type Msg = { tone: "error" | "ok"; text: string } | null;
 const day = (iso: string) => new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -133,7 +136,14 @@ function MyAccount() {
         <CardTitle id="set-password" title="Change password" />
         <form className="space-y-3" onSubmit={changePw} aria-labelledby="set-password">
           <Field id="pw-current" label="Current password">
-            <input id="pw-current" type="password" autoComplete="current-password" className="input" value={pw.current} onChange={(ev) => setPw({ ...pw, current: ev.target.value })} />
+            <input
+              id="pw-current"
+              type="password"
+              autoComplete="current-password"
+              className="input"
+              value={pw.current}
+              onChange={(ev) => setPw({ ...pw, current: ev.target.value })}
+            />
           </Field>
           <Field id="pw-new" label="New password" hint="At least 12 characters. A short sentence is easy to remember.">
             <input id="pw-new" type="password" autoComplete="new-password" className="input" value={pw.next} onChange={(ev) => setPw({ ...pw, next: ev.target.value })} />
@@ -169,6 +179,7 @@ function Users() {
   const [shown, setShown] = useState<{ email: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const me = session?.employee.id;
+  const [view, setView] = useViewMode("users");
 
   const load = useCallback(async () => {
     try {
@@ -198,9 +209,16 @@ function Users() {
 
   async function add(ev: FormEvent) {
     ev.preventDefault();
-    const problem = !f.name.trim() ? "Enter the person's name." : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) ? "Enter a valid email." : passwordProblem(f.password, f.email);
+    const problem = !f.name.trim()
+      ? "Enter the person's name."
+      : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim())
+        ? "Enter a valid email."
+        : passwordProblem(f.password, f.email);
     if (problem) return setMsg({ tone: "error", text: problem });
-    const done = await run(() => api.createStaff({ email: f.email.trim(), display_name: f.name.trim(), role_code: f.role, password: f.password }), `${f.name.trim()} can now sign in.`);
+    const done = await run(
+      () => api.createStaff({ email: f.email.trim(), display_name: f.name.trim(), role_code: f.role, password: f.password }),
+      `${f.name.trim()} can now sign in.`,
+    );
     if (done) {
       setShown({ email: f.email.trim(), password: f.password });
       setF({ name: "", email: "", role: "SALES_OPERATOR", password: "" });
@@ -215,7 +233,8 @@ function Users() {
     if (editing.name.trim() !== editing.who.display_name) b.display_name = editing.name.trim();
     if (editing.who.roles.length !== 1 || editing.who.roles[0] !== editing.role) b.role_code = editing.role;
     if (!Object.keys(b).length) return setEditing(null);
-    if (await run(() => api.updateStaff(editing.who.id, b), `${editing.name.trim()} saved.${b.role_code ? " They were signed out so the new role applies." : ""}`)) setEditing(null);
+    if (await run(() => api.updateStaff(editing.who.id, b), `${editing.name.trim()} saved.${b.role_code ? " They were signed out so the new role applies." : ""}`))
+      setEditing(null);
   }
 
   async function confirm() {
@@ -225,8 +244,46 @@ function Users() {
     if (d.kind === "disable") await run(() => api.updateStaff(d.who.id, { active: false }), `${d.who.display_name} can no longer sign in.`);
     if (d.kind === "enable") await run(() => api.updateStaff(d.who.id, { active: true }), `${d.who.display_name} can sign in again.`);
     if (d.kind === "mfa") await run(() => api.resetStaffMfa(d.who.id), `${d.who.display_name} will set up two-step sign-in again at their next sign-in.`);
-    if (d.kind === "password" && (await run(() => api.resetStaffPassword(d.who.id, d.password), `New temporary password set for ${d.who.display_name}.`))) setShown({ email: d.who.email, password: d.password });
+    if (d.kind === "password" && (await run(() => api.resetStaffPassword(d.who.id, d.password), `New temporary password set for ${d.who.display_name}.`)))
+      setShown({ email: d.who.email, password: d.password });
   }
+
+  const actionsFor = (u: StaffMember) =>
+    u.id === me ? (
+      <span className="text-sm text-ink-muted">Use My account</span>
+    ) : (
+      <span className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          className="btn-ghost px-3 py-1.5 text-xs"
+          aria-label={`Edit ${u.display_name}`}
+          onClick={() => setEditing({ who: u, name: u.display_name, role: (u.roles[0] as RoleCode) ?? "SALES_OPERATOR" })}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="btn-ghost px-3 py-1.5 text-xs"
+          aria-label={`New password for ${u.display_name}`}
+          onClick={() => setDialog({ kind: "password", who: u, password: tempPassword() })}
+        >
+          New password
+        </button>
+        {u.mfa_enrolled && (
+          <button type="button" className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Reset two-step for ${u.display_name}`} onClick={() => setDialog({ kind: "mfa", who: u })}>
+            Reset two-step
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn-ghost px-3 py-1.5 text-xs"
+          aria-label={`${u.active ? "Disable" : "Enable"} ${u.display_name}`}
+          onClick={() => setDialog({ kind: u.active ? "disable" : "enable", who: u })}
+        >
+          {u.active ? "Disable" : "Enable"}
+        </button>
+      </span>
+    );
 
   const columns: Column<StaffMember>[] = [
     {
@@ -246,34 +303,22 @@ function Users() {
     {
       key: "s",
       header: "Status",
-      cell: (u) => (!u.active ? <StatusChip tone="neutral">Disabled</StatusChip> : u.locked ? <StatusChip tone="warning">Locked out</StatusChip> : <StatusChip tone="success">Active</StatusChip>),
-    },
-    { key: "l", header: "Last seen", cell: (u) => (u.last_seen_at ? <span className="whitespace-nowrap">{day(u.last_seen_at)}</span> : "Never"), sort: (u) => u.last_seen_at ?? "" },
-    {
-      key: "a",
-      header: "Actions",
       cell: (u) =>
-        u.id === me ? (
-          <span className="text-sm text-ink-muted">Use My account</span>
+        !u.active ? (
+          <StatusChip tone="neutral">Disabled</StatusChip>
+        ) : u.locked ? (
+          <StatusChip tone="warning">Locked out</StatusChip>
         ) : (
-          <span className="flex flex-wrap gap-1.5">
-            <button type="button" className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Edit ${u.display_name}`} onClick={() => setEditing({ who: u, name: u.display_name, role: (u.roles[0] as RoleCode) ?? "SALES_OPERATOR" })}>
-              Edit
-            </button>
-            <button type="button" className="btn-ghost px-3 py-1.5 text-xs" aria-label={`New password for ${u.display_name}`} onClick={() => setDialog({ kind: "password", who: u, password: tempPassword() })}>
-              New password
-            </button>
-            {u.mfa_enrolled && (
-              <button type="button" className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Reset two-step for ${u.display_name}`} onClick={() => setDialog({ kind: "mfa", who: u })}>
-                Reset two-step
-              </button>
-            )}
-            <button type="button" className="btn-ghost px-3 py-1.5 text-xs" aria-label={`${u.active ? "Disable" : "Enable"} ${u.display_name}`} onClick={() => setDialog({ kind: u.active ? "disable" : "enable", who: u })}>
-              {u.active ? "Disable" : "Enable"}
-            </button>
-          </span>
+          <StatusChip tone="success">Active</StatusChip>
         ),
     },
+    {
+      key: "l",
+      header: "Last seen",
+      cell: (u) => (u.last_seen_at ? <span className="whitespace-nowrap">{day(u.last_seen_at)}</span> : "Never"),
+      sort: (u) => u.last_seen_at ?? "",
+    },
+    { key: "a", header: "Actions", cell: (u) => actionsFor(u) },
   ];
 
   return (
@@ -283,18 +328,21 @@ function Users() {
           id="set-users"
           title="Users"
           action={
-            !adding ? (
-              <button
-                type="button"
-                className="btn-accent"
-                onClick={() => {
-                  setAdding(true);
-                  setF((x) => ({ ...x, password: tempPassword() }));
-                }}
-              >
-                Add user
-              </button>
-            ) : undefined
+            <span className="flex flex-wrap items-center gap-2">
+              <ViewToggle value={view} onChange={setView} />
+              {!adding && (
+                <button
+                  type="button"
+                  className="btn-accent"
+                  onClick={() => {
+                    setAdding(true);
+                    setF((x) => ({ ...x, password: tempPassword() }));
+                  }}
+                >
+                  Add user
+                </button>
+              )}
+            </span>
           }
         />
         <p className="text-sm text-ink-muted">Each person has one role. Disabling someone, or changing their role or password, signs them out everywhere.</p>
@@ -373,6 +421,43 @@ function Users() {
           <ErrorState title="Couldn't load users" onRetry={() => void load()} />
         ) : rows === null ? (
           <LoadingRows cols={6} />
+        ) : view === "grid" ? (
+          <CardGrid
+            items={rows}
+            keyOf={(u) => u.id}
+            caption={`Users (${rows.length})`}
+            empty={<EmptyState title="No users" />}
+            render={(u) => (
+              <EntityCard
+                title={
+                  <>
+                    {u.display_name}
+                    {u.id === me && <span className="font-normal text-ink-muted"> (you)</span>}
+                  </>
+                }
+                subtitle={u.email}
+                media={<Avatar name={u.display_name} tone={u.active ? "accent" : "ink"} />}
+                dim={!u.active}
+                facts={[
+                  { label: "Role", value: u.roles.map(roleLabel).join(", ") || "—" },
+                  { label: "Last seen", value: u.last_seen_at ? day(u.last_seen_at) : "Never" },
+                ]}
+                chips={
+                  <>
+                    {!u.active ? (
+                      <StatusChip tone="neutral">Disabled</StatusChip>
+                    ) : u.locked ? (
+                      <StatusChip tone="warning">Locked out</StatusChip>
+                    ) : (
+                      <StatusChip tone="success">Active</StatusChip>
+                    )}
+                    {u.mfa_enrolled ? <StatusChip tone="success">Two-step on</StatusChip> : <StatusChip tone="neutral">Two-step off</StatusChip>}
+                  </>
+                }
+                actions={actionsFor(u)}
+              />
+            )}
+          />
         ) : (
           <DataGrid rows={rows} columns={columns} rowKey={(u) => u.id} caption={`Users (${rows.length})`} empty={<EmptyState title="No users" />} />
         )}

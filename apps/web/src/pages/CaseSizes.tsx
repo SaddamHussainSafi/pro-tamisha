@@ -7,6 +7,9 @@ import { catalogMessage } from "../lib/catalogErrors";
 import { dec, qty } from "../lib/decimal";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
+import { CardGrid, EntityCard, Tile } from "../ui/CardGrid";
+import { ViewToggle } from "../ui/ViewToggle";
+import { useViewMode } from "../lib/viewMode";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
 
 type Show = "active" | "all";
@@ -14,6 +17,19 @@ const SHOW: { value: Show; label: string }[] = [
   { value: "active", label: "In use" },
   { value: "all", label: "All, incl. retired" },
 ];
+type ProductSizes = { product_id: string; product_name: string; sku: string; product_active: boolean; sizes: CaseSize[] };
+
+/** Rows (already sorted by product, default first) grouped into one card per product. */
+function groupByProduct(rows: CaseSize[]): ProductSizes[] {
+  const out: ProductSizes[] = [];
+  for (const r of rows) {
+    const last = out[out.length - 1];
+    if (last && last.product_id === r.product_id) last.sizes.push(r);
+    else out.push({ product_id: r.product_id, product_name: r.product_name, sku: r.sku, product_active: r.product_active, sizes: [r] });
+  }
+  return out;
+}
+
 type Draft = { product_id: string; unit_code: UnitCode; weight: string; pieces: string; code: string; codeTouched: boolean; is_default: boolean };
 const BLANK: Draft = { product_id: "", unit_code: "BOX", weight: "", pieces: "", code: "", codeTouched: false, is_default: false };
 
@@ -30,6 +46,7 @@ export function CaseSizesPage() {
   const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const canManage = !!session && hasCompanyWide(session, "catalog.manage");
+  const [view, setView] = useViewMode("case-sizes");
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 250);
@@ -155,11 +172,14 @@ export function CaseSizesPage() {
         title="Case sizes"
         subtitle="A product can come in several case sizes, e.g. Cassava 30 lb and 35 lb. The default size is filled in automatically wherever a case size is needed."
         actions={
-          canManage && !d ? (
-            <button type="button" className="btn-accent" onClick={() => setD(BLANK)}>
-              New case size
-            </button>
-          ) : undefined
+          <>
+            <ViewToggle value={view} onChange={setView} />
+            {canManage && !d && (
+              <button type="button" className="btn-accent" onClick={() => setD(BLANK)}>
+                New case size
+              </button>
+            )}
+          </>
         }
       />
       {msg && (
@@ -225,6 +245,43 @@ export function CaseSizesPage() {
         <ErrorState title="Couldn't load case sizes" onRetry={() => void load()} />
       ) : rows === null ? (
         <LoadingRows cols={6} />
+      ) : view === "grid" ? (
+        <CardGrid
+          items={groupByProduct(rows)}
+          keyOf={(g) => g.product_id}
+          caption={`Case sizes (${rows.length})`}
+          empty={<EmptyState title={q ? "No case sizes match" : "No case sizes yet"} />}
+          render={(g) => (
+            <EntityCard
+              to={`/products/${g.product_id}`}
+              title={g.product_name}
+              subtitle={`${g.sku} · ${g.sizes.length} ${g.sizes.length === 1 ? "size" : "sizes"}`}
+              media={<Tile text={g.product_name} muted={!g.product_active} />}
+              dim={!g.product_active}
+              chips={
+                <ul className="relative z-10 w-full space-y-2" aria-label={`Sizes of ${g.product_name}`}>
+                  {g.sizes.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-subtle px-3 py-2 text-sm">
+                      <span className={`min-w-0 flex-1 ${r.active ? "" : "text-ink-muted line-through"}`}>{caseSizeText(r)}</span>
+                      {r.is_default && r.active && <StatusChip tone="info">Default</StatusChip>}
+                      {!r.active && <StatusChip tone="neutral">Retired</StatusChip>}
+                      {canManage && r.active && !r.is_default && (
+                        <button type="button" className="btn-ghost px-2.5 py-1 text-xs" disabled={busy} aria-label={`Make ${r.code} the default for ${r.product_name}`} onClick={() => void command(r, "make-default")}>
+                          Make default
+                        </button>
+                      )}
+                      {canManage && r.active && (
+                        <button type="button" className="btn-ghost px-2.5 py-1 text-xs" disabled={busy} aria-label={`Retire ${r.code} for ${r.product_name}`} onClick={() => void command(r, "deactivate")}>
+                          Retire
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              }
+            />
+          )}
+        />
       ) : (
         <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} caption={`Case sizes (${rows.length})`} empty={<EmptyState title={q ? "No case sizes match" : "No case sizes yet"} />} />
       )}

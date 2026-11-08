@@ -50,6 +50,7 @@ test("owner adds a user, changes the role, disables and enables them", async ({ 
   await axe(page);
 
   await page.getByRole("navigation", { name: "Settings sections" }).getByRole("link", { name: "Users" }).click();
+  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "List" }).click(); // table assertions below
   const grid = page.getByRole("table", { name: /^Users/ });
   await expect(grid.getByRole("row", { name: /\(you\)/ })).toBeVisible();
   await page.getByRole("button", { name: "Add user" }).click();
@@ -93,5 +94,6 @@ test("the new user signs in and changes their own password", async ({ page }) =>
   await page.goto("/settings/users"); // not allowed: shows My account
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   await expect(page.getByRole("table", { name: /^Users/ })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: /^Users/ })).toHaveCount(0);
   await axe(page);
 });

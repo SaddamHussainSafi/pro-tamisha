@@ -3,7 +3,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   ApiError,
+  has,
   hasCompanyWide,
+  type CaseSize,
+  type PriceEntry,
   type Category,
   type Product,
   type ProductSummary,
@@ -18,9 +21,15 @@ import { dec, mul, cad, qty } from "../lib/decimal";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { CardGrid, EntityCard, Tile } from "../ui/CardGrid";
+import { ViewToggle } from "../ui/ViewToggle";
+import { useViewMode } from "../lib/viewMode";
+import { caseSizeText, priceBooks } from "../lib/caseSizes";
+import { rateText } from "../lib/pricingErrors";
 import { ProductPrices } from "./ProductPrices";
 
 const UNITS: UnitCode[] = ["LB", "KG", "BOX", "PIECE"];
+const UNIT_SHORT: Record<UnitCode, string> = { BOX: "box", PIECE: "piece", LB: "lb", KG: "kg" };
 
 const profileLabel = (p: UnitProfile | UnitProfileIn) =>
   p.unit_code === "BOX" || p.unit_code === "PIECE"
@@ -41,6 +50,9 @@ export function ProductsPage() {
   const [category, setCategory] = useState("");
   const [cats, setCats] = useState<Category[]>([]);
   const [rows, setRows] = useState<ProductSummary[] | null>(null);
+  const [view, setView] = useViewMode("products");
+  const [sizes, setSizes] = useState<Record<string, CaseSize>>({});
+  const [prices, setPrices] = useState<Record<string, PriceEntry[]>>({});
   const [next, setNext] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -70,7 +82,30 @@ export function ProductsPage() {
   }, [load]);
   useEffect(() => {
     api.categories().then(setCats, () => setCats([]));
-  }, []);
+    api.caseSizes().then(
+      (all) => {
+        const by: Record<string, CaseSize> = {};
+        for (const c of all) if (!by[c.product_id] || (c.is_default && !by[c.product_id]?.is_default)) by[c.product_id] = c;
+        setSizes(by);
+      },
+      () => setSizes({}),
+    );
+    if (session && has(session, "price.read"))
+      api
+        .priceVersions()
+        .then((v) => {
+          const cur = priceBooks(v).current;
+          return cur ? api.priceEntries(cur.id, { scope: "STANDARD", limit: 500 }) : null;
+        })
+        .then(
+          (page) => {
+            const by: Record<string, PriceEntry[]> = {};
+            for (const e of page?.items ?? []) (by[e.product_id] ??= []).push(e);
+            setPrices(by);
+          },
+          () => setPrices({}),
+        );
+  }, [session]);
 
   if (!session) return null;
   const canManage = hasCompanyWide(session, "catalog.manage");
@@ -94,7 +129,12 @@ export function ProductsPage() {
       <PageHeader
         title="Products"
         subtitle="Catalog, unit profiles and supplier aliases."
-        actions={canManage && <button className="btn-primary" onClick={() => setCreating(true)}>New product</button>}
+        actions={
+          <>
+            <ViewToggle value={view} onChange={setView} />
+            {canManage && <button className="btn-primary" onClick={() => setCreating(true)}>New product</button>}
+          </>
+        }
       />
       {creating && (
         <CreateProduct
@@ -121,6 +161,47 @@ export function ProductsPage() {
           {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </FilterBar>
+      {view === "grid" && !loadError && rows !== null ? (
+        <>
+          <CardGrid
+            items={rows}
+            keyOf={(r) => r.id}
+            caption="Products"
+            empty={<EmptyState title="No products match" hint="Try another search or filter." />}
+            render={(r) => {
+              const size = sizes[r.id];
+              const price = [...(prices[r.id] ?? [])].sort((a, b) => (a.unit_code === (size?.unit_code ?? "BOX") ? -1 : b.unit_code === (size?.unit_code ?? "BOX") ? 1 : 0));
+              return (
+                <EntityCard
+                  to={`/products/${r.id}`}
+                  title={r.name}
+                  subtitle={`${r.sku} · ${catName(r.category_id)}`}
+                  media={<Tile text={r.name} muted={!r.active} />}
+                  dim={!r.active}
+                  facts={[
+                    { label: "Case size", value: size ? caseSizeText(size) : <span className="text-ink-muted">Not set</span> },
+                    ...(has(session, "price.read")
+                      ? [{ label: "Price", value: price.length ? <span className="num font-semibold">{price.slice(0, 2).map((e) => `${rateText(e.rate)} / ${UNIT_SHORT[e.unit_code]}`).join(" · ")}</span> : <span className="text-ink-muted">No price</span> }]
+                      : []),
+                    { label: "Sold by", value: UNIT_SHORT[r.stock_unit] },
+                  ]}
+                  chips={
+                    <>
+                      <StatusChip tone={r.active ? "success" : "neutral"}>{r.active ? "Active" : "Inactive"}</StatusChip>
+                      {r.tracks_expiry && <StatusChip tone="info">Expiry tracked</StatusChip>}
+                    </>
+                  }
+                />
+              );
+            }}
+          />
+          {next && (
+            <div className="text-center">
+              <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>
+            </div>
+          )}
+        </>
+      ) : (
       <div className="card overflow-hidden">
         {loadError ? (
           <ErrorState title="Couldn't load products" onRetry={() => void load()} />
@@ -144,6 +225,7 @@ export function ProductsPage() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

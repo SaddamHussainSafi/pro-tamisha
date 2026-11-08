@@ -7,6 +7,9 @@ import { buildCreate, buildPatch, customerMessage, EMPTY_FORM, formFrom, formPro
 import { ORDER_STATUS } from "../lib/orders";
 import { INVOICE_STATE } from "../lib/payments";
 import { DataGrid, type Column } from "../ui/DataGrid";
+import { CardGrid, EntityCard } from "../ui/CardGrid";
+import { ViewToggle } from "../ui/ViewToggle";
+import { useViewMode } from "../lib/viewMode";
 import { Avatar, CardTitle, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
 
 type Status = "active" | "inactive" | "all";
@@ -149,6 +152,12 @@ export function CustomersPage() {
   const [busy, setBusy] = useState(false);
   const allowed = !!session && canRead(session);
   const canManage = !!session && hasCompanyWide(session, "catalog.manage");
+  const canAging = !!session && has(session, "invoice.read") && (has(session, "payment.record") || has(session, "payment.verify"));
+  const [view, setView] = useViewMode("customers");
+  const [aging, setAging] = useState<Record<string, AgingCustomer>>({});
+  useEffect(() => {
+    if (canAging) api.receivables().then((r) => setAging(Object.fromEntries(r.customers.map((x) => [x.customer_id, x]))), () => setAging({}));
+  }, [canAging]);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 250);
@@ -250,11 +259,14 @@ export function CustomersPage() {
         title="Customers"
         subtitle="Who you sell to: contact details, payment terms and price group."
         actions={
-          canManage && !creating ? (
-            <button type="button" className="btn-accent" onClick={() => setCreating(true)}>
-              New customer
-            </button>
-          ) : undefined
+          <>
+            <ViewToggle value={view} onChange={setView} />
+            {canManage && !creating && (
+              <button type="button" className="btn-accent" onClick={() => setCreating(true)}>
+                New customer
+              </button>
+            )}
+          </>
         }
       />
 
@@ -305,6 +317,47 @@ export function CustomersPage() {
         <ErrorState title="Couldn't load customers" onRetry={() => void load()} />
       ) : rows === null ? (
         <LoadingRows cols={6} />
+      ) : view === "grid" ? (
+        <CardGrid
+          items={rows}
+          keyOf={(c) => c.id}
+          caption={`Customers (${rows.length})`}
+          empty={<EmptyState title={q || group ? "No customers match" : "No customers yet"} hint={q || group ? "Try another search or group." : undefined} />}
+          render={(c) => {
+            const owed = aging[c.id];
+            const late = owed ? dec(owed.total) - dec(owed.current) : 0n;
+            return (
+              <EntityCard
+                to={`/customers/${c.id}`}
+                title={c.name}
+                subtitle={[c.external_ref, groupName(c.group_id) !== "—" ? groupName(c.group_id) : null].filter(Boolean).join(" · ") || "No reference"}
+                media={<Avatar name={c.name} />}
+                dim={!c.active}
+                facts={[
+                  { label: "Terms", value: termsLabel(c.payment_terms_days) },
+                  { label: "Email", value: c.email ?? <span className="text-ink-muted">No email</span> },
+                  ...(c.phone ? [{ label: "Phone", value: c.phone }] : []),
+                  ...(canAging
+                    ? [
+                        {
+                          label: "Owes",
+                          value: owed ? (
+                            <span className={`num font-semibold ${late > 0n ? "text-danger" : ""}`}>
+                              {cad(dec(owed.total))}
+                              {late > 0n && ` · ${cad(late)} late`}
+                            </span>
+                          ) : (
+                            <span className="text-ink-muted">Nothing</span>
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+                chips={<ActiveChip active={c.active} />}
+              />
+            );
+          }}
+        />
       ) : (
         <DataGrid
           rows={rows}

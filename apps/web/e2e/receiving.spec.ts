@@ -141,7 +141,7 @@ test("suppliers list is managed by the owner", async ({ page }) => {
   await signIn(page, fx.users.warehouse);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await page.getByRole("link", { name: "Suppliers", exact: true }).click();
-  await expect(page.getByRole("table", { name: "Suppliers" })).toContainText("V-ACC");
+  await expect(page.getByRole("list", { name: "Suppliers" })).toContainText("V-ACC");
   await expect(page.getByRole("form", { name: "Add a supplier" })).toHaveCount(0);
   await axe(page);
   await page.screenshot({ path: "screenshots/suppliers-1440.png", fullPage: true });

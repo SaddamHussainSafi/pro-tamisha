@@ -38,7 +38,7 @@ test("owner records and voids a supplier payment; the ledger and balance follow"
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   await page.getByRole("link", { name: "Suppliers", exact: true }).click();
-  await page.getByRole("table", { name: "Suppliers" }).getByRole("link", { name: "Accra Roots Exports (synthetic)" }).click();
+  await page.getByRole("list", { name: "Suppliers" }).getByRole("link", { name: "Accra Roots Exports (synthetic)" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Accra Roots Exports (synthetic)" })).toBeVisible();
   await expect(page.getByText("Nothing on the ledger yet")).toBeVisible();
   await axe(page);

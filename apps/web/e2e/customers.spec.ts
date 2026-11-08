@@ -40,7 +40,7 @@ test("owner adds, edits and deactivates a customer; stale edits are refused", as
   // Sidebar entry is live (no longer "Soon"); seeded customers are listed and searchable.
   await page.getByRole("link", { name: "Customers", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Customers" })).toBeVisible();
-  const grid = page.getByRole("table", { name: /^Customers/ });
+  const grid = page.getByRole("list", { name: /^Customers/ }); // cards by default
   await expect(grid.getByRole("link", { name: /Island Grocers/ })).toBeVisible();
   await page.getByLabel("Search name or reference").fill("C-1002");
   await expect(grid.getByRole("link", { name: /Kingston Kitchen/ })).toBeVisible();
@@ -110,7 +110,7 @@ test("sales can look customers up but not change them", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Customers" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New customer" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add group" })).toHaveCount(0);
-  await page.getByRole("table", { name: /^Customers/ }).getByRole("link", { name: /Kingston Kitchen/ }).click();
+  await page.getByRole("list", { name: /^Customers/ }).getByRole("link", { name: /Kingston Kitchen/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: /Kingston Kitchen/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   await expect(page.getByText("Net 14 days").first()).toBeVisible();

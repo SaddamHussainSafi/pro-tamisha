@@ -98,9 +98,11 @@ test("warehouse user can view products but not manage them", async ({ page }) =>
   await page.getByLabel("Password").fill(fx.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("link", { name: /Products/ }).click();
-  await expect(page.getByRole("cell", { name: "CAS-E2E" })).toBeVisible();
+  // Products open as cards (Grid view) since 2026-11-08.
+  const cards = page.getByRole("list", { name: "Products" });
+  await expect(cards.getByText(/^CAS-E2E/)).toBeVisible();
   await expect(page.getByRole("button", { name: "New product" })).toHaveCount(0);
-  await page.getByRole("cell", { name: "CAS-E2E" }).click();
+  await cards.getByRole("link", { name: "Cassava frozen E2E" }).click();
   await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
   await axe(page);
 });
