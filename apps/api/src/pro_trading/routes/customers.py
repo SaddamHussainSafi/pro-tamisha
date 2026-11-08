@@ -44,6 +44,11 @@ def check_group(db: Session, p: Principal, gid: uuid.UUID | None) -> None:
         raise ApiError(422, "INVALID_GROUP", "Customer group not found")
 
 
+def _blank(v: str | None) -> str | None:
+    """Trimmed text, or None when empty."""
+    return (v or "").strip() or None
+
+
 def _out(c: Customer) -> dict[str, Any]:
     return CustomerOut.model_validate(c).model_dump(mode="json")
 
@@ -128,8 +133,8 @@ def create_customer(
             company_id=p.company_id,
             external_ref=body.external_ref,
             name=body.name.strip(),
-            email=body.email,
-            phone=body.phone,
+            email=_blank(body.email),
+            phone=_blank(body.phone),
             group_id=body.group_id,
             payment_terms_days=body.payment_terms_days,
         )
@@ -166,10 +171,14 @@ def patch_customer(
             c.group_id = body.group_id
         if body.clear_group:
             c.group_id = None
-        for f in ("name", "email", "phone", "payment_terms_days", "active"):
+        for f in ("name", "payment_terms_days", "active"):
             v = getattr(body, f)
             if v is not None:
                 setattr(c, f, v.strip() if isinstance(v, str) else v)
+        for f in ("email", "phone"):
+            v = getattr(body, f)
+            if v is not None:
+                setattr(c, f, _blank(v))
         c.version += 1
         c.updated_at = datetime.now(UTC)
         db.flush()

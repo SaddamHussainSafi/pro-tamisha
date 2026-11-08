@@ -1,6 +1,6 @@
 # Session handoff — Pro Trading ERP
 
-Written 2026-11-08 for the next Claude Code session (updated after Module 12). Read this, `CLAUDE.md`, `docs/PROGRESS.md` and `docs/BLOCKERS.md`; do not re-read the whole documentation pack.
+Written 2026-11-08 for the next Claude Code session (updated after the Customers UI). Read this, `CLAUDE.md`, `docs/PROGRESS.md` and `docs/BLOCKERS.md`; do not re-read the whole documentation pack.
 
 ## Where things are
 
@@ -12,21 +12,26 @@ Written 2026-11-08 for the next Claude Code session (updated after Module 12). R
 
 ## Exact next task
 
-Modules 10 Payments and 12 Reports are **done** (evidence: `docs/operations/BUILD_LOG.md`, 2026-11-08 entries). Next:
+Modules 10 Payments, 12 Reports and the Customers UI are **done** (evidence: `docs/operations/BUILD_LOG.md`, 2026-11-08 entries). Next:
 
 - **Module 11 Focus migration is deferred by the owner (2026-11-08):** skip it until every other part of the app is functional. It is also blocked on D-13/D-17 (no Focus V7 backup sample or scope decision).
 - **Build queue until the app is fully functional:**
-  1. **Customers management UI** (sidebar "Customers" is "Soon"; API `routes/customers.py` exists).
-  2. **Global search box** in the header (placeholder today).
-  3. **OCR of vendor documents into declared shipment lines** (declared lines are typed by hand today).
+  1. **Global search box** in the header (placeholder today).
+  2. **OCR of vendor documents into declared shipment lines** (declared lines are typed by hand today).
+- **Known bug to schedule:** a fresh browser tab has no CSRF token and is signed out on its first save (`docs/BLOCKERS.md`, Known issues).
 - **Owner questions from Module 10** (recorded under D-16 in `docs/BLOCKERS.md`): reminder days and wording, pause reminders while a reported payment awaits confirmation, separate recorder/confirmer, overpayment/refund policy.
-- **Owner questions from Module 12** (`docs/BLOCKERS.md`, "Open questions from Module 12"): revenue before/after tax and by issue vs payment date, how voids/credits count, what "origin" means, cases on lb lines, whether sales staff see reports.
+- **Owner questions from Module 12 and Customers** (`docs/BLOCKERS.md`, "Open questions from Module 12"): revenue before/after tax and by issue vs payment date, how voids/credits count, what "origin" means, cases on lb lines, whether inactive customers block new orders, whether sales staff see reports.
 
 ### Module 12 map (for follow-ups)
 - API: `apps/api/src/pro_trading/reports.py` (read-only SQL aggregates, `Scope` = company + `report.read` warehouses + company-timezone day range), `routes/reports.py` (5 `GET /reports/*`), schemas at the end of `schemas.py`. No migration.
 - Rules in code: sales = ISSUED/PARTIALLY_PAID/PAID, net = line amounts before tax; quantities grouped per unit; no cost/margin fields (D-04). Receivables stay at `GET /receivables`.
 - Web: `apps/web/src/pages/Reports.tsx` (`/reports`), `lib/reports.ts` (ranges, chart grouping, CSV). CSV is built in the browser from the rows on screen (≤ 50 per table).
 - Tests: `apps/api/tests/test_reports.py`, `apps/web/src/lib/reports.test.ts`, `apps/web/e2e/reports.spec.ts`.
+
+### Customers UI map (for follow-ups)
+- Web: `apps/web/src/pages/Customers.tsx` (`/customers`, `/customers/:id`), `lib/customers.ts` (form ↔ PATCH of changed fields only). Editing needs **company-wide** `catalog.manage`; reading needs `catalog.read` or `price.read`.
+- API: `routes/customers.py`; empty email/phone on PATCH clears it; `external_ref` is fixed after create.
+- Tests: `apps/api/tests/test_customers.py`, `apps/web/src/lib/customers.test.ts`, `apps/web/e2e/customers.spec.ts`. In e2e, use `{ exact: true }` for the sidebar "Customers" link (the detail page also has "All customers").
 
 ### Module 10 map (for follow-ups)
 - API: `apps/api/src/pro_trading/payments.py` (service, aging, reminders), `routes/payments.py`, schemas at the end of `schemas.py`, worker beat `pro_trading.schedule_reminders` (hourly).
@@ -84,4 +89,4 @@ Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
 
 ## Working tree at handoff
 
-Module 12 is committed on `main` (see `git log`); push only after the owner says so.
+The Customers UI is committed on `main` (see `git log`); push only after the owner says so.

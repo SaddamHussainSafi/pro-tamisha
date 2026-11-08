@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import { Shell } from "./components/Shell";
+import { CustomerDetailPage, CustomersPage } from "./pages/Customers";
 import { DocumentsPage } from "./pages/Documents";
 import { InventoryPage, LotPage } from "./pages/Inventory";
 import { InvoicePage, InvoicesPage, IssueInvoicePage } from "./pages/Invoices";
@@ -39,6 +40,8 @@ export function App() {
         <Route index element={<OverviewPage />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="products/:id" element={<ProductDetailPage />} />
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="customers/:id" element={<CustomerDetailPage />} />
         <Route path="pricing" element={<PricingPage />} />
         <Route path="pricing/:id" element={<PriceVersionPage />} />
         <Route path="inventory" element={<InventoryPage />} />

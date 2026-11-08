@@ -96,15 +96,18 @@ paths:
     get: {operationId: listCustomers, description: 'Filters q, group_id, active.', responses: {'200': {description: 'CustomerOut[]'}}}
     post:
       operationId: createCustomer
+      description: 'Needs company-wide catalog.manage. email must look like an address (empty = none); external_ref unique per company (409 DUPLICATE).'
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
-      responses: {'201': {description: CustomerOut}, '409': {$ref: '#/components/responses/Conflict'}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [name], properties: {external_ref: {type: [string, 'null'], maxLength: 64, pattern: '^[A-Za-z0-9._-]+$'}, name: {type: string, maxLength: 200}, email: {type: [string, 'null'], maxLength: 320, pattern: '^(|[^@\s]+@[^@\s]+\.[^@\s]+)$'}, phone: {type: [string, 'null'], maxLength: 32}, group_id: {type: [string, 'null'], format: uuid}, payment_terms_days: {type: integer, minimum: 0, maximum: 365}}}}}}
+      responses: {'201': {description: CustomerOut}, '409': {$ref: '#/components/responses/Conflict'}, '422': {description: 'VALIDATION | INVALID_GROUP'}}
   /customers/{customerId}:
     get: {operationId: getCustomer, responses: {'200': {description: CustomerOut}, '404': {description: NOT_FOUND}}}
     patch:
       operationId: updateCustomer
-      description: 'Optimistic `version`; stale returns 409 VERSION_CONFLICT.'
+      description: 'Needs company-wide catalog.manage. Optimistic `version`; stale returns 409 VERSION_CONFLICT. Omitted/null fields are unchanged; empty email or phone clears it; clear_group removes the group. external_ref cannot change.'
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
-      responses: {'200': {description: CustomerOut}, '409': {$ref: '#/components/responses/Conflict'}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer, minimum: 1}, name: {type: [string, 'null'], maxLength: 200}, email: {type: [string, 'null'], maxLength: 320, pattern: '^(|[^@\s]+@[^@\s]+\.[^@\s]+)$'}, phone: {type: [string, 'null'], maxLength: 32}, group_id: {type: [string, 'null'], format: uuid}, clear_group: {type: boolean}, payment_terms_days: {type: [integer, 'null'], minimum: 0, maximum: 365}, active: {type: [boolean, 'null']}}}}}}
+      responses: {'200': {description: CustomerOut}, '409': {$ref: '#/components/responses/Conflict'}, '422': {description: 'VALIDATION | INVALID_GROUP'}}
   /price-books/versions:
     get: {operationId: listPriceVersions, description: 'Filters state (DRAFT|SCHEDULED|CURRENT|SUPERSEDED|ARCHIVED). Requires price.read.', responses: {'200': {description: 'PriceVersionOut[]'}}}
     post:

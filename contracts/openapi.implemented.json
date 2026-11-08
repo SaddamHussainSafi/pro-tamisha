@@ -1441,6 +1441,7 @@
             "anyOf": [
               {
                 "maxLength": 320,
+                "pattern": "^(|[^@\\s]+@[^@\\s]+\\.[^@\\s]+)$",
                 "type": "string"
               },
               {
@@ -1590,6 +1591,7 @@
         "type": "object"
       },
       "CustomerPatch": {
+        "description": "Omitted/null = unchanged. Empty email or phone = clear it.",
         "properties": {
           "active": {
             "anyOf": [
@@ -1611,6 +1613,7 @@
             "anyOf": [
               {
                 "maxLength": 320,
+                "pattern": "^(|[^@\\s]+@[^@\\s]+\\.[^@\\s]+)$",
                 "type": "string"
               },
               {

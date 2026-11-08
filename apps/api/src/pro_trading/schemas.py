@@ -243,18 +243,25 @@ class CustomerGroupOut(BaseModel):
     active: bool
 
 
+# Invoices and payment reminders are emailed here, so it must at least look like an address.
+# Empty string = no email (and, on PATCH, clears it).
+EMAIL_OR_EMPTY = r"^(|[^@\s]+@[^@\s]+\.[^@\s]+)$"
+
+
 class CustomerIn(BaseModel):
     external_ref: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
     name: str = Field(min_length=1, max_length=200)
-    email: str | None = Field(default=None, max_length=320)
+    email: str | None = Field(default=None, max_length=320, pattern=EMAIL_OR_EMPTY)
     phone: str | None = Field(default=None, max_length=32)
     group_id: uuid.UUID | None = None
     payment_terms_days: int = Field(default=0, ge=0, le=365)
 
 
 class CustomerPatch(BaseModel):
+    """Omitted/null = unchanged. Empty email or phone = clear it."""
+
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    email: str | None = Field(default=None, max_length=320)
+    email: str | None = Field(default=None, max_length=320, pattern=EMAIL_OR_EMPTY)
     phone: str | None = Field(default=None, max_length=32)
     group_id: uuid.UUID | None = None
     clear_group: bool = False

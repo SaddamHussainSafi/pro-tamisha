@@ -140,10 +140,31 @@ export type PriceQuote = {
   unit_code: UnitCode;
 };
 export type CustomerGroup = { id: string; code: string; name: string; active: boolean };
+export type CustomerIn = {
+  external_ref?: string | null;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  group_id?: string | null;
+  payment_terms_days: number;
+};
+/** Omitted = unchanged; "" email/phone = clear; clear_group removes the group. */
+export type CustomerPatch = {
+  version: number;
+  name?: string;
+  email?: string;
+  phone?: string;
+  group_id?: string;
+  clear_group?: boolean;
+  payment_terms_days?: number;
+  active?: boolean;
+};
 export type Customer = {
   id: string;
   external_ref: string | null;
   name: string;
+  email: string | null;
+  phone: string | null;
   group_id: string | null;
   payment_terms_days: number;
   active: boolean;
@@ -878,7 +899,11 @@ export const api = {
   weightCalc: (id: string, groups: WeightGroupIn[]) =>
     request<WeightCalc>("POST", `/products/${id}/weight-calc`, { groups }),
   customerGroups: () => request<CustomerGroup[]>("GET", "/customer-groups"),
-  customers: (q: { q?: string; limit?: number } = {}) => request<Customer[]>("GET", `/customers?${qs(q)}`),
+  customers: (q: { q?: string; group_id?: string; active?: boolean; limit?: number } = {}) => request<Customer[]>("GET", `/customers?${qs(q)}`),
+  customer: (id: string) => request<Customer>("GET", `/customers/${id}`),
+  createCustomer: (b: CustomerIn) => request<Customer>("POST", "/customers", b, true),
+  updateCustomer: (id: string, b: CustomerPatch) => request<Customer>("PATCH", `/customers/${id}`, b, true),
+  createCustomerGroup: (b: { code: string; name: string }) => request<CustomerGroup>("POST", "/customer-groups", b, true),
   priceVersions: (status?: string) => request<PriceVersion[]>("GET", `/price-books/versions?${qs({ status })}`),
   priceVersion: (id: string) => request<PriceVersion>("GET", `/price-books/versions/${id}`),
   createPriceVersion: (b: { version_code: string; notes?: string; based_on_id?: string | null }) =>

@@ -43,7 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Master data",
     items: [
       { label: "Products", icon: "products", to: "/products", module: null },
-      { label: "Customers", icon: "users", to: "/customers", module: "Customers" },
+      { label: "Customers", icon: "users", to: "/customers", module: null },
       { label: "Vendors", icon: "store", to: "/vendors", module: null },
       { label: "Pricing", icon: "pricing", to: "/pricing", module: null },
     ],

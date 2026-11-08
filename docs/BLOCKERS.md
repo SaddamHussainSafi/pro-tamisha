@@ -23,6 +23,7 @@ Built with the choices below; each needs an owner/accountant answer before the f
 - **Voids and credits.** Invoices in VOIDED or CREDITED are left out, but no void or credit-note flow exists yet (`invoice.correct` has no handler), so "revenue = issued less credits" cannot be tested with real credits. How should a credit dated in a later month count: against its own month or the original invoice's month?
 - **Origin filter.** The module asks for an origin filter, but products have no origin field; only vendors have a country. Is origin the vendor's country, or a new product attribute?
 - **Weighted products.** Quantities are reported per invoiced unit (lb lines separately from box lines). Should lb-priced lines also report the number of cases?
+- **Inactive customers.** The Customers screen can mark a customer inactive, but nothing refuses new orders, invoices or payments for an inactive customer yet (it only hides them from the default list). Should new orders be refused?
 - **Who sees reports.** `report.read` is held by OWNER_ADMIN, MANAGER and FINANCE (catalog default). Should sales staff see their own customers' figures?
 
 ## Not verified with real hardware or services
@@ -34,7 +35,6 @@ Built with the choices below; each needs an owner/accountant answer before the f
 
 ## Not built yet
 
-- **Customers management UI:** the sidebar shows "Soon". Customers come from seed and demo data.
 - **OCR of vendor documents into declared shipment lines:** declared lines are entered by hand.
 - **Global search box in the header:** it is a placeholder with no behaviour.
 
@@ -42,6 +42,10 @@ Built with the choices below; each needs an owner/accountant answer before the f
 
 - **No warehouse picker anywhere.** Orders, shipments, scans, scanners, counts and opening balances go to the first warehouse the user is allowed to act in. With the demo data that is MAIN, so the second warehouse (EAST) cannot be chosen from the UI. Settings › Warehouses still lists and creates warehouses.
 - **Dev auto sign-in is enabled locally** (`apps/api/.env`, git-ignored). It is refused in staging/production by both the route and the settings validation. Remove the line to restore the login.
+
+## Known issues
+
+- **New browser tab is signed out on its first save.** The CSRF token is kept in per-tab `sessionStorage`, so a tab opened fresh (not duplicated) sends no token; the first change it saves fails with `CSRF_FAILED` and the app returns to the login screen. Reading works. Found while testing the Customers screen; not fixed (affects every page).
 
 ## Known test flakiness
 

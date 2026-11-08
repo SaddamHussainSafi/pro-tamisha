@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   api,
   has,
@@ -77,7 +77,8 @@ export function ReportsPage() {
   const canAging = !!session && has(session, "invoice.read") && (has(session, "payment.record") || has(session, "payment.verify"));
   const [preset, setPreset] = useState<Preset>("30d");
   const [range, setRange] = useState<Range>(() => presetRange("30d", isoDay(new Date())));
-  const [customerId, setCustomerId] = useState("");
+  const [params] = useSearchParams();
+  const [customerId, setCustomerId] = useState(() => params.get("customer_id") ?? "");
   const [productId, setProductId] = useState("");
   const [sort, setSort] = useState<ReportSort>("top");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -260,10 +261,10 @@ function Body({ data, aging, range, sort, onSort }: { data: Data; aging: Receiva
       key: "c",
       header: "Customer",
       cell: (r) => (
-        <>
+        <Link className="font-medium text-brand-primary hover:underline" to={`/customers/${r.customer_id}`}>
           {r.name}
-          {r.external_ref && <span className="text-ink-muted"> · {r.external_ref}</span>}
-        </>
+          {r.external_ref && <span className="font-normal text-ink-muted"> · {r.external_ref}</span>}
+        </Link>
       ),
       sort: (r) => r.name,
     },
