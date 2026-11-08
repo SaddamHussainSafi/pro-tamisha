@@ -13,9 +13,9 @@ import {
   type ShipmentDocKind,
   type UnitCode,
   type Vendor,
-  type Warehouse,
-} from "../api";
+  type Warehouse, hasCompanyWide, type SupplierBalance } from "../api";
 import { useAuth } from "../auth";
+import { amountIn } from "../lib/suppliers";
 import { stockUnits, qtyText } from "../lib/inventory";
 import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
 import { ACCEPT, checkFile, fileSize } from "../lib/scans";
@@ -913,6 +913,8 @@ export function SuppliersPage() {
   const [currency, setCurrency] = useState("USD");
   const [editing, setEditing] = useState<Vendor | null>(null);
 
+  const [balances, setBalances] = useState<Record<string, SupplierBalance>>({});
+  const canLedger = !!session && hasCompanyWide(session, "supplier.ledger.read");
   const load = useCallback(async () => {
     try {
       setRows(await api.vendors());
@@ -920,7 +922,8 @@ export function SuppliersPage() {
     } catch {
       setLoadError(true);
     }
-  }, []);
+    if (canLedger) api.supplierBalances().then((b) => setBalances(Object.fromEntries(b.map((x) => [x.vendor_id, x]))), () => setBalances({}));
+  }, [canLedger]);
   useEffect(() => void load(), [load]);
   if (!session) return null;
   const canManage = has(session, "catalog.manage");
@@ -966,10 +969,35 @@ export function SuppliersPage() {
 
   const columns: Column<Vendor>[] = [
     { key: "code", header: "Code", cell: (v) => <span className="font-medium">{v.code}</span>, sort: (v) => v.code },
-    { key: "name", header: "Name", cell: (v) => v.name, sort: (v) => v.name },
+    {
+      key: "name",
+      header: "Name",
+      cell: (v) =>
+        canLedger ? (
+          <Link className="font-medium text-brand-primary hover:underline" to={`/suppliers/${v.id}`}>
+            {v.name}
+          </Link>
+        ) : (
+          v.name
+        ),
+      sort: (v) => v.name,
+    },
     { key: "country", header: "Country", cell: (v) => v.country_code ?? "—" },
     { key: "cur", header: "Currency", cell: (v) => v.currency },
     { key: "email", header: "Email", cell: (v) => v.email ?? "—" },
+    ...(canLedger
+      ? [
+          {
+            key: "bal",
+            header: "Balance",
+            align: "right" as const,
+            cell: (v: Vendor) => {
+              const tot = balances[v.id]?.totals ?? [];
+              return tot.length ? <span className="num whitespace-nowrap">{tot.map((x) => amountIn(x.currency, x.balance)).join(" · ")}</span> : <span className="text-ink-muted">—</span>;
+            },
+          },
+        ]
+      : []),
     { key: "active", header: "Status", cell: (v) => (v.active ? <StatusChip tone="success">Active</StatusChip> : <StatusChip tone="neutral">Inactive</StatusChip>) },
     ...(canManage ? [{ key: "edit", header: "Actions", cell: (v: Vendor) => <button className="btn-ghost text-xs" aria-label={`Edit ${v.name}`} onClick={() => setEditing({ ...v })}>Edit</button> }] : []),
   ];

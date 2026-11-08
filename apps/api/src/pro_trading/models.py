@@ -1578,3 +1578,42 @@ class PaymentReminder(Base):
     balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     created_at: Mapped[datetime] = _created()
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---------------------------------------------------------------- suppliers: payments we make
+SUPPLIER_PAY_METHODS = ("WIRE", "EFT", "CHEQUE", "CASH", "OTHER")
+
+
+class SupplierPayment(Base):
+    """Money we paid a supplier, in the currency paid. Never edited or deleted (DB trigger):
+    a mistake is voided with a reason and stays on the ledger, struck through."""
+
+    __tablename__ = "supplier_payments"
+    __table_args__ = (
+        UniqueConstraint("company_id", "payment_no"),
+        CheckConstraint(f"method {_in(SUPPLIER_PAY_METHODS)}", name="method_valid"),
+        CheckConstraint("amount > 0", name="amount_positive"),
+        CheckConstraint(f"currency {_CURRENCY}", name="currency_iso"),
+        CheckConstraint(
+            "(voided_at IS NULL) = (void_reason IS NULL)"
+            " AND (voided_at IS NULL) = (voided_by IS NULL)",
+            name="void_complete",
+        ),
+        Index("ix_supplier_payments_vendor", "company_id", "vendor_id", "paid_on"),
+    )
+    id: Mapped[uuid.UUID] = _pk()
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    payment_no: Mapped[str] = mapped_column(String(32), nullable=False)
+    vendor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("vendors.id"), nullable=False)
+    shipment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shipments.id"))
+    method: Mapped[str] = mapped_column(String(8), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    paid_on: Mapped[date] = mapped_column(Date, nullable=False)
+    reference: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+    recorded_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=False)
+    created_at: Mapped[datetime] = _created()
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    voided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
+    void_reason: Mapped[str | None] = mapped_column(Text)

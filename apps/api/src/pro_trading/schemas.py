@@ -1866,3 +1866,117 @@ class MyAccountIn(BaseModel):
 class PasswordChangeIn(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: Password
+
+
+# ---------------------------------------------------------------- suppliers: ledger + payments
+SupplierPayMethod = Literal["WIRE", "EFT", "CHEQUE", "CASH", "OTHER"]
+CurrencyCode = Annotated[str, Field(pattern=r"^[A-Z]{3}$")]
+
+
+class SupplierPaymentIn(BaseModel):
+    vendor_id: uuid.UUID
+    shipment_id: uuid.UUID | None = None
+    method: SupplierPayMethod
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    currency: CurrencyCode | None = Field(default=None, description="Default: the supplier's")
+    paid_on: date
+    reference: str | None = Field(default=None, max_length=100)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class SupplierPaymentVoidIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class SupplierPaymentOut(BaseModel):
+    id: uuid.UUID
+    payment_no: str
+    vendor_id: uuid.UUID
+    vendor_name: str
+    shipment_id: uuid.UUID | None
+    shipment_no: str | None
+    method: SupplierPayMethod
+    amount: Decimal
+    currency: str
+    paid_on: date
+    reference: str | None
+    note: str | None
+    recorded_by_name: str | None
+    created_at: datetime
+    voided_at: datetime | None
+    voided_by_name: str | None
+    void_reason: str | None
+
+
+class CurrencyTotalOut(BaseModel):
+    currency: str
+    billed: Decimal
+    paid: Decimal
+    balance: Decimal
+
+
+class SupplierBalanceOut(BaseModel):
+    vendor_id: uuid.UUID
+    code: str
+    name: str
+    country_code: str | None
+    currency: str
+    active: bool
+    shipments: int
+    last_received_at: datetime | None
+    last_paid_on: date | None
+    totals: list[CurrencyTotalOut]
+
+
+class LedgerUnitOut(BaseModel):
+    unit_code: Literal["BOX", "PIECE", "LB", "KG"]
+    declared: Decimal
+    accepted: Decimal
+    damaged: Decimal
+    rejected: Decimal
+
+
+class LedgerCostOut(BaseModel):
+    kind: str
+    amount: Decimal
+    currency: str
+
+
+class LedgerShipmentOut(BaseModel):
+    id: uuid.UUID
+    shipment_no: str
+    grn_no: str | None
+    vendor_invoice_no: str | None
+    posted_at: datetime
+    currency: str
+    billed: Decimal
+    unpriced_lines: int
+    units: list[LedgerUnitOut]
+    landed_costs: list[LedgerCostOut]
+
+
+class LedgerEntryOut(BaseModel):
+    on: date
+    kind: Literal["SHIPMENT", "PAYMENT"]
+    ref: str
+    id: uuid.UUID
+    currency: str
+    billed: Decimal
+    paid: Decimal
+    balance: Decimal
+    voided: bool
+
+
+class SupplierLedgerOut(BaseModel):
+    vendor_id: uuid.UUID
+    code: str
+    name: str
+    country_code: str | None
+    email: str | None
+    currency: str
+    active: bool
+    totals: list[CurrencyTotalOut]
+    returned: list[LedgerUnitOut]
+    shipments: list[LedgerShipmentOut]
+    payments: list[SupplierPaymentOut]
+    entries: list[LedgerEntryOut]

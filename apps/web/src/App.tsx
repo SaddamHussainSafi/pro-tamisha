@@ -19,6 +19,7 @@ import { ScanJobPage, ScansPage } from "./pages/Scans";
 import { ProductDetailPage, ProductsPage } from "./pages/Products";
 import { ReceivingPage, ShipmentPage, SuppliersPage } from "./pages/Receiving";
 import { SettingsPage } from "./pages/Settings";
+import { SupplierDetailPage, SupplierPaymentsPage } from "./pages/Suppliers";
 
 function Protected() {
   const { status, session } = useAuth();
@@ -60,6 +61,8 @@ export function App() {
         <Route path="receiving" element={<ReceivingPage />} />
         <Route path="receiving/:id" element={<ShipmentPage />} />
         <Route path="suppliers" element={<SuppliersPage />} />
+        <Route path="suppliers/payments" element={<SupplierPaymentsPage />} />
+        <Route path="suppliers/:id" element={<SupplierDetailPage />} />
         <Route path="vendors" element={<Navigate to="/suppliers" replace />} />
         <Route path="scan" element={<ScansPage />} />
         <Route path="scan/review/:id" element={<OcrReviewPage />} />

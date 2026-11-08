@@ -43,6 +43,13 @@ Built with the choices below; each needs an owner/accountant answer before the f
 - **No warehouse picker anywhere.** Orders, shipments, scans, scanners, counts and opening balances go to the first warehouse the user is allowed to act in. With the demo data that is MAIN, so the second warehouse (EAST) cannot be chosen from the UI. Settings › Warehouses still lists and creates warehouses.
 - **Dev auto sign-in is enabled locally** (`apps/api/.env`, git-ignored). It is refused in staging/production by both the route and the settings validation. Remove the line to restore the login.
 
+## Open questions from the supplier ledger (2026-11-08)
+
+- **What we owe a supplier.** Today: billed = the value on their documents (declared quantity × declared unit cost) for posted shipments, minus payments. Should damaged or rejected boxes reduce what we owe (a supplier credit), and how is that agreed and recorded?
+- **Currencies.** Balances are kept per currency (USD invoices, CAD payments are separate lines). Do we pay suppliers in their currency only, or convert, and at which rate (D-04)?
+- **Who records supplier payments.** Placeholder: Owner/Admin and Finance record; Managers see the ledger. Confirm.
+- **Freight, duty, brokerage.** Listed per shipment but not in any balance. Are these paid to the supplier or to other parties (forwarder, broker) who need their own ledger?
+
 ## Known issues
 
 - **New browser tab is signed out on its first save.** The CSRF token is kept in per-tab `sessionStorage`, so a tab opened fresh (not duplicated) sends no token; the first change it saves fails with `CSRF_FAILED` and the app returns to the login screen. Reading works. Found while testing the Customers screen; not fixed (affects every page).

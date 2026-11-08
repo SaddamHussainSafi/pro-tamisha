@@ -55,7 +55,16 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: "Customers", icon: "users", to: "/customers", module: null },
-      { label: "Suppliers", icon: "store", to: "/suppliers", module: null },
+      {
+        label: "Suppliers",
+        icon: "store",
+        to: "/suppliers",
+        module: null,
+        children: [
+          { label: "Supplier list", to: "/suppliers" },
+          { label: "Supplier payments", to: "/suppliers/payments" },
+        ],
+      },
     ],
   },
   {

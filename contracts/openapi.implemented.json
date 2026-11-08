@@ -1469,6 +1469,34 @@
         "title": "CountOut",
         "type": "object"
       },
+      "CurrencyTotalOut": {
+        "properties": {
+          "balance": {
+            "title": "Balance",
+            "type": "string"
+          },
+          "billed": {
+            "title": "Billed",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "billed",
+          "paid",
+          "balance"
+        ],
+        "title": "CurrencyTotalOut",
+        "type": "object"
+      },
       "CustomerGroupIn": {
         "properties": {
           "code": {
@@ -4181,6 +4209,207 @@
           "removed_reason"
         ],
         "title": "LandedCostOut",
+        "type": "object"
+      },
+      "LedgerCostOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "amount",
+          "currency"
+        ],
+        "title": "LedgerCostOut",
+        "type": "object"
+      },
+      "LedgerEntryOut": {
+        "properties": {
+          "balance": {
+            "title": "Balance",
+            "type": "string"
+          },
+          "billed": {
+            "title": "Billed",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "SHIPMENT",
+              "PAYMENT"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "on": {
+            "format": "date",
+            "title": "On",
+            "type": "string"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "voided": {
+            "title": "Voided",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on",
+          "kind",
+          "ref",
+          "id",
+          "currency",
+          "billed",
+          "paid",
+          "balance",
+          "voided"
+        ],
+        "title": "LedgerEntryOut",
+        "type": "object"
+      },
+      "LedgerShipmentOut": {
+        "properties": {
+          "billed": {
+            "title": "Billed",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "grn_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grn No"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "landed_costs": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCostOut"
+            },
+            "title": "Landed Costs",
+            "type": "array"
+          },
+          "posted_at": {
+            "format": "date-time",
+            "title": "Posted At",
+            "type": "string"
+          },
+          "shipment_no": {
+            "title": "Shipment No",
+            "type": "string"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerUnitOut"
+            },
+            "title": "Units",
+            "type": "array"
+          },
+          "unpriced_lines": {
+            "title": "Unpriced Lines",
+            "type": "integer"
+          },
+          "vendor_invoice_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Invoice No"
+          }
+        },
+        "required": [
+          "id",
+          "shipment_no",
+          "grn_no",
+          "vendor_invoice_no",
+          "posted_at",
+          "currency",
+          "billed",
+          "unpriced_lines",
+          "units",
+          "landed_costs"
+        ],
+        "title": "LedgerShipmentOut",
+        "type": "object"
+      },
+      "LedgerUnitOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "string"
+          },
+          "damaged": {
+            "title": "Damaged",
+            "type": "string"
+          },
+          "declared": {
+            "title": "Declared",
+            "type": "string"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit_code",
+          "declared",
+          "accepted",
+          "damaged",
+          "rejected"
+        ],
+        "title": "LedgerUnitOut",
         "type": "object"
       },
       "LineCancelIn": {
@@ -11336,6 +11565,460 @@
           "closing"
         ],
         "title": "StockFlowRowOut",
+        "type": "object"
+      },
+      "SupplierBalanceOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "last_paid_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Paid On"
+          },
+          "last_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Received At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "shipments": {
+            "title": "Shipments",
+            "type": "integer"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotalOut"
+            },
+            "title": "Totals",
+            "type": "array"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_id",
+          "code",
+          "name",
+          "country_code",
+          "currency",
+          "active",
+          "shipments",
+          "last_received_at",
+          "last_paid_on",
+          "totals"
+        ],
+        "title": "SupplierBalanceOut",
+        "type": "object"
+      },
+      "SupplierLedgerOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/SupplierPaymentOut"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
+          "returned": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerUnitOut"
+            },
+            "title": "Returned",
+            "type": "array"
+          },
+          "shipments": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerShipmentOut"
+            },
+            "title": "Shipments",
+            "type": "array"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotalOut"
+            },
+            "title": "Totals",
+            "type": "array"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_id",
+          "code",
+          "name",
+          "country_code",
+          "email",
+          "currency",
+          "active",
+          "totals",
+          "returned",
+          "shipments",
+          "payments",
+          "entries"
+        ],
+        "title": "SupplierLedgerOut",
+        "type": "object"
+      },
+      "SupplierPaymentIn": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: the supplier's",
+            "title": "Currency"
+          },
+          "method": {
+            "enum": [
+              "WIRE",
+              "EFT",
+              "CHEQUE",
+              "CASH",
+              "OTHER"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "paid_on": {
+            "format": "date",
+            "title": "Paid On",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "shipment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipment Id"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_id",
+          "method",
+          "amount",
+          "paid_on"
+        ],
+        "title": "SupplierPaymentIn",
+        "type": "object"
+      },
+      "SupplierPaymentOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "WIRE",
+              "EFT",
+              "CHEQUE",
+              "CASH",
+              "OTHER"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "paid_on": {
+            "format": "date",
+            "title": "Paid On",
+            "type": "string"
+          },
+          "payment_no": {
+            "title": "Payment No",
+            "type": "string"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "shipment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipment Id"
+          },
+          "shipment_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipment No"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          },
+          "vendor_name": {
+            "title": "Vendor Name",
+            "type": "string"
+          },
+          "void_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Void Reason"
+          },
+          "voided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voided At"
+          },
+          "voided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voided By Name"
+          }
+        },
+        "required": [
+          "id",
+          "payment_no",
+          "vendor_id",
+          "vendor_name",
+          "shipment_id",
+          "shipment_no",
+          "method",
+          "amount",
+          "currency",
+          "paid_on",
+          "reference",
+          "note",
+          "recorded_by_name",
+          "created_at",
+          "voided_at",
+          "voided_by_name",
+          "void_reason"
+        ],
+        "title": "SupplierPaymentOut",
+        "type": "object"
+      },
+      "SupplierPaymentVoidIn": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "SupplierPaymentVoidIn",
         "type": "object"
       },
       "UnitProfileIn": {
@@ -22047,6 +22730,266 @@
         "summary": "Submit Count",
         "tags": [
           "receiving"
+        ]
+      }
+    },
+    "/api/v1/supplier-payments": {
+      "get": {
+        "operationId": "list_supplier_payments_api_v1_supplier_payments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "vendor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_voided",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Voided",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierPaymentOut"
+                  },
+                  "title": "Response List Supplier Payments Api V1 Supplier Payments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Supplier Payments",
+        "tags": [
+          "suppliers"
+        ]
+      },
+      "post": {
+        "operationId": "record_supplier_payment_api_v1_supplier_payments_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierPaymentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierPaymentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Supplier Payment",
+        "tags": [
+          "suppliers"
+        ]
+      }
+    },
+    "/api/v1/supplier-payments/{payment_id}/void": {
+      "post": {
+        "operationId": "void_supplier_payment_api_v1_supplier_payments__payment_id__void_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierPaymentVoidIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierPaymentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Void Supplier Payment",
+        "tags": [
+          "suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/balances": {
+      "get": {
+        "operationId": "supplier_balances_api_v1_suppliers_balances_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierBalanceOut"
+                  },
+                  "title": "Response Supplier Balances Api V1 Suppliers Balances Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Supplier Balances",
+        "tags": [
+          "suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{vendor_id}/ledger": {
+      "get": {
+        "operationId": "supplier_ledger_api_v1_suppliers__vendor_id__ledger_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vendor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierLedgerOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Supplier Ledger",
+        "tags": [
+          "suppliers"
         ]
       }
     },

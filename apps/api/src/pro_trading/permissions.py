@@ -45,6 +45,8 @@ PERMISSIONS: Final[dict[str, str]] = {
     "report.read": "View analytics",
     "document.read": "View the document archive and its Drive sync status",
     "document.manage": "File signed delivery proofs and retry Drive sync",
+    "supplier.ledger.read": "View supplier ledgers: billed, paid, returned",
+    "supplier_payment.record": "Record and void payments made to suppliers",
 }
 
 ALL: Final = frozenset(PERMISSIONS)
@@ -86,6 +88,7 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
                 "report.read",
                 "document.read",
                 "document.manage",
+                "supplier.ledger.read",
             }
         ),
     ),
@@ -143,6 +146,8 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
                 "report.read",
                 "document.read",
                 "document.manage",
+                "supplier.ledger.read",
+                "supplier_payment.record",
             }
         ),
     ),

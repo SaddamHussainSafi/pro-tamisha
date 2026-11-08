@@ -481,6 +481,32 @@ paths:
       operationId: updateVendor
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: vendorId, in: path, required: true, schema: {type: string, format: uuid}}]
       responses: {'200': {description: VendorOut}, '409': {description: VERSION_CONFLICT}}
+  # Supplier ledger + payments we make (owner direction 2026-11-08). billed = declared qty x
+  # declared unit cost of POSTED shipments (rounded per line; unpriced lines counted, not
+  # guessed); paid = non-voided supplier payments; balance per currency, never converted
+  # (D-04). Damaged/rejected shown as returned; landed costs listed, not in the balance.
+  /suppliers/balances:
+    get: {operationId: supplierBalances, description: 'Company-wide supplier.ledger.read. Per supplier: shipments, last received/paid, totals[{currency, billed, paid, balance}].', responses: {'200': {description: 'SupplierBalanceOut[]'}, '403': {$ref: '#/components/responses/Forbidden'}}}
+  /suppliers/{vendorId}/ledger:
+    get:
+      operationId: supplierLedger
+      description: 'Company-wide supplier.ledger.read. Totals, returned (per unit), shipments (billed, unpriced_lines, units, landed_costs), payments, entries with running balance per currency (voided payments listed, not counted).'
+      parameters: [{name: vendorId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: SupplierLedgerOut}, '404': {description: NOT_FOUND}}
+  /supplier-payments:
+    get: {operationId: listSupplierPayments, description: 'Filters vendor_id, include_voided; newest first.', responses: {'200': {description: 'SupplierPaymentOut[]'}}}
+    post:
+      operationId: recordSupplierPayment
+      description: 'Company-wide supplier_payment.record. Append-only (DB trigger). Currency defaults to the supplier''s.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [vendor_id, method, amount, paid_on], properties: {vendor_id: {type: string, format: uuid}, shipment_id: {type: [string, 'null'], format: uuid}, method: {type: string, enum: [WIRE, EFT, CHEQUE, CASH, OTHER]}, amount: {$ref: '#/components/schemas/Decimal'}, currency: {type: [string, 'null'], pattern: '^[A-Z]{3}$'}, paid_on: {type: string, format: date}, reference: {type: [string, 'null'], maxLength: 100}, note: {type: [string, 'null'], maxLength: 500}}}}}}
+      responses: {'201': {description: 'SupplierPaymentOut (SPAY-YYYY-NNNNNN)'}, '409': {description: 'DUPLICATE_REFERENCE (same supplier, not voided)'}, '422': {description: 'INVALID_SHIPMENT | FUTURE_DATE | VALIDATION'}}
+  /supplier-payments/{paymentId}/void:
+    post:
+      operationId: voidSupplierPayment
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: paymentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [reason], properties: {reason: {type: string, minLength: 3, maxLength: 500}}}}}}
+      responses: {'200': {description: SupplierPaymentOut}, '409': {description: ALREADY_VOIDED}}
   /shipments:
     get:
       operationId: listShipments

@@ -1096,6 +1096,13 @@ export const api = {
   rejectPayment: (id: string, b: { version: number; reason: string }) => request<Payment>("POST", `/payments/${id}/reject`, b, true),
   receivables: () => request<Receivables>("GET", "/receivables"),
 
+  /* Suppliers: ledger + payments we make */
+  supplierBalances: () => request<SupplierBalance[]>("GET", "/suppliers/balances"),
+  supplierLedger: (id: string) => request<SupplierLedger>("GET", `/suppliers/${id}/ledger`),
+  supplierPayments: (q: { vendor_id?: string; include_voided?: boolean; limit?: number } = {}) => request<SupplierPayment[]>("GET", `/supplier-payments?${qs(q)}`),
+  recordSupplierPayment: (b: SupplierPaymentIn) => request<SupplierPayment>("POST", "/supplier-payments", b, true),
+  voidSupplierPayment: (id: string, reason: string) => request<SupplierPayment>("POST", `/supplier-payments/${id}/void`, { reason }, true),
+
   /* Settings: my account + staff users */
   updateMe: (b: { display_name: string }) => request<StaffMember>("PATCH", "/auth/me", b, true),
   changePassword: (b: { current_password: string; new_password: string }) => request<undefined>("POST", "/auth/password", b, true),
@@ -1288,4 +1295,75 @@ export type StaffMember = {
   locked: boolean;
   last_seen_at: string | null;
   created_at: string;
+};
+
+/* ---------- Suppliers: ledger + payments ---------- */
+export type SupplierPayMethod = "WIRE" | "EFT" | "CHEQUE" | "CASH" | "OTHER";
+export type CurrencyTotal = { currency: string; billed: string; paid: string; balance: string };
+export type SupplierBalance = {
+  vendor_id: string;
+  code: string;
+  name: string;
+  country_code: string | null;
+  currency: string;
+  active: boolean;
+  shipments: number;
+  last_received_at: string | null;
+  last_paid_on: string | null;
+  totals: CurrencyTotal[];
+};
+export type SupplierPaymentIn = {
+  vendor_id: string;
+  shipment_id?: string | null;
+  method: SupplierPayMethod;
+  amount: string;
+  currency?: string | null;
+  paid_on: string;
+  reference?: string | null;
+  note?: string | null;
+};
+export type SupplierPayment = {
+  id: string;
+  payment_no: string;
+  vendor_id: string;
+  vendor_name: string;
+  shipment_id: string | null;
+  shipment_no: string | null;
+  method: SupplierPayMethod;
+  amount: string;
+  currency: string;
+  paid_on: string;
+  reference: string | null;
+  note: string | null;
+  recorded_by_name: string | null;
+  created_at: string;
+  voided_at: string | null;
+  voided_by_name: string | null;
+  void_reason: string | null;
+};
+export type LedgerUnits = { unit_code: UnitCode; declared: string; accepted: string; damaged: string; rejected: string };
+export type SupplierLedger = {
+  vendor_id: string;
+  code: string;
+  name: string;
+  country_code: string | null;
+  email: string | null;
+  currency: string;
+  active: boolean;
+  totals: CurrencyTotal[];
+  returned: LedgerUnits[];
+  shipments: {
+    id: string;
+    shipment_no: string;
+    grn_no: string | null;
+    vendor_invoice_no: string | null;
+    posted_at: string;
+    currency: string;
+    billed: string;
+    unpriced_lines: number;
+    units: LedgerUnits[];
+    landed_costs: { kind: string; amount: string; currency: string }[];
+  }[];
+  payments: SupplierPayment[];
+  entries: { on: string; kind: "SHIPMENT" | "PAYMENT"; ref: string; id: string; currency: string; billed: string; paid: string; balance: string; voided: boolean }[];
 };
