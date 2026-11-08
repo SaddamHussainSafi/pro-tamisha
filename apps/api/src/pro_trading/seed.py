@@ -63,9 +63,9 @@ def main() -> int:
         db.add(co)
         db.flush()
         roles = ensure_default_roles(db, co.id)
+        # One warehouse: the business runs from a single site (owner, 2026-11-08).
         main_wh = Warehouse(company_id=co.id, code="MAIN", name="Main Warehouse")
-        east_wh = Warehouse(company_id=co.id, code="EAST", name="East Warehouse")
-        db.add_all([main_wh, east_wh])
+        db.add(main_wh)
         db.flush()
         pw = hash_password(password)
         people = [

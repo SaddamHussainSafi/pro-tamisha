@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api, has, type Warehouse } from "../api";
 import { useAuth } from "../auth";
-import { NAV_GROUPS, PREVIEW, SETTINGS, type NavItem } from "../nav";
+import { NAV_GROUPS, SETTINGS, type NavItem } from "../nav";
 import { Icon } from "../ui/Icon";
 import { Wordmark } from "./Wordmark";
 
@@ -92,8 +92,9 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       {item.children && open && (
         <ul className="mb-1 ml-[1.35rem] mt-0.5 space-y-0.5 border-l-2 border-line pl-3">
           {item.children.map((c) => {
-            const want = new URLSearchParams(c.to.split("?")[1] ?? "").get("tab") ?? "stock";
-            const active = loc.pathname === item.to && want === tab;
+            const [path, query] = c.to.split("?");
+            const want = new URLSearchParams(query ?? "").get("tab") ?? "stock";
+            const active = loc.pathname === path && want === tab;
             return (
               <li key={c.to}>
                 <Link
@@ -109,65 +110,6 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         </ul>
       )}
     </>
-  );
-}
-
-/** Design-preview screens: inline list when expanded, pop-out when collapsed. */
-function Previews({ collapsed }: { collapsed: boolean }) {
-  const [open, setOpen] = useState(false);
-  const loc = useLocation();
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => setOpen(false), [loc.pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-  const on = loc.pathname.startsWith("/preview");
-  const links = (
-    <ul className="space-y-0.5">
-      {PREVIEW.map((p) => (
-        <li key={p.to}>
-          <NavLink to={p.to} className={({ isActive }) => `block rounded-xl px-3 py-2 text-sm ${isActive ? "bg-brand-accent/12 font-semibold text-brand-primary-hover" : "text-ink hover:bg-subtle"}`}>
-            {p.label}
-          </NavLink>
-        </li>
-      ))}
-    </ul>
-  );
-  return (
-    <div ref={box} className="relative">
-      <button
-        type="button"
-        aria-expanded={open}
-        title={collapsed ? "Design previews" : undefined}
-        onClick={() => setOpen((o) => !o)}
-        className={`${collapsed ? SQUARE : `${ROW} w-full`} cursor-pointer ${on ? ON : OFF}`}
-      >
-        <Icon name="eye" size={22} />
-        {collapsed ? (
-          <span className="sr-only">Design previews</span>
-        ) : (
-          <>
-            <span className="flex-1 truncate text-left">Design previews</span>
-            <Icon name="chevronDown" size={18} className={`text-ink-muted ${open ? "rotate-180" : ""}`} />
-          </>
-        )}
-      </button>
-      {open && !collapsed && <div className="ml-[1.35rem] mt-0.5 border-l-2 border-line pl-3">{links}</div>}
-      {open && collapsed && (
-        <div className="absolute bottom-0 left-full z-40 ml-4 w-60 rounded-[22px] bg-card p-2 shadow-[0_18px_50px_rgb(24_24_27/0.16)]">
-          <div className="px-3 pb-1 pt-2 text-xs font-semibold text-brand-primary">Design previews · sample data</div>
-          {links}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -214,7 +156,6 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
 
       <div className={`shrink-0 space-y-1 border-t border-line p-3 ${collapsed ? "flex flex-col items-center" : ""}`}>
         <Item item={SETTINGS} collapsed={collapsed} />
-        <Previews collapsed={collapsed} />
         <div className={`mt-2 flex items-center gap-3 rounded-2xl ${collapsed ? "flex-col" : "border border-line p-2"}`} title={collapsed ? name : undefined}>
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-accent/15 text-sm font-semibold text-brand-primary-hover">{initials(name)}</span>
           {!collapsed && (

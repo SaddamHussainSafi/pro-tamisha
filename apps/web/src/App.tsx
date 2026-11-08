@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { useAuth } from "./auth";
 import { Shell } from "./components/Shell";
 import { CustomerDetailPage, CustomersPage } from "./pages/Customers";
@@ -16,12 +16,8 @@ import { ReportsPage } from "./pages/Reports";
 import { OcrReviewPage } from "./pages/OcrReview";
 import { ScanJobPage, ScansPage } from "./pages/Scans";
 import { ProductDetailPage, ProductsPage } from "./pages/Products";
-import { ReceivingPage, ShipmentPage, VendorsPage } from "./pages/Receiving";
-import { WarehousesPage } from "./pages/Warehouses";
-import { InvoicePreview } from "./pages/preview/InvoicePreview";
-import { OrdersPreview } from "./pages/preview/OrdersPreview";
-import { OverviewPreview } from "./pages/preview/OverviewPreview";
-import { ReceivingPreview } from "./pages/preview/ReceivingPreview";
+import { ReceivingPage, ShipmentPage, SuppliersPage } from "./pages/Receiving";
+import { SettingsPage } from "./pages/Settings";
 
 function Protected() {
   const { status, session } = useAuth();
@@ -42,8 +38,10 @@ export function App() {
         <Route path="products/:id" element={<ProductDetailPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="customers/:id" element={<CustomerDetailPage />} />
-        <Route path="pricing" element={<PricingPage />} />
-        <Route path="pricing/:id" element={<PriceVersionPage />} />
+        <Route path="products/prices" element={<PricingPage />} />
+        <Route path="products/prices/:id" element={<PriceVersionPage />} />
+        <Route path="pricing" element={<Navigate to="/products/prices" replace />} />
+        <Route path="pricing/:id" element={<OldPriceLink />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="inventory/lots/:id" element={<LotPage />} />
         <Route path="orders" element={<OrdersPage />} />
@@ -59,19 +57,23 @@ export function App() {
         <Route path="receivables" element={<ReceivablesPage />} />
         <Route path="receiving" element={<ReceivingPage />} />
         <Route path="receiving/:id" element={<ShipmentPage />} />
-        <Route path="vendors" element={<VendorsPage />} />
+        <Route path="suppliers" element={<SuppliersPage />} />
+        <Route path="vendors" element={<Navigate to="/suppliers" replace />} />
         <Route path="scan" element={<ScansPage />} />
         <Route path="scan/review/:id" element={<OcrReviewPage />} />
         <Route path="scan/:id" element={<ScanJobPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="reports" element={<ReportsPage />} />
-        <Route path="settings/warehouses" element={<WarehousesPage />} />
-        <Route path="preview/overview" element={<OverviewPreview />} />
-        <Route path="preview/orders" element={<OrdersPreview />} />
-        <Route path="preview/invoice" element={<InvoicePreview />} />
-        <Route path="preview/receiving" element={<ReceivingPreview />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/*" element={<Navigate to="/settings" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
+}
+
+/** Old /pricing/:id links keep working. */
+function OldPriceLink() {
+  const { id = "" } = useParams();
+  return <Navigate to={`/products/prices/${id}`} replace />;
 }

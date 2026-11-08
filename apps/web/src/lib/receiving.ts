@@ -11,7 +11,7 @@ export const SHIPMENT_STATUS: Record<ShipmentStatus, { tone: Tone; label: string
 };
 
 export const DOC_KIND: Record<ShipmentDocKind, string> = {
-  INVOICE: "Vendor invoice",
+  INVOICE: "Supplier invoice",
   AWB: "Airway bill",
   PACKING_LIST: "Packing list",
   COMBINED: "Invoice + packing list",
@@ -31,9 +31,9 @@ export const COMPARE: Record<CompareStatus, { tone: Tone; label: string; hint: s
   SHORT: { tone: "danger", label: "Short", hint: "Fewer arrived than the documents say." },
   OVER: { tone: "warning", label: "Over", hint: "More arrived than the documents say." },
   DAMAGED: { tone: "warning", label: "Damaged / rejected", hint: "Some arrived damaged or were refused." },
-  NOT_DECLARED: { tone: "warning", label: "Not on documents", hint: "Counted, but no vendor document lists it." },
+  NOT_DECLARED: { tone: "warning", label: "Not on documents", hint: "Counted, but no supplier document lists it." },
   NOT_RECEIVED: { tone: "danger", label: "Not received", hint: "Listed on a document, nothing counted." },
-  DOC_CONFLICT: { tone: "danger", label: "Documents disagree", hint: "The vendor documents list different quantities." },
+  DOC_CONFLICT: { tone: "danger", label: "Documents disagree", hint: "The supplier documents list different quantities." },
 };
 
 const WEIGHTS = new Set(["LB", "KG"]);
@@ -76,7 +76,7 @@ export function receivingMessage(err: unknown): string {
     case "INVALID_STATE":
       return "This shipment has moved on (counted, posted or cancelled). Reload to see its current state.";
     case "DISCREPANCY_ACK_REQUIRED":
-      return "Some lines differ from the vendor documents. Tick the acknowledgement and explain the difference.";
+      return "Some lines differ from the supplier documents. Tick the acknowledgement and explain the difference.";
     case "UNMAPPED_LABEL":
       return `${err.message}`;
     case "EMPTY_COUNT":
@@ -90,7 +90,7 @@ export function receivingMessage(err: unknown): string {
     case "SCAN_NOT_RECEIVED":
       return "That scan has not arrived yet.";
     case "VENDOR_INACTIVE":
-      return "That vendor is inactive. Reactivate it under Vendors first.";
+      return "That supplier is inactive. Reactivate it under Suppliers first.";
     case "UNIT_NOT_DIVISIBLE":
       return "Boxes and pieces must be whole numbers.";
     case "FILE_TOO_LARGE":
@@ -101,7 +101,7 @@ export function receivingMessage(err: unknown): string {
     case "EMPTY_FILE":
       return "That file is empty.";
     case "DUPLICATE":
-      return "A vendor with that code already exists.";
+      return "A supplier with that code already exists.";
     case "FORBIDDEN":
       return "You don't have permission for this step.";
     case "MFA_REQUIRED":

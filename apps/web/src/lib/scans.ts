@@ -15,7 +15,7 @@ export const JOB_STATUS: Record<ScanJobStatus, { tone: Tone; label: string }> = 
 export const JOB_TYPE: Record<ScanJobType, string> = {
   SALES_ORDER: "Sales order",
   PICK_SHEET: "Picking sheet",
-  VENDOR_DOCUMENT: "Vendor document",
+  VENDOR_DOCUMENT: "Supplier document",
   OTHER: "Other",
 };
 

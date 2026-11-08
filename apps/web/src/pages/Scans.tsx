@@ -521,7 +521,7 @@ function ScanDone({
             <div>
               <h3 className="mb-3 text-lg font-semibold">OCR / extraction summary</h3>
               {!reads ? (
-                <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Only sales-order scans are read automatically. Attach vendor documents to their shipment in Receiving.</p>
+                <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Only sales-order scans are read automatically. Attach supplier documents to their shipment in Receiving.</p>
               ) : !canRead ? (
                 <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Someone who reviews scans will check the lines read from this scan.</p>
               ) : !ex || ex.status === "QUEUED" ? (

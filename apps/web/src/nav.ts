@@ -42,10 +42,19 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Master data",
     items: [
-      { label: "Products", icon: "products", to: "/products", module: null },
+      {
+        label: "Products",
+        icon: "products",
+        to: "/products",
+        module: null,
+        // child labels must not contain "Products": e2e clicks /Products/ without .first()
+        children: [
+          { label: "Product list", to: "/products" },
+          { label: "Prices", to: "/products/prices" },
+        ],
+      },
       { label: "Customers", icon: "users", to: "/customers", module: null },
-      { label: "Vendors", icon: "store", to: "/vendors", module: null },
-      { label: "Pricing", icon: "pricing", to: "/pricing", module: null },
+      { label: "Suppliers", icon: "store", to: "/suppliers", module: null },
     ],
   },
   {
@@ -57,12 +66,4 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export const SETTINGS: NavItem = { label: "Settings", icon: "settings", to: "/settings/warehouses", module: null };
-
-// Task 00b mock-only screens (sample data), shown for layout sign-off.
-export const PREVIEW: NavItem[] = [
-  { label: "Overview", icon: "overview", to: "/preview/overview", module: null },
-  { label: "Orders", icon: "orders", to: "/preview/orders", module: null },
-  { label: "Invoice editor", icon: "invoices", to: "/preview/invoice", module: null },
-  { label: "Receiving", icon: "receiving", to: "/preview/receiving", module: null },
-];
+export const SETTINGS: NavItem = { label: "Settings", icon: "settings", to: "/settings", module: null };

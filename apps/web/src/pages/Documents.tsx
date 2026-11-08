@@ -138,7 +138,7 @@ export function DocumentsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Documents"
-        subtitle="Every issued invoice, proof of delivery, vendor document and scan, filed by customer or vendor and month. Files are kept exactly as issued and are never overwritten."
+        subtitle="Every issued invoice, proof of delivery, supplier document and scan, filed by customer or supplier and month. Files are kept exactly as issued and are never overwritten."
       />
       <div className="grid gap-4 sm:grid-cols-3">
         <KpiCard label="Pending sync" value={counts.PENDING ?? 0} icon="documents" tone="info" note="Waiting for Google Drive" />
@@ -175,7 +175,7 @@ export function DocumentsPage() {
             columns={columns}
             rowKey={(r) => r.id}
             caption={`Documents (${page?.total ?? rows.length})`}
-            empty={<EmptyState title="No documents yet" hint="Issued invoices, uploaded scans and vendor documents appear here automatically." />}
+            empty={<EmptyState title="No documents yet" hint="Issued invoices, uploaded scans and supplier documents appear here automatically." />}
           />
           {page?.next_cursor && (
             <div className="flex justify-center">

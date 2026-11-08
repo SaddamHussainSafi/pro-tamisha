@@ -51,8 +51,8 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
 
   await page.getByRole("button", { name: "New shipment" }).click();
   const form = page.getByRole("form", { name: "New shipment" });
-  await pick(form.getByLabel("Vendor", { exact: true }), "V-ACC");
-  await form.getByLabel("Vendor invoice no. (optional)").fill("ARX-5521");
+  await pick(form.getByLabel("Supplier", { exact: true }), "V-ACC");
+  await form.getByLabel("Supplier invoice no. (optional)").fill("ARX-5521");
   await form.getByLabel("Airway bill no. (optional)").fill("176-55512345");
   await form.getByRole("button", { name: "Create shipment" }).click();
   await expect(page.getByRole("heading", { name: /^Receive SHP-/ })).toBeVisible();
@@ -63,8 +63,8 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
   await add.getByLabel("Document type").selectOption("INVOICE");
   await add.getByLabel("Number on the document (optional)").fill("ARX-5521");
   await page.getByTestId("doc-upload").setInputFiles({ name: "vendor-invoice.png", mimeType: "image/png", buffer: invoice });
-  await expect(page.getByRole("status").filter({ hasText: "Vendor invoice added" })).toBeVisible();
-  await expect(page.getByRole("img", { name: /^Original Vendor invoice/ })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Supplier invoice added" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Original Supplier invoice/ })).toBeVisible();
 
   // What the invoice says — the vendor's own wording maps through the remembered alias.
   await page.getByRole("button", { name: "Add document line" }).click();
@@ -137,12 +137,12 @@ test("manager approves: only the 23 good boxes become saleable, and posting twic
   await expect(page.getByRole("row").filter({ hasText: /-DMG/ }).first()).toBeVisible();
 });
 
-test("vendors list is managed by the owner", async ({ page }) => {
+test("suppliers list is managed by the owner", async ({ page }) => {
   await signIn(page, fx.users.warehouse);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await page.goto("/vendors");
-  await expect(page.getByRole("table", { name: "Vendors" })).toContainText("V-ACC");
-  await expect(page.getByRole("form", { name: "Add a vendor" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Suppliers", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Suppliers" })).toContainText("V-ACC");
+  await expect(page.getByRole("form", { name: "Add a supplier" })).toHaveCount(0);
   await axe(page);
-  await page.screenshot({ path: "screenshots/vendors-1440.png", fullPage: true });
+  await page.screenshot({ path: "screenshots/suppliers-1440.png", fullPage: true });
 });

@@ -298,7 +298,7 @@ function Body({ data, aging, range, sort, onSort }: { data: Data; aging: Receiva
   const vCols: Column<VRow>[] = [
     {
       key: "v",
-      header: "Vendor",
+      header: "Supplier",
       cell: (r) => (
         <>
           {r.name}
@@ -344,7 +344,7 @@ function Body({ data, aging, range, sort, onSort }: { data: Data; aging: Receiva
       downloadCsv(
         csvName("receiving", range),
         toCsv(
-          ["Vendor code", "Vendor", "Country", "Unit", "Shipments", "Declared", "Accepted", "Damaged", "Rejected"],
+          ["Supplier code", "Supplier", "Country", "Unit", "Shipments", "Declared", "Accepted", "Damaged", "Rejected"],
           receiving.rows.map((r) => [r.code, r.name, r.country_code, r.unit_code, r.shipments, r.declared, r.accepted, r.damaged, r.rejected]),
         ),
       ),
@@ -425,11 +425,11 @@ function Body({ data, aging, range, sort, onSort }: { data: Data; aging: Receiva
 
       <Section
         id="rep-receiving"
-        title="Receiving by vendor"
-        note={`${receiving.shipments} posted ${receiving.shipments === 1 ? "shipment" : "shipments"}. Declared is what the vendor's documents say; accepted, damaged and rejected are what was counted.`}
+        title="Receiving by supplier"
+        note={`${receiving.shipments} posted ${receiving.shipments === 1 ? "shipment" : "shipments"}. Declared is what the supplier's documents say; accepted, damaged and rejected are what was counted.`}
         action={<CsvButton label="receiving" onClick={csv.receiving} disabled={!receiving.rows.length} />}
       >
-        <DataGrid rows={receiving.rows} columns={vCols} rowKey={(r) => `${r.vendor_id}:${r.unit_code}`} caption={`Receiving by vendor, ${period}`} empty={<EmptyState title="No shipments posted in this period" />} />
+        <DataGrid rows={receiving.rows} columns={vCols} rowKey={(r) => `${r.vendor_id}:${r.unit_code}`} caption={`Receiving by supplier, ${period}`} empty={<EmptyState title="No shipments posted in this period" />} />
       </Section>
     </>
   );

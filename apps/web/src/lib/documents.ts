@@ -12,7 +12,7 @@ export const SYNC_STATUS: Record<DocSyncStatus, { tone: Tone; label: string }> =
 export const DOC_KIND: Record<DocFileKind, string> = {
   INVOICE_PDF: "Invoice",
   POD: "Proof of delivery",
-  VENDOR_DOC: "Vendor document",
+  VENDOR_DOC: "Supplier document",
   SCAN: "Scan",
 };
 

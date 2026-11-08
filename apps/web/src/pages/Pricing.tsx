@@ -69,7 +69,7 @@ export function PricingPage() {
     {
       key: "code",
       header: "Version",
-      cell: (r) => <Link className="font-medium text-brand-primary-hover underline-offset-2 hover:underline" to={`/pricing/${r.id}`}>{r.version_code}</Link>,
+      cell: (r) => <Link className="font-medium text-brand-primary-hover underline-offset-2 hover:underline" to={`/products/prices/${r.id}`}>{r.version_code}</Link>,
       sort: (r) => r.version_code.toLowerCase(),
     },
     { key: "state", header: "Status", cell: (r) => <StateChip s={r.state} /> },
@@ -82,8 +82,8 @@ export function PricingPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Pricing"
-        subtitle="Versioned price books. Published prices never change; issued invoices keep their snapshot."
+        title="Prices"
+        subtitle="Product prices, as versioned price books. Published prices never change; issued invoices keep their snapshot."
         actions={
           <div className="flex flex-wrap gap-2">
             <a className="btn-ghost" href={priceCsvUrl()} download>Download template</a>
@@ -92,8 +92,8 @@ export function PricingPage() {
           </div>
         }
       />
-      {panel === "import" && <ImportPanel onCancel={() => setPanel("none")} onCreated={(v) => nav(`/pricing/${v.id}`)} />}
-      {panel === "draft" && <NewDraft onCancel={() => setPanel("none")} onCreated={(v) => nav(`/pricing/${v.id}`)} />}
+      {panel === "import" && <ImportPanel onCancel={() => setPanel("none")} onCreated={(v) => nav(`/products/prices/${v.id}`)} />}
+      {panel === "draft" && <NewDraft onCancel={() => setPanel("none")} onCreated={(v) => nav(`/products/prices/${v.id}`)} />}
       <FilterBar
         search={search}
         onSearch={setSearch}
@@ -118,7 +118,7 @@ export function PricingPage() {
             columns={columns}
             rowKey={(r) => r.id}
             caption="Price book versions"
-            onOpen={(r) => nav(`/pricing/${r.id}`)}
+            onOpen={(r) => nav(`/products/prices/${r.id}`)}
             empty={<EmptyState title="No price books yet" hint="Import a CSV or start a new draft." />}
           />
         )}
@@ -244,7 +244,7 @@ function ImportPanel({ onCancel, onCreated }: { onCancel: () => void; onCreated:
         <div className="space-y-3" aria-live="polite">
           {preview.duplicate_of ? (
             <div role="alert" className="alert-warning">
-              This exact price list was already uploaded. <Link className="underline" to={`/pricing/${preview.duplicate_of}`}>Open the existing version</Link>.
+              This exact price list was already uploaded. <Link className="underline" to={`/products/prices/${preview.duplicate_of}`}>Open the existing version</Link>.
             </div>
           ) : (
             <div className="alert-success" role="status">File is valid: {preview.entry_count} prices.</div>
@@ -522,7 +522,7 @@ export function PriceVersionPage() {
 
   return (
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm"><Link className="text-brand-primary-hover underline" to="/pricing">Pricing</Link> / {v.version_code}</nav>
+      <nav aria-label="Breadcrumb" className="text-sm"><Link className="text-brand-primary-hover underline" to="/products">Products</Link> / <Link className="text-brand-primary-hover underline" to="/products/prices">Prices</Link> / {v.version_code}</nav>
       <PageHeader
         title={v.version_code}
         subtitle={
@@ -543,7 +543,7 @@ export function PriceVersionPage() {
       {v.stale && (
         <div role="status" className="alert-warning">
           A different price book became current after this draft was started. Review the changes below before activating.{" "}
-          {v.current_version_id && <Link className="underline" to={`/pricing/${v.current_version_id}`}>Open current price book</Link>}
+          {v.current_version_id && <Link className="underline" to={`/products/prices/${v.current_version_id}`}>Open current price book</Link>}
         </div>
       )}
       {v.status !== "DRAFT" && <p className="text-sm text-ink-muted">Published price books are read-only. To change prices, create a new draft from the Pricing page.</p>}
@@ -623,7 +623,7 @@ export function PriceVersionPage() {
           setDialog("none");
           try {
             await api.discardPriceVersion(v.id, v.version);
-            nav("/pricing");
+            nav("/products/prices");
           } catch (err) {
             setError(pricingMessage(err));
             if (err instanceof ApiError && err.status === 409) await loadVersion();

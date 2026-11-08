@@ -360,11 +360,11 @@ def receiving(wh: Actor, mgr: Actor, ids: dict[str, Any]) -> None:
         "POSTED", "Kingston air freight",
     )  # fmt: skip
     shipment(
-        mgr, mgr, ids, "V-LIM", "EAST", "LDG-3307", "AWB-145-2290-6612",
+        mgr, mgr, ids, "V-LIM", "MAIN", "LDG-3307", "AWB-145-2290-6612",
         [("MANGO-850", "20", "20", "0", "19.0000"), ("COCO-400", "30", "30", "0", "17.8000"),
          ("GARI-4KG", "15", "15", "0", "28.5000")],
         [("FREIGHT", "260.00")],
-        "POSTED", "East warehouse restock",
+        "POSTED", "Restock",
     )  # fmt: skip
     shipment(
         wh, None, ids, "V-ACC", "MAIN", "ACC-24-5534", "AWB-176-0042-1324",

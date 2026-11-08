@@ -27,8 +27,11 @@ test("warehouse user signs in, sees shell, cannot manage, signs out", async ({ p
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByText("Pro Trading").first()).toBeVisible();
   await page.getByRole("link", { name: /Settings/ }).click();
-  await expect(page.getByRole("cell", { name: "MAIN", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add warehouse" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: fx.users.warehouse })).toBeVisible();
+  // One warehouse only: no warehouse settings, no design previews.
+  await expect(page.getByText("Add warehouse")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Design previews/ })).toHaveCount(0);
   await page.screenshot({ path: "screenshots/shell-1440.png", fullPage: true });
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
@@ -42,7 +45,7 @@ test("bad password shows generic error", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText("Email or password is incorrect.");
 });
 
-test("owner must enroll MFA, then can create a warehouse", async ({ page }) => {
+test("owner must enroll MFA, then sees two-step sign-in on in Settings", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(fx.users.owner);
   await page.getByLabel("Password").fill(fx.password);
@@ -54,8 +57,7 @@ test("owner must enroll MFA, then can create a warehouse", async ({ page }) => {
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await page.getByRole("link", { name: /Settings/ }).click();
-  await page.getByLabel("Code").fill("E2E");
-  await page.getByLabel("Name").fill("E2E Overflow");
-  await page.getByRole("button", { name: "Add warehouse" }).click();
-  await expect(page.getByRole("cell", { name: "E2E Overflow" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
+  await page.goto("/settings/warehouses"); // removed page: back to Settings
+  await expect(page).toHaveURL(/\/settings$/);
 });

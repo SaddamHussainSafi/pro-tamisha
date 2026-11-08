@@ -100,7 +100,7 @@ export function ReceivingPage() {
 
   const columns: Column<Shipment>[] = [
     { key: "no", header: "Shipment", cell: (s) => <Link className={link} to={`/receiving/${s.id}`}>{s.shipment_no}</Link>, sort: (s) => s.shipment_no },
-    { key: "vendor", header: "Vendor", cell: (s) => <span>{s.vendor_name} <span className="text-xs text-ink-muted">{s.vendor_code}</span></span>, sort: (s) => s.vendor_name },
+    { key: "vendor", header: "Supplier", cell: (s) => <span>{s.vendor_name} <span className="text-xs text-ink-muted">{s.vendor_code}</span></span>, sort: (s) => s.vendor_name },
     { key: "refs", header: "Invoice / waybill", cell: (s) => <span className="text-sm">{[s.vendor_invoice_no, s.awb_no].filter(Boolean).join(" · ") || "—"}</span> },
     { key: "docs", header: "Docs", align: "right", cell: (s) => <span className="num">{s.document_count}</span> },
     {
@@ -116,7 +116,7 @@ export function ReceivingPage() {
     <div className="space-y-5">
       <PageHeader
         title="Receiving"
-        subtitle="Check vendor shipments against their documents. Stock is added only when a manager approves the count."
+        subtitle="Check supplier shipments against their documents. Stock is added only when a manager approves the count."
         actions={recordable.length > 0 && !creating && <button className="btn-primary" onClick={() => setCreating(true)}>New shipment</button>}
       />
       {creating && <NewShipment warehouses={recordable} onCancel={() => setCreating(false)} onCreated={(s) => nav(`/receiving/${s.id}`)} />}
@@ -130,7 +130,7 @@ export function ReceivingPage() {
           rows={rows}
           columns={columns}
           rowKey={(s) => s.id}
-          caption="Vendor shipments"
+          caption="Supplier shipments"
           onOpen={(s) => nav(`/receiving/${s.id}`)}
           empty={<EmptyState title="No shipments here" hint={view === "active" ? "Start one with New shipment when a delivery arrives." : undefined} />}
         />
@@ -156,7 +156,7 @@ function NewShipment({ warehouses, onCancel, onCreated }: { warehouses: Warehous
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!vendor) return setError("Choose the vendor.");
+    if (!vendor) return setError("Choose the supplier.");
     setBusy(true);
     try {
       onCreated(
@@ -179,7 +179,7 @@ function NewShipment({ warehouses, onCancel, onCreated }: { warehouses: Warehous
     <form className="card grid gap-3 p-4 md:grid-cols-3" aria-label="New shipment" onSubmit={submit}>
       <h2 className="font-semibold md:col-span-3">New shipment</h2>
       <div>
-        <label className="label" htmlFor="ns-v">Vendor</label>
+        <label className="label" htmlFor="ns-v">Supplier</label>
         <select id="ns-v" className="input" value={vendor} onChange={(e) => setVendor(e.target.value)}>
           <option value="">Choose…</option>
           {vendors.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.code})</option>)}
@@ -190,7 +190,7 @@ function NewShipment({ warehouses, onCancel, onCreated }: { warehouses: Warehous
         <input id="ns-exp" type="date" className="input" value={expected} onChange={(e) => setExpected(e.target.value)} />
       </div>
       <div>
-        <label className="label" htmlFor="ns-inv">Vendor invoice no. (optional)</label>
+        <label className="label" htmlFor="ns-inv">Supplier invoice no. (optional)</label>
         <input id="ns-inv" className="input" value={inv} maxLength={64} onChange={(e) => setInv(e.target.value)} />
       </div>
       <div>
@@ -348,7 +348,7 @@ export function ShipmentPage() {
           <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-primary text-white"><Icon name="receiving" size={26} /></span>
           <div className="mr-auto min-w-0">
             <h2 id="cmp-h" className="text-[22px] font-semibold tracking-tight">Documents vs. what arrived</h2>
-            <p className="text-sm text-ink-muted">Declared on the vendor documents, compared with your count.</p>
+            <p className="text-sm text-ink-muted">Declared on the supplier documents, compared with your count.</p>
           </div>
           {s.comparison.length === 0 ? null : differences.length > 0 ? (
             <StatusChip tone="warning">{differences.length} difference{differences.length === 1 ? "" : "s"}</StatusChip>
@@ -415,7 +415,7 @@ export function ShipmentPage() {
         {/* ---------- documents ---------- */}
         <section className="card flex min-w-0 flex-col overflow-hidden" aria-labelledby="docs-h">
           <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-            <h2 id="docs-h" className="mr-auto font-semibold">Vendor documents</h2>
+            <h2 id="docs-h" className="mr-auto font-semibold">Supplier documents</h2>
             <span className="text-xs text-ink-muted">Kept exactly as received</span>
           </div>
           {s.documents.length > 0 ? (
@@ -452,7 +452,7 @@ export function ShipmentPage() {
               )}
             </>
           ) : (
-            <div className="p-4"><EmptyState title="No documents yet" hint="Upload the vendor invoice, airway bill or packing list." /></div>
+            <div className="p-4"><EmptyState title="No documents yet" hint="Upload the supplier invoice, airway bill or packing list." /></div>
           )}
           {editable && <DocUpload s={s} busy={busy} run={run} onAdded={() => setDoc(s.documents.length)} />}
         </section>
@@ -503,7 +503,7 @@ export function ShipmentPage() {
         </p>
         {differences.length > 0 && (
           <div className="mt-3 space-y-2 rounded-md border border-warning/40 bg-warning/5 p-3">
-            <p className="font-medium">{differences.length} line{differences.length === 1 ? " differs" : "s differ"} from the vendor documents.</p>
+            <p className="font-medium">{differences.length} line{differences.length === 1 ? " differs" : "s differ"} from the supplier documents.</p>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-1" />
               I checked the differences and want to post what was physically counted.
@@ -898,9 +898,9 @@ function CostSection({ s, editable, busy, run, docName, onWithdraw }: { s: Shipm
   );
 }
 
-/* ================================ Vendors ================================ */
+/* ================================ Suppliers ================================ */
 
-export function VendorsPage() {
+export function SuppliersPage() {
   const { session } = useAuth();
   const [rows, setRows] = useState<Vendor[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -956,7 +956,7 @@ export function VendorsPage() {
         version: editing.version,
       });
       setEditing(null);
-      setOk("Vendor saved.");
+      setOk("Supplier saved.");
       await load();
     } catch (err) {
       setError(receivingMessage(err));
@@ -976,11 +976,11 @@ export function VendorsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Vendors" subtitle="Suppliers you receive shipments from. Their document descriptions are remembered per vendor." />
+      <PageHeader title="Suppliers" subtitle="Who you buy from. Their document descriptions are remembered per supplier." />
       {error && <Notice tone="error">{error}</Notice>}
       {ok && <Notice tone="ok">{ok}</Notice>}
       {canManage && (
-        <form className="card grid gap-3 p-4 md:grid-cols-6 md:items-end" aria-label="Add a vendor" onSubmit={create}>
+        <form className="card grid gap-3 p-4 md:grid-cols-6 md:items-end" aria-label="Add a supplier" onSubmit={create}>
           <div>
             <label className="label" htmlFor="v-code">Code</label>
             <input id="v-code" className="input uppercase" value={code} maxLength={32} required pattern="[A-Za-z0-9_\-]+" onChange={(e) => setCode(e.target.value)} />
@@ -997,7 +997,7 @@ export function VendorsPage() {
             <label className="label" htmlFor="v-cur">Currency</label>
             <input id="v-cur" className="input uppercase" value={currency} maxLength={3} required onChange={(e) => setCurrency(e.target.value)} />
           </div>
-          <button className="btn-primary">Add vendor</button>
+          <button className="btn-primary">Add supplier</button>
           <div className="md:col-span-3">
             <label className="label" htmlFor="v-email">Email (optional)</label>
             <input id="v-email" type="email" className="input" value={email} maxLength={320} onChange={(e) => setEmail(e.target.value)} />
@@ -1005,11 +1005,11 @@ export function VendorsPage() {
         </form>
       )}
       {loadError ? (
-        <ErrorState title="Couldn't load vendors" onRetry={() => void load()} />
+        <ErrorState title="Couldn't load suppliers" onRetry={() => void load()} />
       ) : rows === null ? (
         <LoadingRows cols={6} />
       ) : (
-        <DataGrid rows={rows} columns={columns} rowKey={(v) => v.id} caption="Vendors" empty={<EmptyState title="No vendors yet" />} />
+        <DataGrid rows={rows} columns={columns} rowKey={(v) => v.id} caption="Suppliers" empty={<EmptyState title="No suppliers yet" />} />
       )}
       {editing && (
         <form className="card grid gap-3 p-4 md:grid-cols-5 md:items-end" aria-label={`Edit ${editing.code}`} onSubmit={save}>
