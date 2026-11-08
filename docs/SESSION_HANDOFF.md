@@ -1,6 +1,6 @@
 # Session handoff — Pro Trading ERP
 
-Written 2026-11-08 for the next Claude Code session. Read this, `CLAUDE.md`, `docs/PROGRESS.md` and `docs/BLOCKERS.md`; do not re-read the whole documentation pack.
+Written 2026-11-08 for the next Claude Code session (updated after Module 10). Read this, `CLAUDE.md`, `docs/PROGRESS.md` and `docs/BLOCKERS.md`; do not re-read the whole documentation pack.
 
 ## Where things are
 
@@ -12,22 +12,17 @@ Written 2026-11-08 for the next Claude Code session. Read this, `CLAUDE.md`, `do
 
 ## Exact next task
 
-**Finish Module 10 Payments** (`claude/tasks/10-10-payments.md`, `docs/modules/10-payments.md`).
+Module 10 Payments is **done** (evidence: `docs/operations/BUILD_LOG.md`, 2026-11-08 entry). Next:
 
-Already done: migration `0011_payments.py` (applied to the dev DB) and the `Payment` models in `apps/api/src/pro_trading/models.py` (from about line 1453; `Invoice` has an allocated-amount field maintained under row locks).
+- **Module 11 Focus migration** (`claude/tasks/11-11-focus-migration.md`) is **blocked** on D-13/D-17: no Focus V7 backup sample or migration-scope decision. Do not start without real files.
+- **Module 12 Analytics** (`claude/tasks/12-12-analytics.md`, `docs/modules/12-analytics.md`) is the next buildable module. No profit/margin figures until D-04 (costing) is decided. Receivables aging already exists at `GET /receivables` (`payments.aging`) — reuse it, do not duplicate.
+- **Owner questions from Module 10** (recorded under D-16 in `docs/BLOCKERS.md`): reminder days and wording, pause reminders while a reported payment awaits confirmation, separate recorder/confirmer, overpayment/refund policy.
 
-Still to build:
-- **API:**
-  - a payments service: report → verify → apply/allocate → reject/reverse, with idempotency, row locks and audit;
-  - routes;
-  - permissions;
-  - OpenAPI contract update and `openapi.implemented.json` regeneration;
-  - receivables/aging views;
-  - reminder scheduling. Instructions and offsets are placeholders in `config.py` until D-16.
-- **Tests:** pytest, including concurrency/retry tests for allocation.
-- **Web:** a Payments page and receivables view in the current design. Then change the sidebar Payments entry in `apps/web/src/nav.ts` from "Soon" (`module: "Payments"`) to `module: null`. Add a Playwright spec with axe checks.
-- **Demo data:** extend `apps/api/scripts/demo_data.py` with payments.
-- **Wrap-up:** record commands and results in `docs/operations/BUILD_LOG.md`, then update `docs/PROGRESS.md`.
+### Module 10 map (for follow-ups)
+- API: `apps/api/src/pro_trading/payments.py` (service, aging, reminders), `routes/payments.py`, schemas at the end of `schemas.py`, worker beat `pro_trading.schedule_reminders` (hourly).
+- Lock order: payment row → invoices sorted by id. Allocations append-only (DB trigger); reversal = negative row with `reverses_id`.
+- Web: `apps/web/src/pages/Payments.tsx` (`/payments`, `/payments/:id`, `/receivables`), `lib/payments.ts`. The reject/reverse dialogs must stay **outside** `<form>` (ConfirmDialog buttons have no `type`, so inside a form they submit it).
+- Tests: `apps/api/tests/test_payments.py`, `apps/web/src/lib/payments.test.ts`, `apps/web/e2e/payments.spec.ts`.
 
 ## How to run (local)
 
@@ -79,4 +74,4 @@ Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
 
 ## Working tree at handoff
 
-The tree was clean at commit `e5051c6` ("Pro Trading ERP: initial import"). This handoff is committed on top of it.
+Module 10 changes are in the working tree, **not committed** (last commit `6b1a324`). Commit them before starting the next module.

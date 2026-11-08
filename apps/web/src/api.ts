@@ -434,7 +434,7 @@ export type Pick = Omit<PickSummary, "line_count" | "verified_at"> & {
 };
 export type PickLineIn = { line_id: string; picked_qty: string; shortage_reason?: ShortageReason | null; note?: string };
 
-export type InvoiceState = "ISSUED";
+export type InvoiceState = "ISSUED" | "PARTIALLY_PAID" | "PAID" | "VOIDED" | "CREDITED";
 export type EmailStatus = "NO_EMAIL" | "QUEUED" | "SENT" | "FAILED";
 export type WeightRow = { cases: number; weight_lb: string };
 export type InvoiceDraftLine = {
@@ -490,6 +490,8 @@ export type InvoiceSummary = {
   issued_at: string;
   due_at: string;
   total: string;
+  paid_amount: string;
+  balance: string;
   currency: "CAD";
   email_status: EmailStatus;
 };
@@ -963,7 +965,7 @@ export const api = {
     request<InvoicePreview>("POST", `/pick-attempts/${pickId}/invoice-preview`, { weights }),
   issueInvoice: (pickId: string, b: { version: number; dispatch_confirmed: boolean; weights: Record<string, WeightRow[]>; note: string }) =>
     request<Invoice>("POST", `/pick-attempts/${pickId}/issue-invoice`, b, true),
-  invoices: (q: { q?: string; customer_id?: string; sales_order_id?: string; picking_attempt_id?: string; email_status?: string; cursor?: string; limit?: number }) =>
+  invoices: (q: { q?: string; customer_id?: string; sales_order_id?: string; picking_attempt_id?: string; email_status?: string; open?: boolean; cursor?: string; limit?: number }) =>
     request<Page<InvoiceSummary>>("GET", `/invoices?${qs(q)}`),
   invoice: (id: string) => request<Invoice>("GET", `/invoices/${id}`),
   resendInvoiceEmail: (id: string) => request<Invoice>("POST", `/invoices/${id}/email`, undefined, true),
@@ -1051,6 +1053,20 @@ export const api = {
       { raw: file, type: file.type || "application/octet-stream" },
       true,
     ),
+
+  /* Module 10: payments + receivables */
+  payments: (q: { status?: PaymentStatus; customer_id?: string; method?: PaymentMethod; invoice_id?: string; q?: string; cursor?: string; limit?: number }) =>
+    request<PaymentPage>("GET", `/payments?${qs(q)}`),
+  payment: (id: string) => request<Payment>("GET", `/payments/${id}`),
+  recordPayment: (b: PaymentRecordIn) => request<Payment>("POST", "/payments", b, true),
+  verifyPayment: (id: string, b: { version: number; verification_ref: string; verification_note?: string | null; allocations: AllocationIn[] }) =>
+    request<Payment>("POST", `/payments/${id}/verify`, b, true),
+  allocatePayment: (id: string, b: { version: number; allocations: AllocationIn[] }) =>
+    request<Payment>("POST", `/payments/${id}/allocations`, b, true),
+  reverseAllocation: (id: string, allocationId: string, b: { version: number; reason: string }) =>
+    request<Payment>("POST", `/payments/${id}/allocations/${allocationId}/reverse`, b, true),
+  rejectPayment: (id: string, b: { version: number; reason: string }) => request<Payment>("POST", `/payments/${id}/reject`, b, true),
+  receivables: () => request<Receivables>("GET", "/receivables"),
 };
 
 export const scanDocumentUrl = (documentId: string) => `/api/v1/scans/documents/${documentId}/content`;
@@ -1071,3 +1087,80 @@ export const canInWarehouse = (s: Session, perm: string, wh: string) =>
   s.grants.some((g) => g.permission === perm && (g.warehouse_id === null || g.warehouse_id === wh));
 
 export const has = (s: Session, perm: string) => s.grants.some((g) => g.permission === perm);
+
+/* ---------- Module 10: payments ---------- */
+export type PaymentMethod = "INTERAC" | "EFT" | "CHEQUE" | "CASH";
+export type PaymentStatus = "REPORTED" | "VERIFIED" | "APPLIED" | "REJECTED";
+export type PaymentSummary = {
+  id: string;
+  payment_no: string;
+  status: PaymentStatus;
+  customer_id: string;
+  customer_name: string;
+  customer_ref: string | null;
+  method: PaymentMethod;
+  amount: string;
+  allocated_amount: string;
+  unallocated_amount: string;
+  currency: "CAD";
+  received_on: string;
+  payer_ref: string | null;
+  reported_invoice_id: string | null;
+  reported_invoice_no: string | null;
+  note: string | null;
+  recorded_by_name: string | null;
+  recorded_at: string;
+  verification_ref: string | null;
+  verification_note: string | null;
+  verified_by_name: string | null;
+  verified_at: string | null;
+  rejected_reason: string | null;
+  rejected_by_name: string | null;
+  rejected_at: string | null;
+  version: number;
+};
+export type PaymentAllocation = {
+  id: string;
+  invoice_id: string;
+  invoice_no: string;
+  invoice_state: InvoiceState;
+  invoice_balance: string;
+  amount: string;
+  reverses_id: string | null;
+  reversed: boolean;
+  reason: string | null;
+  created_by_name: string | null;
+  created_at: string;
+};
+export type Payment = PaymentSummary & { allocations: PaymentAllocation[] };
+export type PaymentPage = Page<PaymentSummary> & { counts: Record<PaymentStatus, number> };
+export type PaymentRecordIn = {
+  customer_id: string;
+  method: PaymentMethod;
+  amount: string;
+  received_on: string;
+  payer_ref?: string | null;
+  invoice_id?: string | null;
+  note?: string | null;
+};
+export type AllocationIn = { invoice_id: string; amount: string };
+export type AgingBuckets = { current: string; d1_30: string; d31_60: string; d61_90: string; d90_plus: string; total: string };
+export type AgingCustomer = AgingBuckets & {
+  customer_id: string;
+  customer_name: string;
+  customer_ref: string | null;
+  email: string | null;
+  open_invoices: number;
+  oldest_due: string | null;
+  unapplied_credit: string;
+  reported_pending: string;
+};
+export type Receivables = AgingBuckets & {
+  as_of: string;
+  currency: "CAD";
+  unapplied_credit: string;
+  reported_pending: string;
+  customers: AgingCustomer[];
+  payment_instructions: string;
+  reminder_offsets: number[];
+};

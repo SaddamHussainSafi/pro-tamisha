@@ -4,6 +4,7 @@ import { api, ApiError, canInWarehouse, invoicePdfUrl, type Invoice, type Invoic
 import { useAuth } from "../auth";
 import { cad, dec } from "../lib/decimal";
 import { qtyText } from "../lib/inventory";
+import { INVOICE_STATE } from "../lib/payments";
 import { EMAIL_STATUS, invoiceMessage, toWeightRows, weightTotals, type WeightDraft } from "../lib/invoices";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
@@ -61,6 +62,8 @@ export function InvoicesPage() {
     { key: "d", header: "Issued", cell: (r) => day(r.issued_at), sort: (r) => r.issued_at },
     { key: "due", header: "Due", cell: (r) => day(r.due_at), sort: (r) => r.due_at },
     { key: "t", header: "Total", align: "right", cell: (r) => <span className="num">{money(r.total)}</span>, sort: (r) => dec(r.total) },
+    { key: "b", header: "Balance", align: "right", cell: (r) => <span className="num">{money(r.balance)}</span>, sort: (r) => dec(r.balance) },
+    { key: "p", header: "Payment", cell: (r) => <StatusChip tone={INVOICE_STATE[r.state].tone}>{INVOICE_STATE[r.state].label}</StatusChip> },
     { key: "e", header: "Email", cell: (r) => <EmailChip status={r.email_status} /> },
   ];
   return (
@@ -180,7 +183,8 @@ export function InvoicePage() {
         subtitle={
           <>
             {inv.customer_name} · Order <Link className={link} to={`/orders/${inv.sales_order_id}`}>{inv.order_no}</Link> · Sheet{" "}
-            <Link className={link} to={`/picking/${inv.picking_attempt_id}`}>{inv.pick_code}</Link> · <StatusChip tone="success">Issued</StatusChip>
+            <Link className={link} to={`/picking/${inv.picking_attempt_id}`}>{inv.pick_code}</Link> · <StatusChip tone="success">Issued</StatusChip>{" "}
+            <StatusChip tone={INVOICE_STATE[inv.state].tone}>{INVOICE_STATE[inv.state].label}</StatusChip>
           </>
         }
         actions={
@@ -208,6 +212,10 @@ export function InvoicePage() {
               <dd>{new Date(inv.issued_at).toLocaleString()}</dd>
               <dt className="text-ink-muted">Due</dt>
               <dd>{day(inv.due_at)}</dd>
+              <dt className="text-ink-muted">Paid</dt>
+              <dd className="num">{money(inv.paid_amount)}</dd>
+              <dt className="text-ink-muted">Balance</dt>
+              <dd className="num" data-testid="invoice-balance">{money(inv.balance)}</dd>
               <dt className="text-ink-muted">Issued by</dt>
               <dd>{inv.issued_by_name ?? "—"}</dd>
               <dt className="text-ink-muted">Template</dt>

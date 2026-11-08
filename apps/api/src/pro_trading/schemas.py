@@ -965,6 +965,8 @@ class InvoiceSummaryOut(BaseModel):
     issued_at: datetime
     due_at: datetime
     total: Decimal
+    paid_amount: Decimal
+    balance: Decimal
     currency: Literal["CAD"]
     email_status: EmailStatus
 
@@ -1563,3 +1565,137 @@ class PodUploadIn(BaseModel):
     filename: str
     note: str | None
     sha256: str
+
+
+# ---------------------------------------------------------------------------------------------
+# Module 10 — manual payments, receivables aging (no bank integration)
+# ---------------------------------------------------------------------------------------------
+
+PaymentMethod = Literal["INTERAC", "EFT", "CHEQUE", "CASH"]
+PaymentStatus = Literal["REPORTED", "VERIFIED", "APPLIED", "REJECTED"]
+PayAmount = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
+OptText = Annotated[str, Field(max_length=500)] | None
+
+
+class PaymentRecordIn(BaseModel):
+    customer_id: uuid.UUID
+    method: PaymentMethod
+    amount: PayAmount
+    received_on: date
+    payer_ref: Annotated[str, Field(max_length=120)] | None = None
+    invoice_id: uuid.UUID | None = None
+    note: OptText = None
+
+
+class AllocationIn(BaseModel):
+    invoice_id: uuid.UUID
+    amount: PayAmount
+
+
+class PaymentVerifyIn(BaseModel):
+    version: int = Field(ge=1)
+    verification_ref: str = Field(min_length=3, max_length=120)
+    verification_note: OptText = None
+    allocations: list[AllocationIn] = Field(default_factory=list, max_length=50)
+
+
+class PaymentAllocateIn(BaseModel):
+    version: int = Field(ge=1)
+    allocations: list[AllocationIn] = Field(min_length=1, max_length=50)
+
+
+class PaymentRejectIn(BaseModel):
+    version: int = Field(ge=1)
+    reason: Reason
+
+
+class AllocationReverseIn(BaseModel):
+    version: int = Field(ge=1)
+    reason: Reason
+
+
+class PaymentSummaryOut(BaseModel):
+    id: uuid.UUID
+    payment_no: str
+    status: PaymentStatus
+    customer_id: uuid.UUID
+    customer_name: str
+    customer_ref: str | None
+    method: PaymentMethod
+    amount: Decimal
+    allocated_amount: Decimal
+    unallocated_amount: Decimal
+    currency: Literal["CAD"]
+    received_on: date
+    payer_ref: str | None
+    reported_invoice_id: uuid.UUID | None
+    reported_invoice_no: str | None
+    note: str | None
+    recorded_by_name: str | None
+    recorded_at: datetime
+    verification_ref: str | None
+    verification_note: str | None
+    verified_by_name: str | None
+    verified_at: datetime | None
+    rejected_reason: str | None
+    rejected_by_name: str | None
+    rejected_at: datetime | None
+    version: int
+
+
+class AllocationOut(BaseModel):
+    id: uuid.UUID
+    invoice_id: uuid.UUID
+    invoice_no: str
+    invoice_state: InvoiceState
+    invoice_balance: Decimal
+    amount: Decimal
+    reverses_id: uuid.UUID | None
+    reversed: bool
+    reason: str | None
+    created_by_name: str | None
+    created_at: datetime
+
+
+class PaymentOut(PaymentSummaryOut):
+    allocations: list[AllocationOut]
+
+
+class PaymentPage(BaseModel):
+    items: list[PaymentSummaryOut]
+    total: int
+    next_cursor: str | None
+    counts: dict[str, int]
+
+
+class AgingCustomerOut(BaseModel):
+    customer_id: uuid.UUID
+    customer_name: str
+    customer_ref: str | None
+    email: str | None
+    current: Decimal
+    d1_30: Decimal
+    d31_60: Decimal
+    d61_90: Decimal
+    d90_plus: Decimal
+    total: Decimal
+    open_invoices: int
+    oldest_due: date | None
+    unapplied_credit: Decimal
+    reported_pending: Decimal
+
+
+class ReceivablesOut(BaseModel):
+    as_of: date
+    currency: Literal["CAD"]
+    current: Decimal
+    d1_30: Decimal
+    d31_60: Decimal
+    d61_90: Decimal
+    d90_plus: Decimal
+    total: Decimal
+    unapplied_credit: Decimal
+    reported_pending: Decimal
+    customers: list[AgingCustomerOut]
+    payment_instructions: str
+    reminder_offsets: list[int]

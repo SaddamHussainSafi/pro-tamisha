@@ -601,6 +601,8 @@ def summary(invoice: Invoice) -> dict[str, Any]:
         "issued_at": invoice.issued_at.isoformat(),
         "due_at": invoice.due_at.isoformat(),
         "total": str(invoice.total),
+        "paid_amount": str(invoice.paid_amount),
+        "balance": str(invoice.total - invoice.paid_amount),
         "currency": invoice.currency,
         "email_status": invoice.email_status,
     }

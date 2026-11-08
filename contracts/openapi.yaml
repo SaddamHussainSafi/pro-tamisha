@@ -351,7 +351,7 @@ paths:
   /invoices:
     get:
       operationId: listInvoices
-      description: 'invoice.read, warehouse-scoped. Filters state, customer_id, sales_order_id, picking_attempt_id, email_status, q; limit/cursor.'
+      description: 'invoice.read, warehouse-scoped. Filters state, customer_id, sales_order_id, picking_attempt_id, email_status, open (ISSUED/PARTIALLY_PAID), q; limit/cursor. Items include paid_amount and balance.'
       responses: {'200': {description: InvoicePage}}
   /invoices/{invoiceId}:
     get:
@@ -370,11 +370,50 @@ paths:
       description: 'invoice.issue or invoice.prepare. Queues another send via outbox (dev sink until D-15).'
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
       responses: {'200': {description: InvoiceOut}, '409': {description: EMAIL_QUEUED}, '422': {description: NO_EMAIL_ADDRESS}}
-  /invoices/{invoiceId}/payments:
+  /payments:
+    get:
+      operationId: listPayments
+      description: 'payment.record or payment.verify (company ledger). Filters status, customer_id, method, invoice_id (reported against), q (payment no, payer/bank ref, customer); limit/cursor. counts per status.'
+      responses: {'200': {description: PaymentPage}}
     post:
       operationId: recordManualPayment
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
-      responses: {'201': {description: Reported payment pending manual verification}}
+      description: 'payment.record. Customer says sent != confirmed: creates REPORTED only. Body {customer_id, method INTERAC|EFT|CHEQUE|CASH, amount (CAD, 2dp), received_on, payer_ref, invoice_id?, note}. Number PAY-{year}-{n:06d}. No bank login or bank API secret exists.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PaymentOut (REPORTED)}, '409': {description: INVOICE_NOT_OPEN}, '422': {description: 'INVALID_CUSTOMER | INVALID_INVOICE | INVOICE_CUSTOMER_MISMATCH | FUTURE_DATE'}}
+  /payments/{paymentId}:
+    get:
+      operationId: getPayment
+      parameters: [{name: paymentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: PaymentOut with append-only allocation history}}
+  /payments/{paymentId}/verify:
+    post:
+      operationId: verifyPayment
+      description: 'payment.verify (MFA). Employee checked the bank/cheque/receipt. Body {version, verification_ref, verification_note, allocations[{invoice_id, amount}]}; allocations applied in the same transaction. A bank reference confirms one payment per method.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: paymentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: PaymentOut (VERIFIED or APPLIED)}, '409': {description: 'ALREADY_VERIFIED | DUPLICATE_CONFIRMATION | DUPLICATE | INVALID_STATE | VERSION_CONFLICT | allocation errors'}}
+  /payments/{paymentId}/allocations:
+    post:
+      operationId: allocatePayment
+      description: 'payment.verify, also for each invoice warehouse. Body {version, allocations[{invoice_id, amount}]}. Locks payment then invoices (sorted). Updates invoice paid_amount/state (PARTIALLY_PAID/PAID) and payment APPLIED when fully used.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: paymentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: PaymentOut}, '409': {description: 'NOT_VERIFIED | FULLY_APPLIED | INVOICE_NOT_OPEN | EXCEEDS_INVOICE_BALANCE | EXCEEDS_PAYMENT | VERSION_CONFLICT'}, '422': {description: 'DUPLICATE_INVOICE | INVALID_INVOICE | INVOICE_CUSTOMER_MISMATCH'}}
+  /payments/{paymentId}/allocations/{allocationId}/reverse:
+    post:
+      operationId: reversePaymentAllocation
+      description: 'payment.verify. Body {version, reason}. Appends a negative reversal row (never edits/deletes); invoice balance and payment status restored.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: paymentId, in: path, required: true, schema: {type: string, format: uuid}}, {name: allocationId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: PaymentOut}, '404': {description: NOT_FOUND}, '409': {description: 'ALREADY_REVERSED | NOT_REVERSIBLE | VERSION_CONFLICT'}}
+  /payments/{paymentId}/reject:
+    post:
+      operationId: rejectPayment
+      description: 'payment.verify. Body {version, reason}. REPORTED only; the record is kept.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: paymentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: PaymentOut (REJECTED)}, '409': {description: 'INVALID_STATE | VERSION_CONFLICT'}}
+  /receivables:
+    get:
+      operationId: getReceivables
+      description: 'invoice.read (warehouse-scoped) + payment read. Aging buckets current/1-30/31-60/61-90/90+ days past due (company-local dates) per customer, unapplied verified credit, reported-pending totals, payment instructions and reminder offsets (placeholders until D-16).'
+      responses: {'200': {description: ReceivablesOut}}
   /vendors:
     get:
       operationId: listVendors

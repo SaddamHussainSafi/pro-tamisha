@@ -17,7 +17,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Orders", icon: "cart", to: "/orders", module: null },
       { label: "Invoices", icon: "invoices", to: "/invoices", module: null },
-      { label: "Payments", icon: "payments", to: "/payments", module: "Payments" },
+      { label: "Payments", icon: "payments", to: "/payments", module: null },
     ],
   },
   {

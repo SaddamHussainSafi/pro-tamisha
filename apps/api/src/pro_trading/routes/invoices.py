@@ -152,6 +152,7 @@ def list_invoices(
     sales_order_id: uuid.UUID | None = None,
     picking_attempt_id: uuid.UUID | None = None,
     email_status: str | None = Query(None, pattern=r"^[A-Z_]{4,24}$"),
+    open_: bool | None = Query(None, alias="open"),
     q: str | None = Query(None, max_length=100),
     limit: int = Query(50, ge=1, le=200),
     cursor: str | None = Query(None, pattern=r"^\d{1,7}$"),
@@ -172,6 +173,9 @@ def list_invoices(
         stmt = stmt.where(Invoice.picking_attempt_id == picking_attempt_id)
     if email_status:
         stmt = stmt.where(Invoice.email_status == email_status)
+    if open_ is not None:
+        is_open = Invoice.state.in_(("ISSUED", "PARTIALLY_PAID"))
+        stmt = stmt.where(is_open if open_ else ~is_open)
     if q:
         like = f"%{esc(q.strip())}%"
         stmt = stmt.where(

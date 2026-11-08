@@ -8,6 +8,7 @@ import { LoginPage } from "./pages/Login";
 import { MfaPage } from "./pages/Mfa";
 import { NewOrderPage, OrderPage, OrdersPage } from "./pages/Orders";
 import { OverviewPage } from "./pages/Overview";
+import { PaymentDetailPage, PaymentsPage, ReceivablesPage } from "./pages/Payments";
 import { PickSheetPage, PickingPage } from "./pages/Picking";
 import { PriceVersionPage, PricingPage } from "./pages/Pricing";
 import { OcrReviewPage } from "./pages/OcrReview";
@@ -49,6 +50,9 @@ export function App() {
         <Route path="picking/:id/invoice" element={<IssueInvoicePage />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="invoices/:id" element={<InvoicePage />} />
+        <Route path="payments" element={<PaymentsPage />} />
+        <Route path="payments/:id" element={<PaymentDetailPage />} />
+        <Route path="receivables" element={<ReceivablesPage />} />
         <Route path="receiving" element={<ReceivingPage />} />
         <Route path="receiving/:id" element={<ShipmentPage />} />
         <Route path="vendors" element={<VendorsPage />} />

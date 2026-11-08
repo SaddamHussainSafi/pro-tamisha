@@ -23,6 +23,7 @@ from .routes import (
     invoices,
     ocr,
     orders,
+    payments,
     pricing,
     receiving,
     scans,
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
         ocr.router,
         receiving.router,
         documents.router,
+        payments.router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app

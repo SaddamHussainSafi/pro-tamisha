@@ -561,12 +561,60 @@ def scans(sales: Actor, ids: dict[str, Any]) -> None:
 
 
 def payments(sales: Actor, fin: Actor, ids: dict[str, Any], invoices: list[dict[str, Any]]) -> None:
-    if not any(getattr(r, "path", "") == f"{P}/payments" for r in app.routes):
-        print("  (payments API not available yet - skipped)")
-        return
-    from demo_payments import run  # type: ignore[import-not-found]  # noqa: PLC0415
+    """Sales records what customers say they sent; finance confirms against the bank (synthetic
+    references) and applies. Leaves a mix: paid, partly paid, credit, awaiting check, rejected."""
+    from decimal import Decimal  # noqa: PLC0415
 
-    run(sales, fin, ids, invoices)
+    today = date.today().isoformat()
+
+    def report(inv: dict[str, Any], amount: Decimal, method: str, quoted: str) -> Any:
+        return sales.post(
+            "/payments",
+            {
+                "customer_id": inv["customer_id"],
+                "invoice_id": inv["id"],
+                "method": method,
+                "amount": str(amount),
+                "received_on": today,
+                "payer_ref": quoted,
+            },
+        )
+
+    def confirm(pay: Any, ref: str, apply: list[tuple[dict[str, Any], Decimal]]) -> Any:
+        return fin.post(
+            f"/payments/{pay['id']}/verify",
+            {
+                "version": pay["version"],
+                "verification_ref": ref,
+                "allocations": [{"invoice_id": i["id"], "amount": str(a)} for i, a in apply],
+            },
+        )
+
+    if not invoices:
+        return
+    full = invoices[0]
+    total = Decimal(full["total"])
+    confirm(
+        report(full, total, "INTERAC", "e-Transfer, invoice no. in message"),
+        "DEMO-DEP-0001",
+        [(full, total)],
+    )
+    if len(invoices) > 1:
+        part = invoices[1]
+        some = (Decimal(part["total"]) * Decimal("0.4")).quantize(Decimal("0.01"))
+        confirm(report(part, some, "EFT", "EFT part payment"), "DEMO-DEP-0002", [(part, some)])
+    if len(invoices) > 2:
+        pending = invoices[2]
+        report(pending, Decimal(pending["total"]), "INTERAC", "Customer phoned: sent this morning")
+        credit = confirm(
+            report(pending, Decimal("50.00"), "CHEQUE", "Cheque at counter"), "CHQ-1042", []
+        )
+        assert credit["status"] == "VERIFIED"
+        wrong = report(pending, Decimal("75.00"), "INTERAC", "Says sent last week")
+        fin.post(
+            f"/payments/{wrong['id']}/reject",
+            {"version": wrong["version"], "reason": "No matching deposit in the bank statement"},
+        )  # fmt: skip
 
 
 # ------------------------------------------------------------------ main
