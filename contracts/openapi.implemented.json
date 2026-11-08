@@ -1681,6 +1681,115 @@
         "title": "CustomerPatch",
         "type": "object"
       },
+      "CustomerSalesOut": {
+        "properties": {
+          "currency": {
+            "const": "CAD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "net_sales": {
+            "title": "Net Sales",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CustomerSalesRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "total_rows": {
+            "title": "Total Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "timezone",
+          "currency",
+          "total_rows",
+          "net_sales",
+          "rows"
+        ],
+        "title": "CustomerSalesOut",
+        "type": "object"
+      },
+      "CustomerSalesRowOut": {
+        "properties": {
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "gross": {
+            "title": "Gross",
+            "type": "string"
+          },
+          "invoice_count": {
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "last_invoice_at": {
+            "format": "date-time",
+            "title": "Last Invoice At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "net_sales": {
+            "title": "Net Sales",
+            "type": "string"
+          },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQtyOut"
+            },
+            "title": "Quantities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "customer_id",
+          "name",
+          "external_ref",
+          "invoice_count",
+          "net_sales",
+          "gross",
+          "quantities",
+          "last_invoice_at"
+        ],
+        "title": "CustomerSalesRowOut",
+        "type": "object"
+      },
       "DamageIn": {
         "properties": {
           "lot_id": {
@@ -8549,6 +8658,115 @@
         "title": "ProductPatch",
         "type": "object"
       },
+      "ProductSalesOut": {
+        "properties": {
+          "currency": {
+            "const": "CAD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "net_sales": {
+            "title": "Net Sales",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ProductSalesRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "total_rows": {
+            "title": "Total Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "timezone",
+          "currency",
+          "total_rows",
+          "net_sales",
+          "rows"
+        ],
+        "title": "ProductSalesOut",
+        "type": "object"
+      },
+      "ProductSalesRowOut": {
+        "properties": {
+          "avg_rate": {
+            "title": "Avg Rate",
+            "type": "string"
+          },
+          "customer_count": {
+            "title": "Customer Count",
+            "type": "integer"
+          },
+          "invoice_count": {
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "net_sales": {
+            "title": "Net Sales",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "sku",
+          "name",
+          "unit_code",
+          "qty",
+          "net_sales",
+          "avg_rate",
+          "invoice_count",
+          "customer_count"
+        ],
+        "title": "ProductSalesRowOut",
+        "type": "object"
+      },
       "ProductSummary": {
         "properties": {
           "active": {
@@ -8744,6 +8962,50 @@
           "reminder_offsets"
         ],
         "title": "ReceivablesOut",
+        "type": "object"
+      },
+      "ReceivingReportOut": {
+        "properties": {
+          "currency": {
+            "const": "CAD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/VendorReceivingRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "shipments": {
+            "title": "Shipments",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "timezone",
+          "currency",
+          "shipments",
+          "rows"
+        ],
+        "title": "ReceivingReportOut",
         "type": "object"
       },
       "ReconciliationOut": {
@@ -9014,6 +9276,111 @@
           "message"
         ],
         "title": "RowErrorOut",
+        "type": "object"
+      },
+      "SalesPointOut": {
+        "properties": {
+          "invoice_count": {
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "net_sales": {
+            "title": "Net Sales",
+            "type": "string"
+          },
+          "period": {
+            "format": "date",
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "invoice_count",
+          "net_sales"
+        ],
+        "title": "SalesPointOut",
+        "type": "object"
+      },
+      "SalesReportOut": {
+        "properties": {
+          "bucket": {
+            "enum": [
+              "day",
+              "month"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "currency": {
+            "const": "CAD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_count": {
+            "title": "Customer Count",
+            "type": "integer"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "gross": {
+            "title": "Gross",
+            "type": "string"
+          },
+          "invoice_count": {
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "net_sales": {
+            "title": "Net Sales",
+            "type": "string"
+          },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQtyOut"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SalesPointOut"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "tax": {
+            "title": "Tax",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "timezone",
+          "currency",
+          "bucket",
+          "invoice_count",
+          "customer_count",
+          "net_sales",
+          "tax",
+          "gross",
+          "quantities",
+          "series"
+        ],
+        "title": "SalesReportOut",
         "type": "object"
       },
       "ScanCancelIn": {
@@ -10576,6 +10943,105 @@
         "title": "StockCheckOut",
         "type": "object"
       },
+      "StockFlowOut": {
+        "properties": {
+          "currency": {
+            "const": "CAD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/StockFlowRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "timezone",
+          "currency",
+          "rows"
+        ],
+        "title": "StockFlowOut",
+        "type": "object"
+      },
+      "StockFlowRowOut": {
+        "properties": {
+          "closing": {
+            "title": "Closing",
+            "type": "string"
+          },
+          "dispatched": {
+            "title": "Dispatched",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "opening": {
+            "title": "Opening",
+            "type": "string"
+          },
+          "other": {
+            "title": "Other",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "received": {
+            "title": "Received",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "sku",
+          "name",
+          "unit_code",
+          "opening",
+          "received",
+          "dispatched",
+          "other",
+          "closing"
+        ],
+        "title": "StockFlowRowOut",
+        "type": "object"
+      },
       "UnitProfileIn": {
         "properties": {
           "code": {
@@ -10700,6 +11166,30 @@
           "active"
         ],
         "title": "UnitProfileOut",
+        "type": "object"
+      },
+      "UnitQtyOut": {
+        "properties": {
+          "qty": {
+            "title": "Qty",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit_code",
+          "qty"
+        ],
+        "title": "UnitQtyOut",
         "type": "object"
       },
       "ValidationError": {
@@ -10912,6 +11402,78 @@
           "version"
         ],
         "title": "VendorPatch",
+        "type": "object"
+      },
+      "VendorReceivingRowOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "damaged": {
+            "title": "Damaged",
+            "type": "string"
+          },
+          "declared": {
+            "title": "Declared",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "string"
+          },
+          "shipments": {
+            "title": "Shipments",
+            "type": "integer"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_id",
+          "code",
+          "name",
+          "country_code",
+          "unit_code",
+          "shipments",
+          "declared",
+          "accepted",
+          "damaged",
+          "rejected"
+        ],
+        "title": "VendorReceivingRowOut",
         "type": "object"
       },
       "VersionIn": {
@@ -17363,6 +17925,669 @@
         "summary": "Receivables",
         "tags": [
           "payments"
+        ]
+      }
+    },
+    "/api/v1/reports/receiving": {
+      "get": {
+        "description": "Posted GRNs per vendor and unit: declared vs accepted / damaged / rejected.",
+        "operationId": "receiving_report_api_v1_reports_receiving_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "vendor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "description": "First day (company timezone)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (company timezone)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Last day, inclusive; default today",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, inclusive; default today",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warehouse_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Warehouse Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivingReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Receiving Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/sales": {
+      "get": {
+        "description": "Totals of issued invoices in the period, quantities per unit and a per-day or per-month\nseries (every period present, zero when nothing was invoiced).",
+        "operationId": "sales_report_api_v1_reports_sales_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "default": "day",
+              "enum": [
+                "day",
+                "month"
+              ],
+              "title": "Bucket",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day (company timezone)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (company timezone)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Last day, inclusive; default today",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, inclusive; default today",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warehouse_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Warehouse Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sales Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/sales-by-customer": {
+      "get": {
+        "operationId": "sales_by_customer_api_v1_reports_sales_by_customer_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "top",
+              "enum": [
+                "top",
+                "least"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "First day (company timezone)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (company timezone)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Last day, inclusive; default today",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, inclusive; default today",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warehouse_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Warehouse Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerSalesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sales By Customer",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/sales-by-product": {
+      "get": {
+        "description": "One row per product and unit. With `customer_id` it is that customer's volume and\naverage realised rate per product.",
+        "operationId": "sales_by_product_api_v1_reports_sales_by_product_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "top",
+              "enum": [
+                "top",
+                "least"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "First day (company timezone)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (company timezone)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Last day, inclusive; default today",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, inclusive; default today",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warehouse_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Warehouse Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSalesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sales By Product",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/stock-flow": {
+      "get": {
+        "description": "Opening + received + dispatched + other = closing, per product and unit, from the\nstock ledger. Closing includes damaged and quarantined lots.",
+        "operationId": "stock_flow_api_v1_reports_stock_flow_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "description": "First day (company timezone)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (company timezone)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Last day, inclusive; default today",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, inclusive; default today",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warehouse_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Warehouse Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockFlowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stock Flow",
+        "tags": [
+          "reports"
         ]
       }
     },

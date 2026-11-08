@@ -1067,6 +1067,16 @@ export const api = {
     request<Payment>("POST", `/payments/${id}/allocations/${allocationId}/reverse`, b, true),
   rejectPayment: (id: string, b: { version: number; reason: string }) => request<Payment>("POST", `/payments/${id}/reject`, b, true),
   receivables: () => request<Receivables>("GET", "/receivables"),
+
+  /* Module 12: reports (read-only; report.read) */
+  reportSales: (q: ReportQuery & { bucket?: "day" | "month" }) => request<SalesReport>("GET", `/reports/sales?${qs(q)}`),
+  reportByProduct: (q: ReportQuery & { sort?: ReportSort; limit?: number }) =>
+    request<ProductSalesReport>("GET", `/reports/sales-by-product?${qs(q)}`),
+  reportByCustomer: (q: ReportQuery & { sort?: ReportSort; limit?: number }) =>
+    request<CustomerSalesReport>("GET", `/reports/sales-by-customer?${qs(q)}`),
+  reportStockFlow: (q: Omit<ReportQuery, "customer_id">) => request<StockFlowReport>("GET", `/reports/stock-flow?${qs(q)}`),
+  reportReceiving: (q: Omit<ReportQuery, "customer_id"> & { vendor_id?: string }) =>
+    request<ReceivingReport>("GET", `/reports/receiving?${qs(q)}`),
 };
 
 export const scanDocumentUrl = (documentId: string) => `/api/v1/scans/documents/${documentId}/content`;
@@ -1164,3 +1174,67 @@ export type Receivables = AgingBuckets & {
   payment_instructions: string;
   reminder_offsets: number[];
 };
+
+/* ---------- Module 12: reports ---------- */
+export type ReportQuery = { date_from?: string; date_to?: string; customer_id?: string; product_id?: string };
+export type ReportSort = "top" | "least";
+export type UnitQty = { unit_code: UnitCode; qty: string };
+export type ReportPeriod = { date_from: string; date_to: string; timezone: string; currency: "CAD" };
+export type SalesReport = ReportPeriod & {
+  bucket: "day" | "month";
+  invoice_count: number;
+  customer_count: number;
+  net_sales: string;
+  tax: string;
+  gross: string;
+  quantities: UnitQty[];
+  series: { period: string; invoice_count: number; net_sales: string }[];
+};
+export type ProductSalesRow = {
+  product_id: string;
+  sku: string;
+  name: string;
+  unit_code: UnitCode;
+  qty: string;
+  net_sales: string;
+  avg_rate: string;
+  invoice_count: number;
+  customer_count: number;
+};
+export type ProductSalesReport = ReportPeriod & { total_rows: number; net_sales: string; rows: ProductSalesRow[] };
+export type CustomerSalesRow = {
+  customer_id: string;
+  name: string;
+  external_ref: string | null;
+  invoice_count: number;
+  net_sales: string;
+  gross: string;
+  quantities: UnitQty[];
+  last_invoice_at: string;
+};
+export type CustomerSalesReport = ReportPeriod & { total_rows: number; net_sales: string; rows: CustomerSalesRow[] };
+export type StockFlowRow = {
+  product_id: string;
+  sku: string;
+  name: string;
+  unit_code: UnitCode;
+  opening: string;
+  received: string;
+  dispatched: string;
+  other: string;
+  closing: string;
+};
+export type StockFlowReport = ReportPeriod & { rows: StockFlowRow[] };
+export type VendorReceivingRow = {
+  vendor_id: string;
+  code: string;
+  name: string;
+  country_code: string | null;
+  unit_code: UnitCode;
+  shipments: number;
+  declared: string;
+  accepted: string;
+  damaged: string;
+  rejected: string;
+};
+export type ReceivingReport = ReportPeriod & { shipments: number; rows: VendorReceivingRow[] };

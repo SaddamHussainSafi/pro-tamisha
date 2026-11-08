@@ -51,7 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Analytics",
     items: [
-      { label: "Reports", icon: "reports", to: "/reports", module: "Reports" },
+      { label: "Reports", icon: "reports", to: "/reports", module: null },
       { label: "Documents", icon: "documents", to: "/documents", module: null },
     ],
   },

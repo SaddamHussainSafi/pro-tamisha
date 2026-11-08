@@ -741,14 +741,71 @@ paths:
       description: 'invoice.read + document.manage. Raw body (PDF/PNG/JPEG/TIFF), query filename, note. Append-only: a new POD never replaces an earlier one; same bytes return the existing file (200).'
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
       responses: {'201': {description: 'DocumentFileOut POD'}, '200': {description: 'Same file already filed'}, '415': {description: 'UNSUPPORTED_FILE / FILE_TYPE_MISMATCH'}}
-  /analytics/sales:
+  # Module 12 reports: read-only, report.read, rows limited to warehouses where the caller holds
+  # report.read. Dates are company-timezone calendar days; date_to inclusive; default = last 30
+  # days; range at most 731 days. Money is CAD before tax unless named tax/gross. Quantities are
+  # per unit (BOX/PIECE/LB/KG never added together). No cost/margin/profit fields until D-04.
+  # Sales = invoices in ISSUED/PARTIALLY_PAID/PAID (no credit-note flow exists yet).
+  # Outstanding balances: GET /receivables (not duplicated here).
+  /reports/sales:
     get:
-      operationId: salesMetrics
+      operationId: reportSales
+      description: 'Totals (invoice_count, customer_count, net_sales, tax, gross), quantities per unit, and a zero-filled series per day or month.'
       parameters:
-        - {name: from, in: query, schema: {type: string, format: date}}
-        - {name: to, in: query, schema: {type: string, format: date}}
+        - $ref: '#/components/parameters/ReportDateFrom'
+        - $ref: '#/components/parameters/ReportDateTo'
+        - $ref: '#/components/parameters/ReportWarehouse'
         - {name: customer_id, in: query, schema: {type: string, format: uuid}}
-      responses: {'200': {description: Reconciled sales metrics}}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+        - {name: bucket, in: query, schema: {type: string, enum: [day, month], default: day}}
+      responses: {'200': {description: SalesReportOut}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/ReportRange'}}
+  /reports/sales-by-product:
+    get:
+      operationId: reportSalesByProduct
+      description: 'One row per product and unit: qty, net_sales, avg_rate (net_sales / qty), invoice_count, customer_count. With customer_id = that customer''s volume and realised rate. sort=top|least by net_sales.'
+      parameters:
+        - $ref: '#/components/parameters/ReportDateFrom'
+        - $ref: '#/components/parameters/ReportDateTo'
+        - $ref: '#/components/parameters/ReportWarehouse'
+        - {name: customer_id, in: query, schema: {type: string, format: uuid}}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+        - {name: sort, in: query, schema: {type: string, enum: [top, least], default: top}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 50}}
+      responses: {'200': {description: 'ProductSalesOut {total_rows, net_sales, rows}'}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/ReportRange'}}
+  /reports/sales-by-customer:
+    get:
+      operationId: reportSalesByCustomer
+      description: 'One row per customer: invoice_count, net_sales, gross, quantities per unit, last_invoice_at.'
+      parameters:
+        - $ref: '#/components/parameters/ReportDateFrom'
+        - $ref: '#/components/parameters/ReportDateTo'
+        - $ref: '#/components/parameters/ReportWarehouse'
+        - {name: customer_id, in: query, schema: {type: string, format: uuid}}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+        - {name: sort, in: query, schema: {type: string, enum: [top, least], default: top}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 50}}
+      responses: {'200': {description: 'CustomerSalesOut {total_rows, net_sales, rows}'}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/ReportRange'}}
+  /reports/stock-flow:
+    get:
+      operationId: reportStockFlow
+      description: 'Per product and unit from stock_movements: opening + received (GRN_RECEIPT) + dispatched (INVOICE_DISPATCH, negative) + other (all other types) = closing. Closing includes damaged/quarantined lots.'
+      parameters:
+        - $ref: '#/components/parameters/ReportDateFrom'
+        - $ref: '#/components/parameters/ReportDateTo'
+        - $ref: '#/components/parameters/ReportWarehouse'
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+      responses: {'200': {description: StockFlowOut}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/ReportRange'}}
+  /reports/receiving:
+    get:
+      operationId: reportReceiving
+      description: 'POSTED shipments by GRN posting date, per vendor and unit: shipments, declared (vendor documents) vs accepted / damaged / rejected (counted).'
+      parameters:
+        - $ref: '#/components/parameters/ReportDateFrom'
+        - $ref: '#/components/parameters/ReportDateTo'
+        - $ref: '#/components/parameters/ReportWarehouse'
+        - {name: vendor_id, in: query, schema: {type: string, format: uuid}}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+      responses: {'200': {description: ReceivingReportOut}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/ReportRange'}}
   /events:
     get:
       operationId: streamEvents
@@ -762,9 +819,13 @@ components:
       in: header
       required: true
       schema: {type: string, minLength: 12, maxLength: 128}
+    ReportDateFrom: {name: date_from, in: query, description: 'First day (company timezone). Default date_to - 29 days.', schema: {type: string, format: date}}
+    ReportDateTo: {name: date_to, in: query, description: 'Last day, inclusive. Default today (company timezone).', schema: {type: string, format: date}}
+    ReportWarehouse: {name: warehouse_id, in: query, description: 'Optional narrowing; needs report.read in that warehouse (403 otherwise).', schema: {type: string, format: uuid}}
   responses:
     Forbidden: {description: 'FORBIDDEN or MFA_REQUIRED (privileged grants need verified MFA)'}
     Conflict: {description: 'VERSION_CONFLICT (body.current_version) | DUPLICATE | IDEMPOTENCY_KEY_REUSED'}
+    ReportRange: {description: 'INVALID_RANGE (date_from after date_to) | RANGE_TOO_LONG (over 731 days) | VALIDATION (bad date, bucket, sort or limit)'}
   schemas:
     Decimal: {type: string, pattern: '^-?\\d+(\\.\\d+)?$', description: Decimal as string; never float}
     UnitProfileIn:

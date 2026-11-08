@@ -7,13 +7,23 @@ Last updated 2026-11-08. Decision numbers refer to `docs/decisions/OPEN_DECISION
 | Item | Decision | Effect today |
 |---|---|---|
 | Tax rules by goods/jurisdiction | D-03 | `invoice_tax_verified=false`: production-like environments refuse to issue invoices until an accountant signs off. |
-| Landed cost / freight & duty allocation, costing method | D-04 | Costs are recorded per shipment only; no profit figures are shown. |
+| Landed cost / freight & duty allocation, costing method | D-04 | Costs are recorded per shipment only; Reports show no cost, margin or profit figures. |
 | Real customer invoice PDF template | D-12 | The invoice PDF uses a placeholder layout. |
 | Payment instructions, reminder dates, verifying roles | D-16 | Module 10 runs on placeholders: instructions text, reminders at -3/+1/+14 days, verify = FINANCE + OWNER_ADMIN. Also undecided: should reminders pause while a reported payment awaits confirmation (today they don't), may the same person record and confirm a payment (today yes), and what to do with overpayments (kept as unapplied credit; no refund flow). |
 | Google Workspace / Shared Drive for the archive | D-15 | `DRIVE_PROVIDER=local` copies files to `apps/api/var/drive`. Google Drive is not verified. |
 | Focus V7 backup format, history migration scope | D-13, D-17 | Module 11 has not started. |
 | OCR accuracy target and review turnaround | D-18 | Every line is reviewed by hand regardless of confidence. |
 | Data retention / privacy policy | D-19 | No retention jobs exist. |
+
+## Open questions from Module 12 (Reports)
+
+Built with the choices below; each needs an owner/accountant answer before the figures are relied on.
+
+- **Revenue definition.** Reports use net sales = invoice line amounts before tax, dated by invoice issue date (company timezone), and also show tax and the total with tax. Should management revenue be before or after tax, and by issue date or by payment date?
+- **Voids and credits.** Invoices in VOIDED or CREDITED are left out, but no void or credit-note flow exists yet (`invoice.correct` has no handler), so "revenue = issued less credits" cannot be tested with real credits. How should a credit dated in a later month count: against its own month or the original invoice's month?
+- **Origin filter.** The module asks for an origin filter, but products have no origin field; only vendors have a country. Is origin the vendor's country, or a new product attribute?
+- **Weighted products.** Quantities are reported per invoiced unit (lb lines separately from box lines). Should lb-priced lines also report the number of cases?
+- **Who sees reports.** `report.read` is held by OWNER_ADMIN, MANAGER and FINANCE (catalog default). Should sales staff see their own customers' figures?
 
 ## Not verified with real hardware or services
 
@@ -25,7 +35,6 @@ Last updated 2026-11-08. Decision numbers refer to `docs/decisions/OPEN_DECISION
 ## Not built yet
 
 - **Customers management UI:** the sidebar shows "Soon". Customers come from seed and demo data.
-- **Reports / Module 12 Analytics:** the sidebar shows "Soon".
 - **OCR of vendor documents into declared shipment lines:** declared lines are entered by hand.
 - **Global search box in the header:** it is a placeholder with no behaviour.
 

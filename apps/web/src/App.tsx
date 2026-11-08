@@ -11,6 +11,7 @@ import { OverviewPage } from "./pages/Overview";
 import { PaymentDetailPage, PaymentsPage, ReceivablesPage } from "./pages/Payments";
 import { PickSheetPage, PickingPage } from "./pages/Picking";
 import { PriceVersionPage, PricingPage } from "./pages/Pricing";
+import { ReportsPage } from "./pages/Reports";
 import { OcrReviewPage } from "./pages/OcrReview";
 import { ScanJobPage, ScansPage } from "./pages/Scans";
 import { ProductDetailPage, ProductsPage } from "./pages/Products";
@@ -60,6 +61,7 @@ export function App() {
         <Route path="scan/review/:id" element={<OcrReviewPage />} />
         <Route path="scan/:id" element={<ScanJobPage />} />
         <Route path="documents" element={<DocumentsPage />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route path="settings/warehouses" element={<WarehousesPage />} />
         <Route path="preview/overview" element={<OverviewPreview />} />
         <Route path="preview/orders" element={<OrdersPreview />} />

@@ -18,8 +18,8 @@ Last updated: 2026-11-08. Evidence for every item is in `docs/operations/BUILD_L
 | 08 | Vendor shipments and GRN | Done | `0009_receiving` |
 | 09 | Documents, Drive archive, POD | Done (local Drive stand-in; Google Drive not verified, D-15) | `0010_documents` |
 | 10 | Payments (manual ledger), receivables, reminders | Done (instructions, reminder days, verifier roles are placeholders until D-16; email dev sink) | `0011_payments` |
-| 11 | Focus migration | Not started (D-13, D-17) | — |
-| 12 | Analytics | Not started | — |
+| 11 | Focus migration | Deferred by owner until the rest of the app is functional (also blocked on D-13, D-17) | — |
+| 12 | Analytics / Reports (read-only) | Done (no profit/margin until D-04; no SSE refresh; credits not testable until a credit-note flow exists) | — (no new tables) |
 
 The dev database `tami` is at migration `0011` (head).
 
@@ -27,7 +27,7 @@ The dev database `tami` is at migration `0011` (head).
 
 - **Look:** the layout follows the reference dashboards, with the colour set to Tamisha green `#28A745` and its "apple" ramp (`design/tokens.json` schemaVersion 3). The note at the top of `design/UI_DESIGN_REFERENCE.md` records the override.
 - **Overview:** a visual dashboard built from API data only: KPI cards, a striped bar chart, an orders-by-stage donut and progress bars.
-- **Navigation:** a grouped, collapsible sidebar. Customers and Reports show "Soon" (Payments enabled with Module 10).
+- **Navigation:** a grouped, collapsible sidebar. Customers shows "Soon" (Payments enabled with Module 10, Reports with Module 12).
 - **Warehouses:** the picker and all warehouse codes are removed from the UI. New records go to the first warehouse the user is allowed to act in.
 - **Scan Center:** the new-scan card has start, in-progress and completed states. After a sales-order scan or upload, the **Recognized lines** editor opens on its own so OCR mistakes are fixed in place.
 - **Recognized lines style:** applied to the OCR review page, the receiving preview and the real receiving comparison.
@@ -35,23 +35,22 @@ The dev database `tami` is at migration `0011` (head).
 
 ## Last verified test results
 
-All from 2026-11-08, on this machine, after Module 10.
+All from 2026-11-08, on this machine, after Module 12.
 
 ### API (`apps/api`)
 - `ruff check`, `ruff format --check`, `mypy src`: clean.
-- `PYTHONPATH=src uv run pytest`: **197 passed** (10 new in `tests/test_payments.py`).
+- `PYTHONPATH=src uv run pytest`: **204 passed** (7 new in `tests/test_reports.py`).
 
 ### Web (`apps/web`)
 - `eslint`, `tsc -b`: clean.
-- `vitest`: **86 passed**.
-- `playwright test`: **34 passed**, including axe WCAG 2.2 AA (new `e2e/payments.spec.ts`).
+- `vitest`: **95 passed** (9 new in `src/lib/reports.test.ts`).
+- `playwright test`: **36 passed**, including axe WCAG 2.2 AA (new `e2e/reports.spec.ts`).
 - Known flake (not seen this run): `documents.spec.ts` "warehouse role has no access to the archive" failed once in an earlier parallel run; passed 3/3 alone.
 
 ## Not built / not verified
 
 These are tracked in `docs/BLOCKERS.md`:
 - Customers module UI;
-- Reports;
 - OCR of vendor documents into declared lines;
 - a working global search box (it is a placeholder);
 - the real scanner, real OCR engine, Google Drive and email provider;

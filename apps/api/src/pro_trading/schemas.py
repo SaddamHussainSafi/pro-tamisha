@@ -1699,3 +1699,109 @@ class ReceivablesOut(BaseModel):
     customers: list[AgingCustomerOut]
     payment_instructions: str
     reminder_offsets: list[int]
+
+
+# ---------------------------------------------------------------- Module 12: reports
+# Read-only aggregates. Money is CAD before tax unless named `tax`/`gross`. Quantities are
+# always per unit: boxes, pieces, lb and kg are never added together. No cost/margin fields
+# until D-04 (costing) is decided.
+
+UnitCodeLit = Literal["BOX", "PIECE", "LB", "KG"]
+
+
+class UnitQtyOut(BaseModel):
+    unit_code: UnitCodeLit
+    qty: Decimal
+
+
+class ReportPeriodOut(BaseModel):
+    date_from: date
+    date_to: date
+    timezone: str
+    currency: Literal["CAD"]
+
+
+class SalesPointOut(BaseModel):
+    period: date
+    invoice_count: int
+    net_sales: Decimal
+
+
+class SalesReportOut(ReportPeriodOut):
+    bucket: Literal["day", "month"]
+    invoice_count: int
+    customer_count: int
+    net_sales: Decimal
+    tax: Decimal
+    gross: Decimal
+    quantities: list[UnitQtyOut]
+    series: list[SalesPointOut]
+
+
+class ProductSalesRowOut(BaseModel):
+    product_id: uuid.UUID
+    sku: str
+    name: str
+    unit_code: UnitCodeLit
+    qty: Decimal
+    net_sales: Decimal
+    avg_rate: Decimal
+    invoice_count: int
+    customer_count: int
+
+
+class ProductSalesOut(ReportPeriodOut):
+    total_rows: int
+    net_sales: Decimal
+    rows: list[ProductSalesRowOut]
+
+
+class CustomerSalesRowOut(BaseModel):
+    customer_id: uuid.UUID
+    name: str
+    external_ref: str | None
+    invoice_count: int
+    net_sales: Decimal
+    gross: Decimal
+    quantities: list[UnitQtyOut]
+    last_invoice_at: datetime
+
+
+class CustomerSalesOut(ReportPeriodOut):
+    total_rows: int
+    net_sales: Decimal
+    rows: list[CustomerSalesRowOut]
+
+
+class StockFlowRowOut(BaseModel):
+    product_id: uuid.UUID
+    sku: str
+    name: str
+    unit_code: UnitCodeLit
+    opening: Decimal
+    received: Decimal
+    dispatched: Decimal
+    other: Decimal
+    closing: Decimal
+
+
+class StockFlowOut(ReportPeriodOut):
+    rows: list[StockFlowRowOut]
+
+
+class VendorReceivingRowOut(BaseModel):
+    vendor_id: uuid.UUID
+    code: str
+    name: str
+    country_code: str | None
+    unit_code: UnitCodeLit
+    shipments: int
+    declared: Decimal
+    accepted: Decimal
+    damaged: Decimal
+    rejected: Decimal
+
+
+class ReceivingReportOut(ReportPeriodOut):
+    shipments: int
+    rows: list[VendorReceivingRowOut]
