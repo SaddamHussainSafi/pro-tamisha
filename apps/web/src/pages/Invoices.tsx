@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, canInWarehouse, invoicePdfUrl, type Invoice, type InvoicePreview, type InvoiceSummary, type Pick } from "../api";
 import { useAuth } from "../auth";
-import { cad, dec } from "../lib/decimal";
+import { defaultCaseWeight } from "../lib/caseSizes";
+import { cad, dec, qty, toFixed } from "../lib/decimal";
 import { qtyText } from "../lib/inventory";
 import { INVOICE_STATE } from "../lib/payments";
 import { EMAIL_STATUS, invoiceMessage, toWeightRows, weightTotals, type WeightDraft } from "../lib/invoices";
@@ -262,6 +263,17 @@ export function IssueInvoicePage() {
   const [error, setError] = useState<string | null>(null);
   const [byWeight, setByWeight] = useState<Record<string, boolean>>({});
   const [weights, setWeights] = useState<Record<string, WeightDraft[]>>({});
+  const [caseWeight, setCaseWeight] = useState<Record<string, string | null>>({}); // sku -> default case-size weight
+  useEffect(() => {
+    api.caseSizes().then(
+      (all) => {
+        const bySku: Record<string, string | null> = {};
+        for (const sku of new Set(all.map((c) => c.sku))) bySku[sku] = defaultCaseWeight(all.filter((c) => c.sku === sku), "BOX");
+        setCaseWeight(bySku);
+      },
+      () => setCaseWeight({}),
+    );
+  }, []);
   const [dispatched, setDispatched] = useState(false);
   const [note, setNote] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -363,13 +375,18 @@ export function IssueInvoicePage() {
                     checked={!!byWeight[l.id]}
                     onChange={(e) => {
                       setByWeight((b) => ({ ...b, [l.id]: e.target.checked }));
-                      if (!weights[l.id]) setRows(l.id, [{ cases: "", weight: "" }]);
+                      // Default case size fills the first row; the user replaces it with the scale weight.
+                      const w = l.unit_code === "BOX" ? caseWeight[l.sku] : null;
+                      if (!weights[l.id]) setRows(l.id, [{ cases: w ? toFixed(dec(picked), 0) : "", weight: w ?? "" }]);
                     }}
                   />
                   Bill {l.sku} by weight (per lb)
                 </label>
                 {byWeight[l.id] && (
                   <>
+                    {l.unit_code === "BOX" && caseWeight[l.sku] && (
+                      <p className="text-xs text-ink-muted">Filled in from the default case size ({qty(dec(caseWeight[l.sku] ?? "0"), 2)} lb a box). Replace it with the scale weight if it differs.</p>
+                    )}
                     {rows.map((r, i) => (
                       <div key={i} className="flex flex-wrap items-end gap-2">
                         <div className="w-28">

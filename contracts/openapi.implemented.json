@@ -966,6 +966,92 @@
         "title": "BridgePairOut",
         "type": "object"
       },
+      "CaseSizeOut": {
+        "description": "A unit profile listed across products (Products \u203a Case sizes).",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "pieces_per_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pieces Per Unit"
+          },
+          "product_active": {
+            "title": "Product Active",
+            "type": "boolean"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "product_name": {
+            "title": "Product Name",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          },
+          "weight_lb_per_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb Per Unit"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "unit_code",
+          "pieces_per_unit",
+          "weight_lb_per_unit",
+          "is_default",
+          "active",
+          "product_id",
+          "sku",
+          "product_name",
+          "product_active"
+        ],
+        "title": "CaseSizeOut",
+        "type": "object"
+      },
       "CategoryIn": {
         "properties": {
           "code": {
@@ -16771,6 +16857,23 @@
             }
           },
           {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
             "description": "Opaque offset",
             "in": "query",
             "name": "cursor",
@@ -21422,6 +21525,85 @@
         "summary": "Submit Count",
         "tags": [
           "receiving"
+        ]
+      }
+    },
+    "/api/v1/unit-profiles": {
+      "get": {
+        "description": "Every case size (unit profile) across products, by product name then default first.",
+        "operationId": "list_case_sizes_api_v1_unit_profiles_get",
+        "parameters": [
+          {
+            "description": "SKU or product name contains",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SKU or product name contains",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CaseSizeOut"
+                  },
+                  "title": "Response List Case Sizes Api V1 Unit Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Case Sizes",
+        "tags": [
+          "catalog"
         ]
       }
     },

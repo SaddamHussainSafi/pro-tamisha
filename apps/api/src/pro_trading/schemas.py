@@ -132,6 +132,15 @@ class UnitProfileOut(BaseModel):
     active: bool
 
 
+class CaseSizeOut(UnitProfileOut):
+    """A unit profile listed across products (Products › Case sizes)."""
+
+    product_id: uuid.UUID
+    sku: str
+    product_name: str
+    product_active: bool
+
+
 class AliasIn(BaseModel):
     alias: str = Field(min_length=1, max_length=200)
     source_label: str = Field(default="", max_length=100)

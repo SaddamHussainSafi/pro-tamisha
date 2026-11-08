@@ -18,6 +18,7 @@ import { dec, mul, cad, qty } from "../lib/decimal";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ProductPrices } from "./ProductPrices";
 
 const UNITS: UnitCode[] = ["LB", "KG", "BOX", "PIECE"];
 
@@ -262,7 +263,7 @@ function CreateProduct({ cats, onCancel, onCreated }: { cats: Category[]; onCanc
             )}
           </div>
         ))}
-        <button type="button" className="btn-ghost" onClick={() => setProfiles((ps) => [...ps, blankProfile()])}>Add profile</button>
+        <button type="button" className="btn-ghost" onClick={() => setProfiles((ps) => [...ps, blankProfile()])}>Add case size</button>
       </fieldset>
 
       <div>
@@ -369,6 +370,7 @@ export function ProductDetailPage() {
         </form>
       )}
 
+      <ProductPrices prod={prod} />
       <div className="grid gap-5 lg:grid-cols-2">
         <Profiles prod={prod} canManage={canManage} run={run} />
         <Aliases prod={prod} canManage={canManage} run={run} />
@@ -398,10 +400,10 @@ function Profiles({ prod, canManage, run }: { prod: Product; canManage: boolean;
   return (
     <section className="card p-4" aria-labelledby="profiles-h">
       <div className="mb-3 flex items-center justify-between">
-        <h2 id="profiles-h" className="text-base font-semibold">Unit profiles</h2>
-        {canManage && !draft && <button className="btn-ghost" onClick={() => setDraft(blankProfile())}>Add profile</button>}
+        <h2 id="profiles-h" className="text-base font-semibold">Case sizes</h2>
+        {canManage && !draft && <button className="btn-ghost" onClick={() => setDraft(blankProfile())}>Add case size</button>}
       </div>
-      <p className="mb-3 text-xs text-ink-muted">Conversions are locked once created. To change one, add a new profile and deactivate the old one.</p>
+      <p className="mb-3 text-xs text-ink-muted">A size is locked once created so invoices stay correct. To change one, add the new size, make it the default and deactivate the old one. All sizes: Products › Case sizes.</p>
       <ul className="divide-y divide-line">
         {prod.unit_profiles.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
@@ -421,7 +423,7 @@ function Profiles({ prod, canManage, run }: { prod: Product; canManage: boolean;
         ))}
       </ul>
       {draft && (
-        <form onSubmit={add} className="mt-3 flex flex-wrap items-end gap-2" aria-label="Add unit profile">
+        <form onSubmit={add} className="mt-3 flex flex-wrap items-end gap-2" aria-label="Add case size">
           <div className="w-28">
             <label className="label" htmlFor="np-code">Code</label>
             <input id="np-code" className="input uppercase" required maxLength={32} pattern="[A-Za-z0-9_\-]+" value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} />

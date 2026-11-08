@@ -45,7 +45,7 @@ test("owner creates Cassava (205 lb = CAD 307.50) and sees unknown-conversion re
   await form.getByLabel("Name").fill("Cassava frozen E2E");
   const sizes = ["20", "30", "40", "25"];
   for (let i = 0; i < sizes.length; i++) {
-    if (i > 0) await form.getByRole("button", { name: "Add profile" }).click();
+    if (i > 0) await form.getByRole("button", { name: "Add case size" }).click();
     await form.locator(`#pr-code-${i}`).fill(`CASE${sizes[i]}`);
     await form.getByLabel("Weight / unit").nth(i).fill(sizes[i] ?? "");
   }

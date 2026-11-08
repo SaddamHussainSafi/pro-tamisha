@@ -50,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
         // child labels must not contain "Products": e2e clicks /Products/ without .first()
         children: [
           { label: "Product list", to: "/products" },
+          { label: "Case sizes", to: "/products/case-sizes" },
           { label: "Prices", to: "/products/prices" },
         ],
       },

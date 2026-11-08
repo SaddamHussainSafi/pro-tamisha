@@ -499,6 +499,7 @@ def list_entries(
     category_id: uuid.UUID | None = None,
     customer_id: uuid.UUID | None = None,
     group_id: uuid.UUID | None = None,
+    product_id: uuid.UUID | None = None,
     cursor: str | None = Query(None, pattern=r"^\d{1,7}$", description="Opaque offset"),
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
@@ -528,6 +529,8 @@ def list_entries(
         stmt = stmt.where(PriceEntry.customer_id == customer_id)
     if group_id:
         stmt = stmt.where(PriceEntry.group_id == group_id)
+    if product_id:
+        stmt = stmt.where(PriceEntry.product_id == product_id)
     total = int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
     off = int(cursor or 0)
     rows = db.execute(

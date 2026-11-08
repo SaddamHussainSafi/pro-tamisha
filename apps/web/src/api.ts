@@ -22,6 +22,8 @@ export type UnitProfile = {
   is_default: boolean;
   active: boolean;
 };
+/** A unit profile listed across products (Products › Case sizes). */
+export type CaseSize = UnitProfile & { product_id: string; sku: string; product_name: string; product_active: boolean };
 export type Alias = { id: string; alias: string; source_label: string };
 export type ProductSummary = {
   id: string;
@@ -894,6 +896,7 @@ export const api = {
     request<Alias>("POST", `/products/${id}/aliases`, b, true),
   removeAlias: (id: string, aliasId: string) => request<Alias>("DELETE", `/products/${id}/aliases/${aliasId}`, undefined, true),
   addProfile: (id: string, b: UnitProfileIn) => request<Product>("POST", `/products/${id}/unit-profiles`, b, true),
+  caseSizes: (q: { q?: string; include_inactive?: boolean } = {}) => request<CaseSize[]>("GET", `/unit-profiles?${qs(q)}`),
   profileCommand: (id: string, pid: string, cmd: "deactivate" | "make-default", version: number) =>
     request<Product>("POST", `/products/${id}/unit-profiles/${pid}/${cmd}`, { version }, true),
   weightCalc: (id: string, groups: WeightGroupIn[]) =>
@@ -914,7 +917,7 @@ export const api = {
     request<PriceVersion>("POST", "/price-books/versions/import", b, true),
   priceEntries: (
     id: string,
-    q: { q?: string; unit_code?: string; scope?: string; cursor?: string; limit?: number },
+    q: { q?: string; unit_code?: string; scope?: string; product_id?: string; cursor?: string; limit?: number },
   ) => request<{ items: PriceEntry[]; next_cursor: string | null; total: number }>(
     "GET",
     `/price-books/versions/${id}/entries?${qs(q)}`,

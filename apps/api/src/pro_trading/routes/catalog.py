@@ -25,6 +25,7 @@ from ..schemas import (
     AliasIn,
     AliasMatch,
     AliasOut,
+    CaseSizeOut,
     CategoryIn,
     CategoryOut,
     ProductIn,
@@ -377,6 +378,51 @@ def resolve_alias(
 
 
 # ---------------------------------------------------------------- unit profiles
+
+
+@router.get("/unit-profiles", response_model=list[CaseSizeOut])
+def list_case_sizes(
+    request: Request,
+    db: DbDep,
+    p: PrincipalDep,
+    q: str | None = Query(None, max_length=100, description="SKU or product name contains"),
+    include_inactive: bool = False,
+    limit: int = Query(500, ge=1, le=1000),
+) -> list[dict[str, Any]]:
+    """Every case size (unit profile) across products, by product name then default first."""
+    _read(request, p)
+    stmt = (
+        select(ProductUnitProfile, Product)
+        .join(Product, Product.id == ProductUnitProfile.product_id)
+        .where(Product.company_id == p.company_id)
+    )
+    if q:
+        like = f"%{_esc(q.strip().lower())}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Product.name).like(like, escape="\\"),
+                func.lower(Product.sku).like(like, escape="\\"),
+            )
+        )
+    if not include_inactive:
+        stmt = stmt.where(ProductUnitProfile.active.is_(True))
+    rows = db.execute(
+        stmt.order_by(
+            func.lower(Product.name),
+            ProductUnitProfile.is_default.desc(),
+            ProductUnitProfile.code,
+        ).limit(limit)
+    ).all()
+    return [
+        {
+            **UnitProfileOut.model_validate(prof).model_dump(),
+            "product_id": prod.id,
+            "sku": prod.sku,
+            "product_name": prod.name,
+            "product_active": prod.active,
+        }
+        for prof, prod in rows
+    ]
 
 
 @router.post("/products/{product_id}/unit-profiles", status_code=201, response_model=ProductOut)

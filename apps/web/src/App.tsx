@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { useAuth } from "./auth";
 import { Shell } from "./components/Shell";
+import { CaseSizesPage } from "./pages/CaseSizes";
 import { CustomerDetailPage, CustomersPage } from "./pages/Customers";
 import { DocumentsPage } from "./pages/Documents";
 import { InventoryPage, LotPage } from "./pages/Inventory";
@@ -38,6 +39,7 @@ export function App() {
         <Route path="products/:id" element={<ProductDetailPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="customers/:id" element={<CustomerDetailPage />} />
+        <Route path="products/case-sizes" element={<CaseSizesPage />} />
         <Route path="products/prices" element={<PricingPage />} />
         <Route path="products/prices/:id" element={<PriceVersionPage />} />
         <Route path="pricing" element={<Navigate to="/products/prices" replace />} />

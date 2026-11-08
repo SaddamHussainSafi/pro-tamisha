@@ -63,6 +63,12 @@ paths:
         - {name: name, in: query, required: true, schema: {type: string}}
         - {name: source, in: query, description: Source-specific alias wins over generic, schema: {type: string}}
       responses: {'200': {description: 'AliasMatch {product, alias}'}, '404': {description: No match}}
+  /unit-profiles:
+    get:
+      operationId: listCaseSizes
+      description: 'Products > Case sizes: every unit profile across products with product_id, sku, product_name, product_active; default first per product. catalog.read.'
+      parameters: [{name: q, in: query, schema: {type: string}}, {name: include_inactive, in: query, schema: {type: boolean, default: false}}, {name: limit, in: query, schema: {type: integer, maximum: 1000}}]
+      responses: {'200': {description: 'CaseSizeOut[]'}, '403': {$ref: '#/components/responses/Forbidden'}}
   /products/{productId}/unit-profiles:
     post:
       operationId: addUnitProfile
@@ -131,7 +137,7 @@ paths:
         '409': {description: 'DUPLICATE_UPLOAD with existing_version_id (same canonical content hash)'}
         '422': {description: 'CSV_INVALID with errors[{line,column,code,message}] — INVALID_UNIT, UNKNOWN_SKU, DUPLICATE_ROW, ...'}
   /price-books/versions/{versionId}/entries:
-    get: {operationId: listPriceEntries, description: 'Filters q, unit, scope, category_id, customer_id, group_id; offset cursor; total.', responses: {'200': {description: PriceEntryPage}}}
+    get: {operationId: listPriceEntries, description: 'Filters q, unit, scope, category_id, customer_id, group_id, product_id; offset cursor; total.', responses: {'200': {description: PriceEntryPage}}}
     put:
       operationId: setPriceEntry
       description: 'Upsert one entry on a DRAFT. Optimistic draft version.'
