@@ -78,3 +78,13 @@ body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: "
 /* Striped bars and tracks from the reference charts. */
 @utility hatch { background: repeating-linear-gradient(135deg, var(--color-line) 0 7px, var(--color-subtle) 7px 14px); }
 @utility hatch-accent { background: repeating-linear-gradient(135deg, var(--color-brand-accent) 0 7px, color-mix(in srgb, var(--color-brand-accent) 78%, white) 7px 14px); }
+
+/* Indeterminate progress (OCR running): a bar sweeping across; still for reduced motion. */
+@keyframes pt-sweep {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(330%); }
+}
+.pt-indeterminate { animation: pt-sweep 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pt-indeterminate { animation: none; width: 100%; opacity: 0.5; }
+}

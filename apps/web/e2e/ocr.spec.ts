@@ -54,7 +54,7 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
   const cassava = lines.filter({ hasText: "CAS-FZ" });
   const plantain = lines.filter({ hasText: "PLN-GR" });
   const writeIn = lines.filter({ hasText: "Mango" });
-  await expect(plantain).toContainText("Unclear");
+  await expect(plantain).toContainText(/Unclear|Unreadable/); // fake engine vs real OCR: both need a person
   await expect(writeIn).toContainText("Unknown product");
   // Unclear lines can't be waved through.
   await expect(plantain.getByRole("button", { name: /^Confirm line/ })).toHaveCount(0);

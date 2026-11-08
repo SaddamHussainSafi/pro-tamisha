@@ -163,3 +163,22 @@ export async function bridgeStatus(f: Fetch = fetch, base = BRIDGE_URL): Promise
     return null;
   }
 }
+
+/** Scans that are read automatically by OCR when they arrive. */
+export const AUTO_READ: ScanJobType[] = ["SALES_ORDER", "VENDOR_DOCUMENT", "PURCHASE_ORDER", "DELIVERY_NOTE", "PACKING_LIST", "RECEIPT"];
+
+export type Stage = "upload" | "read" | "review" | "done" | "failed";
+export const STAGES: { key: Exclude<Stage, "failed" | "done">; label: string }[] = [
+  { key: "upload", label: "Uploading" },
+  { key: "read", label: "Reading text (OCR) and extracting" },
+  { key: "review", label: "Ready for review" },
+];
+
+/** Where a scan is, from what the server says (never guessed). */
+export function stageOf(uploaded: boolean, ocrStatus: string | null): Stage {
+  if (!uploaded) return "upload";
+  if (ocrStatus === "FAILED") return "failed";
+  if (ocrStatus === "NEEDS_REVIEW") return "review";
+  if (ocrStatus === "ACCEPTED" || ocrStatus === "REJECTED") return "done";
+  return "read";
+}

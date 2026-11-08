@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, canInWarehouse, has, scanDocumentUrl, type OcrExtraction, type ScanDevice, type ScanJob, type ScanJobType, type Warehouse } from "../api";
 import { useAuth } from "../auth";
-import { ACCEPT, bridgeScan, checkFile, failHint, fileSize, isOpen, JOB_STATUS, JOB_TYPE, SCANNER_STATE, scanMessage } from "../lib/scans";
+import { StageSteps, UploadQueue } from "./ScanProgress";
+import { ACCEPT, AUTO_READ, stageOf, bridgeScan, checkFile, failHint, fileSize, isOpen, JOB_STATUS, JOB_TYPE, SCANNER_STATE, scanMessage } from "../lib/scans";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { OcrReviewPage, ReviewQueue, ScanReading } from "./OcrReview";
 import { OCR_STATUS } from "../lib/ocr";
@@ -214,7 +215,7 @@ function ScannerArt({ working = false }: { working?: boolean }) {
   );
 }
 
-function FileButton({ label, disabled, inputRef, onFile, primary = false }: { label: string; disabled: boolean; inputRef: React.RefObject<HTMLInputElement | null>; onFile: (f: File) => void; primary?: boolean }) {
+function FileButton({ label, disabled, inputRef, onFile, onFiles, primary = false }: { label: string; disabled: boolean; inputRef: React.RefObject<HTMLInputElement | null>; onFile: (f: File) => void; onFiles?: (f: File[]) => void; primary?: boolean }) {
   return (
     <label className={`${primary ? "btn-accent" : "btn-ghost"} cursor-pointer px-6 py-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-primary ${disabled ? "pointer-events-none opacity-50" : ""}`}>
       <Icon name="upload" />
@@ -226,9 +227,11 @@ function FileButton({ label, disabled, inputRef, onFile, primary = false }: { la
         className="sr-only"
         data-testid="scan-upload"
         disabled={disabled}
+        multiple={!!onFiles}
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
+          const all = Array.from(e.target.files ?? []);
+          if (all.length > 1 && onFiles) onFiles(all);
+          else if (all[0]) onFile(all[0]);
         }}
       />
     </label>
@@ -246,6 +249,8 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
   const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string; jobId?: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const working = phase.kind === "working";
+  const [upPct, setUpPct] = useState<number | null>(null);
+  const [queue, setQueue] = useState<File[] | null>(null);
 
   useEffect(() => {
     if (!wh) return;
@@ -300,9 +305,12 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
       return;
     }
     setPhase({ kind: "working", mode: "upload", step: 0, label: file.name });
+    setUpPct(0);
     setMsg(null);
     try {
-      const j = await api.uploadScan(file, { warehouse_id: wh, job_type: type, note: note.trim() || undefined });
+      const j = note.trim()
+        ? await api.uploadScan(file, { warehouse_id: wh, job_type: type, note: note.trim() })
+        : await api.uploadScanProgress(file, { warehouse_id: wh, job_type: type }, setUpPct);
       setMsg({ tone: "ok", text: j.duplicate ? `This file was already uploaded as ${j.job_no}.` : `${j.job_no} uploaded.`, jobId: j.id });
       setPhase({ kind: "done", job: j, duplicate: j.duplicate });
       setNote("");
@@ -356,12 +364,12 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
               <div>
                 <div className="flex items-baseline justify-between">
                   <span className="num text-[44px] font-semibold leading-none tracking-tight text-brand-primary">
-                    {Math.round(((phase.step + 0.5) / STEPS[phase.mode].length) * 100)}%
+                    {phase.mode === "upload" && upPct !== null ? Math.round(upPct * 100) : Math.round(((phase.step + 0.5) / STEPS[phase.mode].length) * 100)}%
                   </span>
                   <span className="rounded-full bg-subtle px-3 py-1 text-sm font-medium">Step {phase.step + 1} of {STEPS[phase.mode].length}</span>
                 </div>
                 <div className="mt-3 h-3 overflow-hidden rounded-full bg-subtle" role="progressbar" aria-label="Scan progress" aria-valuemin={0} aria-valuemax={STEPS[phase.mode].length} aria-valuenow={phase.step + 1} aria-valuetext={STEPS[phase.mode][phase.step]?.title}>
-                  <div className="h-full rounded-full bg-brand-accent transition-[width] duration-500" style={{ width: `${((phase.step + 0.5) / STEPS[phase.mode].length) * 100}%` }} />
+                  <div className="h-full rounded-full bg-brand-accent transition-[width] duration-300" style={{ width: `${phase.mode === "upload" && upPct !== null ? Math.max(3, upPct * 100) : ((phase.step + 0.5) / STEPS[phase.mode].length) * 100}%` }} />
                 </div>
               </div>
               <p className="text-sm text-ink-muted">You can leave this page — the scan carries on and shows up in the list below.</p>
@@ -417,12 +425,24 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
                 <Icon name="scan" />Scan now
               </button>
               <span className="text-sm text-ink-muted">or</span>
-              <FileButton label="Upload a file" disabled={false} inputRef={fileRef} onFile={(f) => void upload(f)} />
-              <span className="text-sm text-ink-muted">PDF, PNG, JPEG or TIFF, up to 20 MB.</span>
+              <FileButton label="Upload files" disabled={false} inputRef={fileRef} onFile={(f) => void upload(f)} onFiles={(fs) => setQueue(fs)} />
+              <span className="text-sm text-ink-muted">PDF (any number of pages), PNG, JPEG or TIFF, up to 20 MB each. Pick several at once.</span>
             </div>
           </>
         )}
         {status}
+        {queue && (
+          <UploadQueue
+            key={queue.map((f) => f.name).join("|")}
+            files={queue}
+            warehouseId={wh}
+            jobType={type}
+            onDone={() => {
+              onChanged();
+              if (fileRef.current) fileRef.current.value = "";
+            }}
+          />
+        )}
       </div>
     </section>
   );
@@ -450,7 +470,7 @@ function ScanDone({
   const [checked, setChecked] = useState(false);
   const below = useRef<HTMLDivElement>(null);
   const url = job.document_id ? scanDocumentUrl(job.document_id) : null;
-  const reads = job.job_type === "SALES_ORDER";
+  const reads = AUTO_READ.includes(job.job_type);
 
   const load = useCallback(() => {
     if (!canRead || !reads) return;
@@ -534,8 +554,13 @@ function ScanDone({
             </div>
             <div>
               <h3 className="mb-3 text-lg font-semibold">OCR / extraction summary</h3>
+              {reads && canRead && (
+                <div className="mb-4">
+                  <StageSteps stage={stageOf(true, ex?.status ?? (checked ? "QUEUED" : null))} error={ex?.error_detail ?? null} />
+                </div>
+              )}
               {!reads ? (
-                <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Only sales-order scans are read automatically. Attach supplier documents to their shipment in Receiving.</p>
+                <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Picking sheets and “Other” documents are kept but not read automatically.</p>
               ) : !canRead ? (
                 <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Someone who reviews scans will check the lines read from this scan.</p>
               ) : !ex || ex.status === "QUEUED" ? (
@@ -836,7 +861,7 @@ export function ScanJobPage() {
         actions={job.status === "REQUESTED" && <button className="btn-ghost" onClick={() => setConfirm(true)}>Cancel scan</button>}
       />
       {error && <Notice tone="error">{error}</Notice>}
-      {job.job_type === "SALES_ORDER" && <ScanReading jobId={job.id} warehouseId={job.warehouse_id} received={job.status === "UPLOADED"} />}
+      {AUTO_READ.includes(job.job_type) && <ScanReading jobId={job.id} warehouseId={job.warehouse_id} received={job.status === "UPLOADED"} />}
       <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
         <dl className="card grid h-fit grid-cols-[auto_1fr] gap-x-4 gap-y-2 p-4 text-sm">
           <dt className="text-ink-muted">Status</dt>

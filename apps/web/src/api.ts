@@ -1024,6 +1024,31 @@ export const api = {
       { raw: file, type: file.type || "application/octet-stream" },
       true,
     ),
+  /** Same as uploadScan, with real upload progress (0–1) from the browser. */
+  uploadScanProgress: (file: File, q: { warehouse_id: string; job_type: ScanJobType }, onProgress: (f: number) => void) =>
+    new Promise<ScanJob>((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open("POST", `/api/v1/scans/uploads?${qs({ ...q, filename: file.name })}`);
+      x.setRequestHeader("Accept", "application/json");
+      x.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      const csrf = storage.get();
+      if (csrf) x.setRequestHeader("X-CSRF-Token", csrf);
+      x.setRequestHeader("Idempotency-Key", crypto.randomUUID());
+      x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+      x.onerror = () => reject(new ApiError(0, "NETWORK", "The upload was interrupted. Check the connection and try again."));
+      x.onload = () => {
+        let data: { error?: { code?: string; message?: string } } & Record<string, unknown> = {};
+        try {
+          data = JSON.parse(x.responseText || "{}");
+        } catch {
+          /* not JSON */
+        }
+        if (x.status >= 200 && x.status < 300) return resolve(data as unknown as ScanJob);
+        if (x.status === 401) onUnauthorized();
+        reject(new ApiError(x.status, data.error?.code ?? "HTTP_ERROR", data.error?.message ?? x.statusText));
+      };
+      x.send(file);
+    }),
   ocrExtractions: (q: { status?: string; warehouse_id?: string; scan_job_id?: string; q?: string; cursor?: string; limit?: number }) =>
     request<Page<OcrExtraction>>("GET", `/ocr/extractions?${qs(q)}`),
   ocrExtraction: (id: string) => request<OcrExtractionDetail>("GET", `/ocr/extractions/${id}`),
