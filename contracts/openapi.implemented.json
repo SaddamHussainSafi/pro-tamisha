@@ -5422,6 +5422,11 @@
             "title": "Fields",
             "type": "array"
           },
+          "header": {
+            "additionalProperties": true,
+            "title": "Header",
+            "type": "object"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5527,6 +5532,17 @@
             "title": "Scan Job No",
             "type": "string"
           },
+          "shipment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipment Id"
+          },
           "status": {
             "enum": [
               "QUEUED",
@@ -5557,6 +5573,17 @@
             },
             "title": "Text Blocks",
             "type": "array"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
           },
           "version": {
             "title": "Version",
@@ -5691,6 +5718,11 @@
             "title": "Field Count",
             "type": "integer"
           },
+          "header": {
+            "additionalProperties": true,
+            "title": "Header",
+            "type": "object"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5796,6 +5828,17 @@
             "title": "Scan Job No",
             "type": "string"
           },
+          "shipment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipment Id"
+          },
           "status": {
             "enum": [
               "QUEUED",
@@ -5818,6 +5861,17 @@
               }
             ],
             "title": "Template"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
           },
           "version": {
             "title": "Version",
@@ -6016,6 +6070,17 @@
             "title": "Raw Text",
             "type": "string"
           },
+          "read_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Amount"
+          },
           "read_product_id": {
             "anyOf": [
               {
@@ -6060,6 +6125,17 @@
               }
             ],
             "title": "Read Unit Code"
+          },
+          "read_unit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Unit Price"
           },
           "resolution": {
             "enum": [

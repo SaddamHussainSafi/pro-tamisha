@@ -1221,6 +1221,8 @@ class OcrFieldOut(BaseModel):
     read_sku: str | None
     read_unit_code: str | None
     read_qty: str | None
+    read_unit_price: str | None = None
+    read_amount: str | None = None
     confidence: str | None
     status: OcrFieldStatus
     bbox: dict[str, Any] | None
@@ -1250,6 +1252,9 @@ class OcrExtractionOut(BaseModel):
     customer_id: uuid.UUID | None
     customer_name: str | None
     warnings: list[str]
+    header: dict[str, Any] = Field(default_factory=dict)
+    vendor_id: str | None = None
+    shipment_id: str | None = None
     page_count: int | None
     error_code: str | None
     error_detail: str | None

@@ -1153,6 +1153,11 @@ class OcrExtraction(Base):
     error_code: Mapped[str | None] = mapped_column(String(32))
     error_detail: Mapped[str | None] = mapped_column(Text)
     sales_order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sales_orders.id"))
+    # Supplier documents: header values as read ({"field": {"value", "confidence"}}),
+    # matched supplier, and the shipment the approved reading was filed to.
+    header: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    vendor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vendors.id"))
+    shipment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shipments.id"))
     requested_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1188,6 +1193,8 @@ class OcrField(Base):
     read_product_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("products.id"))
     read_unit_code: Mapped[str | None] = mapped_column(String(8))
     read_qty: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    read_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    read_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     bbox: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

@@ -35,7 +35,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from . import audit, outbox
+from . import audit, outbox, supplier_ocr
 from . import inventory as inv
 from .config import get_settings
 from .errors import ApiError
@@ -355,6 +355,8 @@ class Proposal:
     confidence: Decimal | None
     status: str
     bbox: dict[str, Any] | None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 def rows_of(tokens: list[Token]) -> list[list[Token]]:
@@ -462,6 +464,8 @@ class MappedSheet:
     proposals: list[Proposal]
     warnings: list[str]
     text_blocks: list[dict[str, Any]]
+    header: dict[str, Any] | None = None
+    vendor_id: uuid.UUID | None = None
 
 
 def _code_key(s: str) -> str:
@@ -483,6 +487,13 @@ def map_result(db: Session, company_id: uuid.UUID, job_type: str, res: OcrResult
     cat = Catalog(db, company_id)
     rows = rows_of(res.tokens)
     texts = [" ".join(t.text for t in r) for r in rows]
+    if job_type in supplier_ocr.SUPPLIER_TYPES:
+        sr = supplier_ocr.read(db, company_id, rows, cat, threshold, Proposal)
+        warns = (["NO_TEXT"] if not res.tokens else []) + sr.warnings
+        blocks = [{"page": r[0].page, "text": t[:300]} for r, t in zip(rows, texts, strict=True)]
+        return MappedSheet(
+            None, None, sr.proposals[:200], warns, blocks[:400], sr.header, sr.vendor_id
+        )
     template = TEMPLATE if any(t.text == TEMPLATE for t in res.tokens) else None
     warnings: list[str] = []
     if not res.tokens:
@@ -628,7 +639,8 @@ def queue(db: Session, job: ScanJob, actor_id: uuid.UUID | None) -> OcrExtractio
 
 def auto_queue(db: Session, job: ScanJob, actor_id: uuid.UUID | None) -> None:
     """Sales-order scans are read automatically when they arrive (if an engine is configured)."""
-    if job.job_type == "SALES_ORDER" and get_settings().ocr_provider != "disabled":
+    auto = ("SALES_ORDER", *supplier_ocr.SUPPLIER_TYPES)
+    if job.job_type in auto and get_settings().ocr_provider != "disabled":
         queue(db, job, actor_id)
 
 
@@ -678,8 +690,14 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
                     confidence=p.confidence,
                     status=p.status,
                     bbox=p.bbox,
+                    read_unit_price=p.unit_price,
+                    read_amount=p.amount,
                 )
             )
+        if m.header is not None:
+            ex.header, ex.vendor_id = m.header, m.vendor_id
+            if (dup := supplier_ocr.duplicate_of(db, ex)) is not None:
+                m.warnings.append(f"POSSIBLE_DUPLICATE:{dup}")
         ex.status = "NEEDS_REVIEW"
         ex.template, ex.customer_id = m.template, m.customer_id
         ex.warnings, ex.text_blocks, ex.page_count = m.warnings, m.text_blocks, res.pages
