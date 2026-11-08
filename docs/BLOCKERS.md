@@ -29,7 +29,7 @@ Built with the choices below; each needs an owner/accountant answer before the f
 ## Not verified with real hardware or services
 
 - **Toshiba scanner + NAPS2 on the office Windows PC (D-14).** Only the fake bridge driver is tested. Manual upload is the fallback.
-- **Google Document AI OCR.** Only the `fake` engine is tested (`OCR_PROVIDER=fake`).
+- **OCR accuracy on real paperwork.** Tesseract is measured only on our own typed documents scanned to images. Needs 3–5 real supplier invoices and filled order sheets (handwriting is not measured). Google Document AI remains untested.
 - **Email delivery.** The provider is not configured.
 - **Official Tamisha logo and assets.** `design/BRAND_VERIFICATION.md` is pending, so the UI uses a text "PT" mark.
 
