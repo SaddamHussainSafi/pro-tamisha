@@ -536,7 +536,7 @@ export type Invoice = InvoiceSummary & {
   movements: { id: string; lot_id: string; lot_code: string; sku: string; unit_code: UnitCode; delta_qty: string; qty_after: string }[];
 };
 
-export type ScanJobType = "SALES_ORDER" | "PICK_SHEET" | "VENDOR_DOCUMENT" | "OTHER";
+export type ScanJobType = "SALES_ORDER" | "PICK_SHEET" | "VENDOR_DOCUMENT" | "PURCHASE_ORDER" | "DELIVERY_NOTE" | "PACKING_LIST" | "RECEIPT" | "OTHER";
 export type ScanJobStatus = "REQUESTED" | "SCANNING" | "UPLOADED" | "FAILED" | "CANCELLED" | "EXPIRED";
 export type ScanDeviceStatus = "PENDING" | "ACTIVE" | "REVOKED";
 export type ScannerState = "READY" | "NOT_FOUND" | "DRIVER_MISSING" | "BUSY" | "ERROR" | "UNKNOWN";

@@ -1015,7 +1015,16 @@ class InvoicePage(BaseModel):
 # Module 06 — scanner bridge + document intake
 # ---------------------------------------------------------------------------------------------
 
-ScanJobType = Literal["SALES_ORDER", "PICK_SHEET", "VENDOR_DOCUMENT", "OTHER"]
+ScanJobType = Literal[
+    "SALES_ORDER",
+    "PICK_SHEET",
+    "VENDOR_DOCUMENT",
+    "PURCHASE_ORDER",
+    "DELIVERY_NOTE",
+    "PACKING_LIST",
+    "RECEIPT",
+    "OTHER",
+]
 ScanChannel = Literal["BRIDGE", "MANUAL"]
 ScanJobStatus = Literal["REQUESTED", "SCANNING", "UPLOADED", "FAILED", "CANCELLED", "EXPIRED"]
 ScanDeviceStatus = Literal["PENDING", "ACTIVE", "REVOKED"]

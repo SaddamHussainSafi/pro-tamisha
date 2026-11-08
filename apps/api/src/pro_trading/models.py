@@ -973,7 +973,16 @@ class EmailMessage(Base):
 # Module 06 — scanner bridge + document intake
 # ---------------------------------------------------------------------------------------------
 
-SCAN_JOB_TYPES = ("SALES_ORDER", "PICK_SHEET", "VENDOR_DOCUMENT", "OTHER")
+SCAN_JOB_TYPES = (
+    "SALES_ORDER",
+    "PICK_SHEET",
+    "VENDOR_DOCUMENT",
+    "PURCHASE_ORDER",
+    "DELIVERY_NOTE",
+    "PACKING_LIST",
+    "RECEIPT",
+    "OTHER",
+)
 SCAN_CHANNELS = ("BRIDGE", "MANUAL")
 SCAN_JOB_STATUSES = ("REQUESTED", "SCANNING", "UPLOADED", "FAILED", "CANCELLED", "EXPIRED")
 SCAN_OPEN_STATUSES = ("REQUESTED", "SCANNING")
