@@ -21,8 +21,9 @@ Last updated: 2026-11-08. Evidence for every item is in `docs/operations/BUILD_L
 | 11 | Focus migration | Deferred by owner until the rest of the app is functional (also blocked on D-13, D-17) | — |
 | 12 | Analytics / Reports (read-only) | Done (no profit/margin until D-04; no SSE refresh; credits not testable until a credit-note flow exists) | — (no new tables) |
 | — | Customers management UI (`/customers`, `/customers/:id`) | Done (inactive has no effect on new orders yet: open question) | — |
+| — | Owner menu changes 2026-11-08: Suppliers, Products › Case sizes + Prices, one warehouse, no previews, customer tabs, Settings (My account, Users), supplier ledger + payments, Create invoice (sheet or direct), Overview panels, scanner discovery | Done (supplier/direct-invoice/discovery questions in BLOCKERS; Toshiba discovery unverified, D-14) | `0012_supplier_payments`, `0013_scanner_discovery` |
 
-The dev database `tami` is at migration `0011` (head).
+The dev database `tami` is at migration `0013` (head).
 
 ## Owner-directed changes on 2026-11-08 (UI and dev)
 
@@ -36,16 +37,16 @@ The dev database `tami` is at migration `0011` (head).
 
 ## Last verified test results
 
-All from 2026-11-08, on this machine, after the Customers UI.
+All from 2026-11-08, on this machine, after the owner menu changes.
 
 ### API (`apps/api`)
 - `ruff check`, `ruff format --check`, `mypy src`: clean.
-- `PYTHONPATH=src uv run pytest`: **207 passed** (3 new in `tests/test_customers.py`).
+- `PYTHONPATH=src uv run pytest`: **220 passed**.
 
 ### Web (`apps/web`)
 - `eslint`, `tsc -b`: clean.
-- `vitest`: **100 passed** (5 new in `src/lib/customers.test.ts`).
-- `playwright test`: **38 passed**, including axe WCAG 2.2 AA (new `e2e/customers.spec.ts`).
+- `vitest`: **115 passed**.
+- `playwright test`: **39 passed**, including axe WCAG 2.2 AA (design-preview spec removed with the previews).
 - Known flake (not seen this run): `documents.spec.ts` "warehouse role has no access to the archive" failed once in an earlier parallel run; passed 3/3 alone.
 
 ## Not built / not verified

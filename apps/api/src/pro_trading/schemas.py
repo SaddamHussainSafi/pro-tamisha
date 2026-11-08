@@ -1047,6 +1047,11 @@ class DeviceRevokeIn(BaseModel):
     reason: Reason
 
 
+class DetectedScanner(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    driver: str = Field(min_length=1, max_length=16)
+
+
 class ScanDeviceOut(BaseModel):
     id: uuid.UUID
     warehouse_id: uuid.UUID
@@ -1060,6 +1065,9 @@ class ScanDeviceOut(BaseModel):
     scanner_state: ScannerState
     scanner_detail: str | None
     bridge_version: str | None
+    discover_requested_at: datetime | None = None
+    detected_scanners: list[DetectedScanner] | None = None
+    detected_at: datetime | None = None
     approved_by_name: str | None
     approved_at: datetime | None
     revoked_reason: str | None
@@ -1145,11 +1153,14 @@ class BridgeHeartbeatIn(BaseModel):
     scanner_state: ScannerState
     scanner_detail: str | None = Field(default=None, max_length=300)
     bridge_version: str = Field(min_length=1, max_length=32)
+    # Sent only when the server asked (`discover` in the previous answer).
+    scanners: list[DetectedScanner] | None = Field(default=None, max_length=20)
 
 
 class BridgeHeartbeatOut(BaseModel):
     status: ScanDeviceStatus
     server_time: datetime
+    discover: bool = False
 
 
 class BridgeClaimIn(BaseModel):

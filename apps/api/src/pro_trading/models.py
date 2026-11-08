@@ -1044,6 +1044,10 @@ class ScanDevice(Base):
     scanner_state: Mapped[str] = mapped_column(String(16), nullable=False, server_default="UNKNOWN")
     scanner_detail: Mapped[str | None] = mapped_column(Text)
     bridge_version: Mapped[str | None] = mapped_column(String(32))
+    # Scanner discovery: the web app asks; the bridge answers on its next heartbeat.
+    discover_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    detected_scanners: Mapped[Any | None] = mapped_column(JSONB)
+    detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     created_at: Mapped[datetime] = _created()
 

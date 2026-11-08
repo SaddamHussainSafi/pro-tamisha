@@ -552,3 +552,35 @@ def test_documents_and_jobs_are_append_only(user, world):
         with get_sessionmaker()() as db, pytest.raises(DBAPIError):
             db.execute(text(sql), {"d": j["document_id"], "j": j["id"]})
             db.commit()
+
+
+# ------------------------------------------------------------------ scanner discovery
+
+
+def test_find_scanners_on_the_office_pc(owner, user, world, app):
+    """The web app asks; the bridge lists what it sees on its next heartbeat; nothing else."""
+    dev, client = pair_device(owner, world, app)
+    assert client.heartbeat("READY", None)["discover"] is False  # nobody asked
+    r = owner.post(f"{P}/scan-devices/{dev['id']}/discover")
+    assert r.status_code == 200 and r.json()["discover_requested_at"]
+    assert r.json()["detected_scanners"] is None
+    hb = client.heartbeat("READY", None)
+    assert hb["discover"] is True
+    found = FakeDriver().list_devices()
+    hb = client.heartbeat("READY", None, scanners=found)
+    assert hb["discover"] is False  # answered
+    got = next(d for d in owner.get(f"{P}/scan-devices").json() if d["id"] == dev["id"])
+    assert got["detected_scanners"] == [{"name": "Fake Toshiba e-STUDIO (test)", "driver": "fake"}]
+    assert got["detected_at"] >= got["discover_requested_at"]
+    assert FakeDriver(mode="unplugged").list_devices() == []
+    # only scanner managers may ask; another company can't see the device
+    assert user("sales").post(f"{P}/scan-devices/{dev['id']}/discover").status_code == 403
+    with get_sessionmaker()() as db:
+        n = db.execute(
+            text(
+                "select count(*) from audit_events"
+                " where action='scan_device.discover' and target_id=:t"
+            ),
+            {"t": dev["id"]},
+        ).scalar_one()
+    assert n == 1

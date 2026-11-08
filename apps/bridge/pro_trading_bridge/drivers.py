@@ -46,6 +46,10 @@ class Driver:
     def scan(self, timeout: int) -> ScanResult:
         raise NotImplementedError
 
+    def list_devices(self) -> list[dict[str, str]]:
+        """Scanners this PC can see right now: [{"name", "driver"}] (max 20)."""
+        return []
+
 
 @dataclass
 class FakeDriver(Driver):
@@ -61,6 +65,11 @@ class FakeDriver(Driver):
             "unplugged": ("NOT_FOUND", "No scanner connected"),
             "driver_missing": ("DRIVER_MISSING", "Scanner driver not installed"),
         }.get(self.mode, ("READY", None))
+
+    def list_devices(self) -> list[dict[str, str]]:
+        if self.mode in ("unplugged", "driver_missing"):
+            return []
+        return [{"name": "Fake Toshiba e-STUDIO (test)", "driver": "fake"}]
 
     def scan(self, timeout: int) -> ScanResult:
         self.calls += 1
@@ -94,6 +103,27 @@ class Naps2Driver(Driver):
         if exe is None:
             return "DRIVER_MISSING", "NAPS2 console not found"
         return "READY", None
+
+    def list_devices(self) -> list[dict[str, str]]:
+        """`NAPS2.Console --listdevices --driver wia|twain`: one device name per line.
+        Not verified with the office Toshiba yet (D-14)."""
+        exe = self._exe()
+        if exe is None:
+            return []
+        found: list[dict[str, str]] = []
+        for drv in ("wia", "twain"):
+            try:
+                proc = subprocess.run(  # noqa: S603 - fixed exe, list args, no shell
+                    [exe, "--listdevices", "--driver", drv],
+                    capture_output=True, timeout=30, check=False, shell=False,
+                )  # fmt: skip
+            except (subprocess.TimeoutExpired, OSError):
+                continue
+            for line in (proc.stdout or b"").decode("utf-8", "replace").splitlines():
+                name = line.strip()
+                if name and len(found) < 20 and not name.lower().startswith(("error", "usage")):
+                    found.append({"name": name[:120], "driver": drv})
+        return found
 
     def scan(self, timeout: int) -> ScanResult:
         exe = self._exe()

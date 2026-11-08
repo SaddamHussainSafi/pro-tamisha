@@ -7,6 +7,7 @@ import { greeting, longDate, shortNum } from "../lib/format";
 import { EMAIL_STATUS } from "../lib/invoices";
 import { ORDER_STATUS } from "../lib/orders";
 import { Icon } from "../ui/Icon";
+import { OverviewPanels } from "./OverviewPanels";
 import { Avatar, BarChart, CardTitle, DonutChart, EmptyState, KpiCard, LoadingRows, Progress, StatusChip, Trend } from "../ui/primitives";
 
 // Every figure here comes from the API. Payments are not built yet, so nothing claims "paid" or "overdue".
@@ -196,6 +197,7 @@ export function OverviewPage() {
               </section>
             )}
           </div>
+          <OverviewPanels orders={orders} />
         </>
       )}
     </div>

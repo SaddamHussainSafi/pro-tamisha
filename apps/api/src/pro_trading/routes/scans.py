@@ -113,6 +113,11 @@ def device_out(db: Session, d: ScanDevice) -> dict[str, Any]:
         "scanner_state": d.scanner_state,
         "scanner_detail": d.scanner_detail,
         "bridge_version": d.bridge_version,
+        "discover_requested_at": d.discover_requested_at.isoformat()
+        if d.discover_requested_at
+        else None,
+        "detected_scanners": d.detected_scanners,
+        "detected_at": d.detected_at.isoformat() if d.detected_at else None,
         "approved_by_name": _name(db, d.approved_by),
         "approved_at": d.approved_at.isoformat() if d.approved_at else None,
         "revoked_reason": d.revoked_reason,
@@ -286,6 +291,25 @@ def approve_device(
     return mutate(
         db, request, p, key, f"scan.approve:{device_id}", body, 200, "scan_device.approve", fn
     )
+
+
+@router.post("/scan-devices/{device_id}/discover", response_model=ScanDeviceOut)
+def discover_scanners(
+    device_id: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep
+) -> dict[str, Any]:
+    """Ask the office PC's bridge to list the scanners it can see. The bridge answers on its
+    next heartbeat (within about 30 seconds); poll the device to read `detected_scanners`."""
+    d = get_device(db, request, p, device_id)
+    if d.status != "ACTIVE":
+        raise ApiError(409, "INVALID_STATE", "Approve the scanner bridge first")
+    d.discover_requested_at = svc.now()
+    audit.record(
+        db, action="scan_device.discover", success=True, company_id=p.company_id,
+        actor_id=p.employee.id, target_type="scan_device", target_id=str(d.id),
+        warehouse_id=d.warehouse_id, request_id=request.state.request_id,
+    )  # fmt: skip
+    db.commit()
+    return device_out(db, d)
 
 
 @router.post("/scan-devices/{device_id}/revoke", response_model=ScanDeviceOut)
@@ -642,8 +666,16 @@ def bridge_heartbeat(body: BridgeHeartbeatIn, request: Request, db: DbDep) -> di
     d.scanner_state = body.scanner_state
     d.scanner_detail = body.scanner_detail
     d.bridge_version = body.bridge_version
+    if body.scanners is not None:
+        d.detected_scanners = [s.model_dump() for s in body.scanners]
+        d.detected_at = svc.now()
+    discover = (
+        d.status == "ACTIVE"
+        and d.discover_requested_at is not None
+        and (d.detected_at is None or d.detected_at < d.discover_requested_at)
+    )
     db.commit()
-    return {"status": d.status, "server_time": svc.now().isoformat()}
+    return {"status": d.status, "server_time": svc.now().isoformat(), "discover": discover}
 
 
 def _bridge_job(db: Session, d: ScanDevice, job_id: uuid.UUID) -> ScanJob:

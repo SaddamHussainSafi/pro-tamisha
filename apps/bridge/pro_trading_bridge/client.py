@@ -108,12 +108,17 @@ class ApiClient:
             os.chmod(self.state_path, stat.S_IRUSR | stat.S_IWUSR)
         return str(out["fingerprint"])
 
-    def heartbeat(self, state: str, detail: str | None) -> dict[str, Any]:
-        return self._json(
-            "POST",
-            "/api/v1/scan-bridge/heartbeat",
-            {"scanner_state": state, "scanner_detail": detail, "bridge_version": VERSION},
-        )
+    def heartbeat(
+        self, state: str, detail: str | None, scanners: list[dict[str, str]] | None = None
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "scanner_state": state,
+            "scanner_detail": detail,
+            "bridge_version": VERSION,
+        }
+        if scanners is not None:
+            body["scanners"] = scanners
+        return self._json("POST", "/api/v1/scan-bridge/heartbeat", body)
 
     def claim(self, job_id: str, capability: str) -> dict[str, Any]:
         return self._json(

@@ -1,6 +1,6 @@
 # Session handoff — Pro Trading ERP
 
-Written 2026-11-08 for the next Claude Code session (updated after the Customers UI). Read this, `CLAUDE.md`, `docs/PROGRESS.md` and `docs/BLOCKERS.md`; do not re-read the whole documentation pack.
+Written 2026-11-08 for the next Claude Code session (updated after the owner menu changes). Read this, `CLAUDE.md`, `docs/PROGRESS.md` and `docs/BLOCKERS.md`; do not re-read the whole documentation pack.
 
 ## Where things are
 
@@ -15,6 +15,8 @@ Written 2026-11-08 for the next Claude Code session (updated after the Customers
 Modules 10 Payments, 12 Reports and the Customers UI are **done** (evidence: `docs/operations/BUILD_LOG.md`, 2026-11-08 entries). Next:
 
 - **Module 11 Focus migration is deferred by the owner (2026-11-08):** skip it until every other part of the app is functional. It is also blocked on D-13/D-17 (no Focus V7 backup sample or scope decision).
+- **Owner menu changes of 2026-11-08 are done** (BUILD_LOG "Owner menu changes" parts 1–3 and the entries after): Vendors → Suppliers (UI wording only; API keeps `vendor_*`), Pricing folded into Products (`/products/prices`, `/products/case-sizes`), design previews and Settings › Warehouses removed (one warehouse; EAST inactive in `tami`), customer Invoices/Orders tabs, Settings (`/settings`, `/settings/users`; `routes/employees.py`), supplier ledger + payments (`suppliers.py`, `routes/suppliers.py`, `pages/Suppliers.tsx`), Create invoice (`/invoices/new`; direct path `POST /invoices/direct` reuses `invoicing.issue`), Overview panels (`pages/OverviewPanels.tsx`), scanner discovery (`POST /scan-devices/{id}/discover`, bridge `list_devices`).
+- **Unclear owner request:** "also update to review" (Scan Center › To review?) — ask what should change.
 - **Build queue until the app is fully functional:**
   1. **Global search box** in the header (placeholder today).
   2. **OCR of vendor documents into declared shipment lines** (declared lines are typed by hand today).
@@ -89,4 +91,4 @@ Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
 
 ## Working tree at handoff
 
-The Customers UI is committed on `main` (see `git log`); push only after the owner says so.
+Everything is committed on `main` (see `git log`); push only after the owner says so.

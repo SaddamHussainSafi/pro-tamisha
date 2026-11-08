@@ -553,6 +553,9 @@ export type ScanDevice = {
   scanner_state: ScannerState;
   scanner_detail: string | null;
   bridge_version: string | null;
+  discover_requested_at: string | null;
+  detected_scanners: { name: string; driver: string }[] | null;
+  detected_at: string | null;
   approved_by_name: string | null;
   approved_at: string | null;
   revoked_reason: string | null;
@@ -1003,6 +1006,7 @@ export const api = {
     request<ScanDevice[]>("GET", `/scan-devices?${qs(q)}`),
   pairScanDevice: (b: { warehouse_id: string; name: string }) =>
     request<{ device_id: string; pairing_code: string; expires_at: string }>("POST", "/scan-devices/pairings", b, true),
+  discoverScanners: (id: string) => request<ScanDevice>("POST", `/scan-devices/${id}/discover`),
   approveScanDevice: (id: string, version: number, fingerprint: string) =>
     request<ScanDevice>("POST", `/scan-devices/${id}/approve`, { version, fingerprint }, true),
   revokeScanDevice: (id: string, version: number, reason: string) =>

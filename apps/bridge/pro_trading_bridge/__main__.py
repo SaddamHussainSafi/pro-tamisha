@@ -35,7 +35,9 @@ def _heartbeat(bridge: Bridge, every: float = 30) -> None:
         try:
             if bridge.api.paired:
                 state, detail = bridge.driver.probe()
-                bridge.api.heartbeat(state, detail)
+                if bridge.api.heartbeat(state, detail).get("discover"):
+                    # The web app asked which scanners this PC can see.
+                    bridge.api.heartbeat(state, detail, scanners=bridge.driver.list_devices())
         except BridgeApiError as e:
             logging.warning("heartbeat failed: %s", e)
         time.sleep(every)

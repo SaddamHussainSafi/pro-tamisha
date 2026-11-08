@@ -628,6 +628,12 @@ paths:
       description: 'scan.device.manage. Body {version, fingerprint}; fingerprint is printed by the bridge on pairing (proves the operator sees the right PC).'
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}]
       responses: {'200': {description: 'ScanDeviceOut ACTIVE'}, '409': {description: 'NOT_PAIRED / INVALID_STATE / VERSION_CONFLICT'}, '422': {description: 'FINGERPRINT_MISMATCH'}}
+  /scan-devices/{deviceId}/discover:
+    post:
+      operationId: discoverScanners
+      description: 'scan.device.manage. Ask an ACTIVE bridge to list the scanners its PC can see; the next heartbeat answer carries discover=true, the bridge replies with scanners[{name, driver}] (max 20), stored as detected_scanners/detected_at on the device. NAPS2 listing not verified with the office Toshiba (D-14).'
+      parameters: [{name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ScanDeviceOut}, '409': {description: 'INVALID_STATE (not approved)'}}
   /scan-devices/{deviceId}/revoke:
     post:
       operationId: revokeScanDevice

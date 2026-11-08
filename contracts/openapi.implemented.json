@@ -887,6 +887,21 @@
             ],
             "title": "Scanner State",
             "type": "string"
+          },
+          "scanners": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DetectedScanner"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scanners"
           }
         },
         "required": [
@@ -898,6 +913,11 @@
       },
       "BridgeHeartbeatOut": {
         "properties": {
+          "discover": {
+            "default": false,
+            "title": "Discover",
+            "type": "boolean"
+          },
           "server_time": {
             "format": "date-time",
             "title": "Server Time",
@@ -2151,6 +2171,28 @@
           "removed_reason"
         ],
         "title": "DeclaredLineOut",
+        "type": "object"
+      },
+      "DetectedScanner": {
+        "properties": {
+          "driver": {
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Driver",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "driver"
+        ],
+        "title": "DetectedScanner",
         "type": "object"
       },
       "DeviceApproveIn": {
@@ -10001,6 +10043,44 @@
               }
             ],
             "title": "Bridge Version"
+          },
+          "detected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected At"
+          },
+          "detected_scanners": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DetectedScanner"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Scanners"
+          },
+          "discover_requested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discover Requested At"
           },
           "id": {
             "format": "uuid",
@@ -21293,6 +21373,50 @@
           }
         },
         "summary": "Approve Device",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/api/v1/scan-devices/{device_id}/discover": {
+      "post": {
+        "description": "Ask the office PC's bridge to list the scanners it can see. The bridge answers on its\nnext heartbeat (within about 30 seconds); poll the device to read `detected_scanners`.",
+        "operationId": "discover_scanners_api_v1_scan_devices__device_id__discover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Scanners",
         "tags": [
           "scans"
         ]

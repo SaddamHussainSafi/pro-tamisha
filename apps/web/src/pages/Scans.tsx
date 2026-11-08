@@ -179,23 +179,37 @@ const STEPS: Record<"scan" | "upload", { title: string; hint: string }[]> = {
 };
 
 /** Simple scanner illustration (inline SVG, brand colours). */
+/** Office multifunction scanner/printer: document feeder on top, glass, touch panel, output
+tray and paper drawers. While a scan runs, the light bar sweeps the glass. */
 function ScannerArt({ working = false }: { working?: boolean }) {
   return (
     <div className="relative grid h-full min-h-[15rem] place-items-center overflow-hidden rounded-[22px] bg-brand-accent/10" aria-hidden>
-      <svg viewBox="0 0 240 200" className="w-[78%] max-w-[18rem]">
-        <ellipse cx="120" cy="178" rx="92" ry="10" fill="currentColor" className="text-brand-accent/15" />
-        <rect x="38" y="70" width="164" height="78" rx="18" strokeWidth="2" className="fill-card stroke-line" />
-        <path d="M52 70 L78 36 H188 L200 70 Z" strokeWidth="2" className="fill-card stroke-line" />
-        <path d="M86 44 H180 L188 62 H74 Z" fill="currentColor" className="text-subtle" />
-        <rect x="98" y="92" width="44" height="9" rx="4.5" fill="currentColor" className="text-ink-muted/40" />
-        <rect x="64" y="126" width="112" height="10" rx="5" fill="currentColor" className="text-ink/70" />
+      <svg viewBox="0 0 240 220" className="w-[80%] max-w-[18rem]">
+        <ellipse cx="120" cy="208" rx="90" ry="8" fill="currentColor" className="text-brand-accent/15" />
+        {/* paper drawers */}
+        <rect x="54" y="140" width="132" height="62" rx="8" strokeWidth="2" className="fill-card stroke-line" />
+        <line x1="54" y1="171" x2="186" y2="171" strokeWidth="2" className="stroke-line" />
+        <rect x="102" y="151" width="36" height="6" rx="3" fill="currentColor" className="text-ink-muted/40" />
+        <rect x="102" y="182" width="36" height="6" rx="3" fill="currentColor" className="text-ink-muted/40" />
+        {/* printer body with output slot and a printed page */}
+        <rect x="46" y="80" width="148" height="62" rx="10" strokeWidth="2" className="fill-card stroke-line" />
+        <rect x="64" y="100" width="96" height="8" rx="4" fill="currentColor" className="text-ink/70" />
+        <path d="M70 104 H154 L149 128 H75 Z" strokeWidth="1.5" className="fill-card stroke-line" />
+        <path d="M84 114 H140 M84 120 H126" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-ink-muted/40" />
+        <circle cx="60" cy="128" r="3.5" fill="currentColor" className={`text-brand-accent ${working ? "animate-pulse" : ""}`} />
+        {/* scanner glass and lid */}
+        <rect x="42" y="64" width="156" height="18" rx="6" strokeWidth="2" className="fill-card stroke-line" />
+        {working && <rect x="48" y="70" width="144" height="5" rx="2.5" fill="currentColor" className="animate-pulse text-brand-accent" />}
+        {/* document feeder with pages waiting */}
+        <path d="M58 64 L70 42 H168 L176 64 Z" strokeWidth="2" className="fill-card stroke-line" />
         <g className={working ? "animate-pulse" : ""}>
-          <path d="M76 131 L164 131 L178 186 L90 186 Z" strokeWidth="2" className="fill-card stroke-line" />
-          <path d="M100 150 v-7 h7 M150 143 h7 v7 M107 176 h-7 v-7 M157 169 v7 h-7" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" className="text-brand-accent" />
+          <path d="M84 42 L94 16 H160 L154 42 Z" strokeWidth="1.5" fill="currentColor" className="stroke-line text-subtle" />
+          <path d="M102 26 H148 M100 33 H138" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-ink-muted/40" />
         </g>
-        <path d="M176 20 v14 M190 26 l-8 12 M202 40 l-12 6" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" className="text-brand-accent" />
+        {/* angled touch panel */}
+        <path d="M170 68 L210 58 L214 78 L174 88 Z" strokeWidth="2" className="fill-card stroke-line" />
+        <path d="M177 72 L205 65 L207.5 75 L179.5 82 Z" fill="currentColor" className="text-brand-accent/60" />
       </svg>
-      {working && <div className="absolute inset-x-10 top-1/2 h-0.5 animate-pulse rounded-full bg-brand-accent/70" />}
     </div>
   );
 }
@@ -584,6 +598,7 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
   const [input, setInput] = useState("");
   const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const [pairing, setPairing] = useState<{ code: string; expires_at: string; name: string } | null>(null);
+  const [finding, setFinding] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -615,6 +630,31 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
     void load();
   }
 
+  /** Ask the bridge which scanners its PC sees; it answers on its next heartbeat (≤ ~30 s). */
+  async function find(d: ScanDevice) {
+    setMsg(null);
+    setFinding(d.id);
+    try {
+      const asked = await api.discoverScanners(d.id);
+      const since = asked.discover_requested_at ?? "";
+      for (let i = 0; i < 25; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const now = (await api.scanDevices({ include_revoked: showRevoked })).find((x) => x.id === d.id);
+        if (now?.detected_at && now.detected_at >= since) {
+          setRows((rs) => rs?.map((x) => (x.id === d.id ? now : x)) ?? rs);
+          const n = now.detected_scanners?.length ?? 0;
+          setMsg({ tone: n ? "ok" : "error", text: n ? `${d.name} sees ${n} scanner${n === 1 ? "" : "s"}.` : `${d.name} sees no scanner. Check the cable or Wi-Fi and that the scanner is switched on.` });
+          return;
+        }
+      }
+      setMsg({ tone: "error", text: `${d.name} didn't answer. Check the office PC is on and the bridge is running.` });
+    } catch {
+      setMsg({ tone: "error", text: "Couldn't ask the scanner PC. Try again." });
+    } finally {
+      setFinding(null);
+    }
+  }
+
   const columns: Column<ScanDevice>[] = [
     { key: "n", header: "Scanner", cell: (r) => <span className="font-medium">{r.name}</span>, sort: (r) => r.name },
     {
@@ -643,6 +683,11 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
         <div className="flex gap-2">
           {r.status === "PENDING" && r.paired && (
             <button className="btn-primary py-1" onClick={() => { setInput(""); setDialog({ kind: "approve", d: r }); }}>Approve</button>
+          )}
+          {r.status === "ACTIVE" && (
+            <button className="btn-ghost py-1" disabled={finding !== null} aria-label={`Find scanners on ${r.name}`} onClick={() => void find(r)}>
+              {finding === r.id ? "Looking…" : "Find scanners"}
+            </button>
           )}
           {r.status !== "REVOKED" && (
             <button className="btn-ghost py-1" onClick={() => { setInput(""); setDialog({ kind: "revoke", d: r }); }}>Revoke</button>
@@ -675,6 +720,31 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
         <LoadingRows cols={7} />
       ) : (
         <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} caption={`Scanners (${rows.length})`} empty={<EmptyState title="No scanners yet" hint="Add the office scanner PC above to scan straight into Pro Trading." />} />
+      )}
+      {rows?.some((r) => r.detected_scanners) && (
+        <section className="card space-y-3 p-5" aria-labelledby="found-h">
+          <h2 id="found-h" className="text-base font-semibold">Scanners found on the office PC</h2>
+          {rows
+            .filter((r) => r.detected_scanners)
+            .map((r) => (
+              <div key={r.id} className="text-sm">
+                <p className="font-medium">
+                  {r.name} <span className="font-normal text-ink-muted">· checked {when(r.detected_at)}</span>
+                </p>
+                {r.detected_scanners?.length ? (
+                  <ul className="mt-1 list-disc pl-5" data-testid={`found-${r.id}`}>
+                    {r.detected_scanners.map((s) => (
+                      <li key={`${s.driver}-${s.name}`}>
+                        {s.name} <span className="text-ink-muted">({s.driver.toUpperCase()})</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-ink-muted">No scanner found. Check the cable or Wi-Fi and that the scanner is switched on.</p>
+                )}
+              </div>
+            ))}
+        </section>
       )}
       <ConfirmDialog
         open={dialog !== null}
