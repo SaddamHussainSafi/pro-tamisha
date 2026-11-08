@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://tami@127.0.0.1:5432/tami_test")
 os.environ["APP_ENV"] = "test"
+os.environ["OCR_PROVIDER"] = "fake"  # tests that use Tesseract switch it on themselves
 os.environ.setdefault("MFA_ENCRYPTION_KEY", "q0f5L2m9ZPZ0g3W9H3nmVvG7Pq0V8k1oJ5sQ0yYy7Uk=")
 
 import pyotp  # noqa: E402

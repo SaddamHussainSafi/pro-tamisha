@@ -7,6 +7,8 @@ corrected or removed by the reviewer. What the engine read is kept unchanged as 
 Providers run server-side only (credentials never reach the browser):
 - ``fake``: reads text drawn into synthetic PDFs (our own uncompressed content streams). Text in
   font /F3 counts as handwriting; a trailing ``?`` marks a low-confidence read. Dev/test only.
+- ``tesseract``: local Tesseract 5 (scanned images and image-only PDFs; PDF pages rasterized at
+  300 dpi by poppler ``pdftoppm``; orientation detected with OSD). Confidence is the engine's.
 - ``document_ai``: Google Document AI REST (unverified until the office pilot).
 - ``disabled``: no engine; the reviewer types the lines (manual path always works).
 """
@@ -16,6 +18,8 @@ from __future__ import annotations
 import base64
 import json
 import re
+import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -25,6 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
@@ -240,12 +245,97 @@ def document_ai_provider(content: bytes, mime: str) -> OcrResult:
     return OcrResult(max(len(doc.get("pages", [])), 1), tokens)
 
 
+_IMG_EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/tiff": ".tif"}
+
+
+def _run(args: list[str], timeout: int) -> subprocess.CompletedProcess[bytes]:
+    try:
+        return subprocess.run(args, capture_output=True, timeout=timeout, check=False, shell=False)  # noqa: S603
+    except FileNotFoundError:
+        raise ProviderError("OCR_ENGINE_MISSING", f"{args[0]} is not installed", False) from None
+    except subprocess.TimeoutExpired:
+        raise ProviderError("OCR_TIMEOUT", "OCR took too long", True) from None
+
+
+def _rotation(img: str, timeout: int) -> int:
+    """Degrees to rotate (OSD). 0 when the page has too little text to tell."""
+    r = _run([get_settings().ocr_tesseract_cmd, img, "-", "--psm", "0"], timeout)
+    m = re.search(rb"Rotate: (\d+)", r.stdout)
+    return int(m.group(1)) if m and r.returncode == 0 else 0
+
+
+def _prepare(img: Path, rot: int) -> None:
+    """Grayscale, undo the detected rotation, stretch contrast. Rewrites the file as PNG."""
+    from PIL import Image, ImageOps
+
+    try:
+        with Image.open(img) as im:
+            g = ImageOps.exif_transpose(im).convert("L")
+    except OSError:
+        raise ProviderError("UNREADABLE", "The image could not be opened", False) from None
+    if rot:
+        g = g.rotate(-rot, expand=True, fillcolor=255)
+    ImageOps.autocontrast(g, cutoff=1).save(img, format="PNG")
+
+
+def tesseract_provider(content: bytes, mime: str) -> OcrResult:
+    st = get_settings()
+    t = st.ocr_timeout_seconds
+    with tempfile.TemporaryDirectory(prefix="ptocr-") as tmp:
+        if mime == "application/pdf":
+            src = Path(tmp) / "in.pdf"
+            src.write_bytes(content)
+            r = _run(["pdftoppm", "-r", "300", "-gray", "-png", str(src), str(Path(tmp) / "p")], t)
+            if r.returncode != 0:
+                raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
+            images = sorted(Path(tmp).glob("p-*.png"))
+        elif mime in _IMG_EXT:
+            img = Path(tmp) / f"in{_IMG_EXT[mime]}"
+            img.write_bytes(content)
+            images = [img]
+        else:
+            raise ProviderError("UNSUPPORTED", f"Can't read {mime}", False)
+        if not images:
+            raise ProviderError("UNREADABLE", "No pages found", False)
+        tokens: list[Token] = []
+        for n, img in enumerate(images, start=1):
+            rot = _rotation(str(img), t)
+            _prepare(img, rot)
+            args = [st.ocr_tesseract_cmd, str(img), "-", "--psm", "3", "-l", "eng", "tsv"]
+            r = _run(args, t)
+            if r.returncode != 0:
+                raise ProviderError("OCR_FAILED", r.stderr.decode(errors="replace")[:200], False)
+            w = h = Decimal(1)
+            for line in r.stdout.decode("utf-8", "replace").splitlines()[1:]:
+                f = line.split("\t")
+                if len(f) < 12:
+                    continue
+                left, top, width, height = (_d(x) for x in f[6:10])
+                if f[0] == "1":
+                    w, h = max(width, Decimal(1)), max(height, Decimal(1))
+                    continue
+                text, conf = f[11].strip(), _d(f[10])
+                if f[0] != "5" or not text or conf < 0:
+                    continue
+                tokens.append(
+                    Token(
+                        text=text, page=n,
+                        x0=(left / w).quantize(C3), y0=(top / h).quantize(C3),
+                        x1=((left + width) / w).quantize(C3), y1=((top + height) / h).quantize(C3),
+                        confidence=(conf / 100).quantize(C3), handwritten=False,
+                    )
+                )  # fmt: skip
+        return OcrResult(len(images), tokens)
+
+
 def provider() -> Provider | None:
     name = get_settings().ocr_provider
     if name == "fake":
         if get_settings().is_production_like:
             raise ProviderError("OCR_NOT_CONFIGURED", "fake OCR is not allowed here", False)
         return fake_provider
+    if name == "tesseract":
+        return tesseract_provider
     if name == "document_ai":
         return document_ai_provider
     return None
@@ -374,6 +464,20 @@ class MappedSheet:
     text_blocks: list[dict[str, Any]]
 
 
+def _code_key(s: str) -> str:
+    return s.casefold().translate(str.maketrans("oils", "0115"))
+
+
+def _one_edit(a: str, b: str) -> bool:
+    """True when a and b differ by one inserted, deleted or changed character."""
+    if abs(len(a) - len(b)) > 1 or a == b:
+        return False
+    i = 0
+    while i < min(len(a), len(b)) and a[i] == b[i]:
+        i += 1
+    return a[i + 1 :] == b[i + 1 :] or a[i:] == b[i + 1 :] or a[i + 1 :] == b[i:]
+
+
 def map_result(db: Session, company_id: uuid.UUID, job_type: str, res: OcrResult) -> MappedSheet:
     threshold = Decimal(get_settings().ocr_confidence_threshold)
     cat = Catalog(db, company_id)
@@ -403,11 +507,41 @@ def map_result(db: Session, company_id: uuid.UUID, job_type: str, res: OcrResult
                 customer_id = cust.id
             break
 
+    # Pixel OCR can't tell handwriting from print: on our sheet, what sits in the Quantity
+    # column, and every line under "Other items", is what the customer filled in.
+    pixel = template is not None and not any(t.handwritten for t in res.tokens)
+    fuzzy = {_code_key(k): v for k, v in cat.by_sku.items()}
+    qty_x = next((t.x0 for t in res.tokens if t.text == "Quantity"), None)
+    other_y = next(
+        (
+            r[0].yc
+            for r in rows
+            if r and r[0].text == "Other" and len(r) > 1 and r[1].text == "items"
+        ),
+        None,
+    )
+
+    def filled(r: list[Token]) -> list[Token]:
+        if not pixel:
+            return [t for t in r if t.handwritten]
+        if other_y is not None and r[0].yc > other_y + ROW_TOLERANCE:
+            return list(r)
+        return [t for t in r if qty_x is not None and t.x0 >= qty_x - Decimal("0.02")]
+
     out: list[Proposal] = []
     for r in rows:
-        printed = [t for t in r if not t.handwritten]
-        hand = [t for t in r if t.handwritten]
+        hand = filled(r)
+        printed = [t for t in r if t not in hand]
         head = cat.by_sku.get(printed[0].text.casefold()) if template and printed else None
+        guessed = False
+        if head is None and template and printed:
+            # common OCR slips in codes: O/0, I/l/1, S/5 — matched, but sent for review
+            k = _code_key(printed[0].text)
+            head = fuzzy.get(k)
+            if head is None:
+                near = [v for c, v in fuzzy.items() if _one_edit(c, k)]
+                head = near[0] if len(near) == 1 else None
+            guessed = head is not None
         if head is not None:
             if not hand:
                 continue  # blank quantity box = not ordered
@@ -415,6 +549,8 @@ def map_result(db: Session, company_id: uuid.UUID, job_type: str, res: OcrResult
             raw = " ".join(t.text for t in hand)
             qty = parse_qty(raw)
             conf = min(t.confidence for t in hand)
+            if guessed:
+                conf = min(conf, threshold - C3)
             out.append(
                 Proposal(
                     kind="LINE",

@@ -17,6 +17,7 @@ dependencies = [
   "redis>=5.0",
   "celery>=5.4",
   "email-validator>=2.2",
+  "pillow>=13.0.0",
 ]
 
 [dependency-groups]

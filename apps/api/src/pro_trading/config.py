@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     scan_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     # Module 07 OCR. "fake" reads text drawn into synthetic PDFs (dev/test only); "document_ai"
     # calls Google Document AI server-side (unverified until the pilot); "disabled" = manual only.
-    ocr_provider: Literal["fake", "document_ai", "disabled"] = "fake"
+    ocr_provider: Literal["fake", "tesseract", "document_ai", "disabled"] = "fake"
+    ocr_tesseract_cmd: str = "tesseract"
     ocr_confidence_threshold: str = Field(default="0.900", pattern=r"^0\.\d{3}$")
     ocr_docai_endpoint: str = (
         ""  # https://{loc}-documentai.googleapis.com/v1/projects/.../processors/...:process
