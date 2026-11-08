@@ -1,0 +1,779 @@
+openapi: 3.1.0
+info:
+  title: Pro Trading API — design contract
+  version: 0.1.0-draft
+  description: Design contract for future modules. Implemented endpoints (Module 00 auth, health, warehouses, feature flags, audit; Module 01 catalog) are generated from code in contracts/openapi.implemented.json and checked by tests/test_contract.py. Draft endpoints, expand schemas and errors per module before implementation. No direct financial mutations by scanning/OCR services.
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /auth/session:
+    get:
+      operationId: getSession
+      responses: {'200': {description: User session and permissions}}
+  # ---- Module 01 catalog (IMPLEMENTED; authoritative shapes in openapi.implemented.json) ----
+  /product-categories:
+    get: {operationId: listCategories, responses: {'200': {description: Categories (catalog.read)}}}
+    post:
+      operationId: createCategory
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: Created}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /products:
+    get:
+      operationId: listProducts
+      parameters:
+        - {name: search, in: query, description: 'SKU, name or alias (case-insensitive, wildcards escaped)', schema: {type: string}}
+        - {name: category_id, in: query, schema: {type: string, format: uuid}}
+        - {name: active, in: query, schema: {type: boolean}}
+        - {name: stock_unit, in: query, schema: {type: string, enum: [LB, KG]}}
+        - {name: cursor, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses: {'200': {description: 'ProductPage {items, next_cursor}'}}
+    post:
+      operationId: createProduct
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ProductIn'}}}}
+      responses:
+        '201': {description: Product with unit profiles and aliases}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {description: 'INVALID_PROFILE (two defaults, factors on base unit) | INVALID_CATEGORY | VALIDATION'}
+  /products/{productId}:
+    get: {operationId: getProduct, responses: {'200': {description: Product}, '404': {description: Not found or other company}}}
+    patch:
+      operationId: updateProduct
+      description: 'Full replacement of mutable fields (name, category_id, tracks_expiry, active) with optimistic version. SKU and stock_unit are immutable (DB trigger).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: Updated}, '409': {$ref: '#/components/responses/Conflict'}}
+  /products/{productId}/aliases:
+    post:
+      operationId: addAlias
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: Alias}, '409': {$ref: '#/components/responses/Conflict'}}
+  /products/{productId}/aliases/{aliasId}:
+    delete:
+      operationId: removeAlias
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'204': {description: Removed}}
+  /product-aliases/resolve:
+    get:
+      operationId: resolveAlias
+      parameters:
+        - {name: name, in: query, required: true, schema: {type: string}}
+        - {name: source, in: query, description: Source-specific alias wins over generic, schema: {type: string}}
+      responses: {'200': {description: 'AliasMatch {product, alias}'}, '404': {description: No match}}
+  /products/{productId}/unit-profiles:
+    post:
+      operationId: addUnitProfile
+      description: 'Conversions are immutable once created; to change, add a new profile and deactivate the old one.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: Product}, '409': {$ref: '#/components/responses/Conflict'}, '422': {description: INVALID_PROFILE}}
+  /products/{productId}/unit-profiles/{profileId}/{command}:
+    post:
+      operationId: unitProfileCommand
+      parameters:
+        - {name: command, in: path, required: true, schema: {type: string, enum: [deactivate, make-default]}}
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
+      responses: {'200': {description: Product}, '409': {$ref: '#/components/responses/Conflict'}}
+  /products/{productId}/weight-calc:
+    post:
+      operationId: calculateWeight
+      description: 'Read-only. Sums mixed case-size groups. Entered case weight beats profile default; profile default marks result estimated. Unknown piece/box weight is rejected, never guessed.'
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WeightCalcIn'}}}}
+      responses:
+        '200': {description: 'WeightCalcOut {groups, units, total_lb, total_kg, estimated}'}
+        '422': {description: 'UNKNOWN_CONVERSION | INVALID_QUANTITY, with extra.group index'}
+  /customer-groups:
+    get: {operationId: listCustomerGroups, responses: {'200': {description: 'CustomerGroupOut[]'}}}
+    post:
+      operationId: createCustomerGroup
+      description: 'Requires company-wide catalog.manage + MFA.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: CustomerGroupOut}, '409': {$ref: '#/components/responses/Conflict'}}
+  /customers:
+    get: {operationId: listCustomers, description: 'Filters q, group_id, active.', responses: {'200': {description: 'CustomerOut[]'}}}
+    post:
+      operationId: createCustomer
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: CustomerOut}, '409': {$ref: '#/components/responses/Conflict'}}
+  /customers/{customerId}:
+    get: {operationId: getCustomer, responses: {'200': {description: CustomerOut}, '404': {description: NOT_FOUND}}}
+    patch:
+      operationId: updateCustomer
+      description: 'Optimistic `version`; stale returns 409 VERSION_CONFLICT.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: CustomerOut}, '409': {$ref: '#/components/responses/Conflict'}}
+  /price-books/versions:
+    get: {operationId: listPriceVersions, description: 'Filters state (DRAFT|SCHEDULED|CURRENT|SUPERSEDED|ARCHIVED). Requires price.read.', responses: {'200': {description: 'PriceVersionOut[]'}}}
+    post:
+      operationId: createPriceVersion
+      description: 'New DRAFT cloned from the current version (or based_on). Requires price.draft (MANAGER/OWNER, company-wide, MFA).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PriceVersionOut (DRAFT)}, '409': {$ref: '#/components/responses/Conflict'}}
+  /price-books/versions/{versionId}:
+    get: {operationId: getPriceVersion, responses: {'200': {description: 'PriceVersionOut incl. stale flag (a newer version was activated after this draft was based)'}}}
+  /price-books/imports/preview:
+    post:
+      operationId: previewPriceCsv
+      description: 'Read-only. Validates CSV (sku,unit,rate,customer_ref,group_code) and diffs against the current version.'
+      responses: {'200': {description: 'PricePreviewOut {errors[], diff, duplicate_of}'}}
+  /price-books/versions/import:
+    post:
+      operationId: importPriceCsv
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': {description: PriceVersionOut (DRAFT)}
+        '409': {description: 'DUPLICATE_UPLOAD with existing_version_id (same canonical content hash)'}
+        '422': {description: 'CSV_INVALID with errors[{line,column,code,message}] — INVALID_UNIT, UNKNOWN_SKU, DUPLICATE_ROW, ...'}
+  /price-books/versions/{versionId}/entries:
+    get: {operationId: listPriceEntries, description: 'Filters q, unit, scope, category_id, customer_id, group_id; offset cursor; total.', responses: {'200': {description: PriceEntryPage}}}
+    put:
+      operationId: setPriceEntry
+      description: 'Upsert one entry on a DRAFT. Optimistic draft version.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PriceEntryOut}, '409': {description: 'INVALID_STATE | VERSION_CONFLICT'}, '422': {description: INVALID_UNIT}}
+  /price-books/versions/{versionId}/entries/remove:
+    post:
+      operationId: removePriceEntry
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: Removed}, '409': {description: INVALID_STATE}}
+  /price-books/versions/{versionId}/activate:
+    post:
+      operationId: activatePriceVersion
+      description: 'DRAFT → ACTIVE at effective_at (now or future). Published versions are immutable (DB trigger). Requires price.approve.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: versionId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: PriceVersionOut}
+        '409': {description: 'INVALID_STATE | DUPLICATE (same effective time) | VERSION_CONFLICT'}
+        '422': {description: 'EFFECTIVE_IN_PAST | EMPTY_VERSION | INVALID_UNIT | NO_CHANGES'}
+  /price-books/versions/{versionId}/archive:
+    post:
+      operationId: cancelPriceVersion
+      description: 'Cancels a SCHEDULED (future) version only.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PriceVersionOut (ARCHIVED)}, '409': {description: INVALID_STATE}}
+  /price-books/versions/{versionId}/discard:
+    post:
+      operationId: discardPriceVersion
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: '{id, discarded}'}, '409': {description: INVALID_STATE}}
+  /price-books/versions/{versionId}/diff:
+    get: {operationId: priceDiff, description: 'against_version_id optional (default current).', responses: {'200': {description: PriceDiffOut}}}
+  /price-books/template.csv:
+    get: {operationId: priceTemplateCsv, responses: {'200': {description: 'text/csv (UTF-8 BOM, CRLF)'}}}
+  /price-books/versions/{versionId}/export.csv:
+    get: {operationId: exportPriceCsv, description: Formula-injection-safe cells; re-import yields same hash., responses: {'200': {description: text/csv}}}
+  /prices/resolve:
+    get:
+      operationId: resolvePrice
+      description: 'product_id, unit, customer_id?, at? → CUSTOMER > GROUP > STANDARD from the ACTIVE version effective at `at`. Invoices store the returned snapshot (INV-005).'
+      responses: {'200': {description: PriceQuoteOut}, '404': {description: NO_PRICE}}
+  /inventory/stock:
+    get: {operationId: listStock, description: 'Balances per lot+unit. Filters warehouse_id, product_id, lot_status, q, include_zero; limit + offset cursor; total. Scoped to readable warehouses.', responses: {'200': {description: BalancePage}}}
+  /inventory/availability:
+    get: {operationId: getAvailability, description: 'product_id → on_hand/reserved/available/unavailable per warehouse+unit (never converted between units).', responses: {'200': {description: 'AvailabilityOut[]'}}}
+  /inventory/movements:
+    get: {operationId: listMovements, description: 'Append-only ledger. Filters warehouse_id, product_id, lot_id, movement_type; offset cursor.', responses: {'200': {description: MovementPage}}}
+  /inventory/lots/{lotId}:
+    get: {operationId: getLot, responses: {'200': {description: 'LotOut with balances, damaged companion link'}, '404': {description: NOT_FOUND}}}
+  /inventory/lots/{lotId}/status:
+    post:
+      operationId: setLotStatus
+      description: 'SALEABLE|QUARANTINE|EXPIRED with reason; optimistic version. Requires inventory.adjust.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: LotOut}, '409': {description: 'VERSION_CONFLICT | LOT_RESERVED'}}
+  /inventory/opening-balances:
+    post:
+      operationId: postOpeningBalance
+      description: 'New lot with one line per unit (BOX/PIECE/LB/KG kept separate). posting_key opening:{lot}:{unit}.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PostingOut}, '409': {description: DUPLICATE lot code}, '422': {description: 'EXPIRY_REQUIRED | DUPLICATE_UNIT | INVALID_UNIT | UNIT_NOT_DIVISIBLE'}}
+  /inventory/adjustments:
+    post:
+      operationId: postAdjustment
+      description: 'Signed delta with reason (FOUND|LOST|SPOILAGE|DATA_ENTRY|OTHER) and note. Requires inventory.adjust.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PostingOut}, '409': {description: 'INSUFFICIENT_STOCK with available, requested (stock never negative, D-05)'}}
+  /inventory/damage:
+    post:
+      operationId: postDamage
+      description: 'Two legs — out of the lot, into its DAMAGED companion lot "<lot>-DMG".'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PostingOut}, '409': {description: INSUFFICIENT_STOCK}}
+  /inventory/returns:
+    post:
+      operationId: postReturn
+      description: 'Customer return; condition SALEABLE (original lot) or DAMAGED (companion lot); source_ref required (D-10).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PostingOut}}
+  /inventory/movements/{movementId}/reverse:
+    post:
+      operationId: reverseMovement
+      description: 'Compensating entries for the whole source group; original kept. Requires inventory.reverse (MANAGER/OWNER).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PostingOut}, '409': {description: 'ALREADY_REVERSED | INSUFFICIENT_STOCK'}, '422': {description: 'NOT_REVERSIBLE | SOURCE_DOCUMENT_REQUIRED (GRN/invoice postings reverse via their documents)'}}
+  /inventory/reservations:
+    get: {operationId: listReservations, responses: {'200': {description: 'ReservationOut[]'}}}
+    post:
+      operationId: reserveStock
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: ReservationOut}, '409': {description: 'INSUFFICIENT_STOCK | LOT_NOT_SALEABLE'}}
+  /inventory/reservations/{reservationId}/release:
+    post:
+      operationId: releaseReservation
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: ReservationOut}, '409': {description: INVALID_STATE}}
+  /inventory/counts:
+    get: {operationId: listCounts, responses: {'200': {description: 'CountOut[] with expected/counted/variance/stale per line'}}}
+    post:
+      operationId: submitCount
+      description: 'Requires inventory.count. Records expected qty + balance version; no stock change.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: CountOut}, '422': {description: 'WRONG_WAREHOUSE | DUPLICATE_LINE'}}
+  /inventory/counts/{countId}/post:
+    post:
+      operationId: postCount
+      description: 'Requires inventory.adjust. Posts COUNT_ADJUSTMENT per variance line.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: CountOut}, '409': {description: 'STALE_COUNT (stock moved since count) | COUNT_BELOW_RESERVED | VERSION_CONFLICT'}}
+  /inventory/counts/{countId}/reject:
+    post:
+      operationId: rejectCount
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: CountOut}}
+  /inventory/reconciliation:
+    get: {operationId: reconcileInventory, description: 'Cached balances vs ledger sum and active reservations.', responses: {'200': {description: ReconciliationOut}}}
+  /inventory/reconciliation/rebuild:
+    post:
+      operationId: rebuildBalances
+      description: 'Resets cached balances to ledger totals. Requires inventory.reconcile (OWNER, company-wide). Audited.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: ReconciliationOut (rebuilt)}, '409': {description: REBUILD_CONFLICT}}
+  /inventory/events:
+    get: {operationId: inventoryEvents, description: 'SSE: "ready", then "stock" whenever committed stock changes (polls committed state; after-commit by construction). timeout 1-300s.', responses: {'200': {description: text/event-stream}}}
+  /sales-orders:
+    get: {operationId: listSalesOrders, description: 'Filters status (csv), warehouse_id, customer_id, backorder, q; offset cursor. Scoped to readable warehouses.', responses: {'200': {description: OrderPage}}}
+    post:
+      operationId: createSalesOrder
+      description: 'Requires sales_order.manage. Creates DRAFT SO-YYYYMMDD-NNNN; keeps source_text + source_snapshot verbatim (immutable).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSalesOrder' }
+      responses: {'201': {description: OrderOut (DRAFT)}, '422': {description: 'INVALID_CUSTOMER | CUSTOMER_INACTIVE | INVALID_PRODUCT | PRODUCT_INACTIVE | INVALID_UNIT | UNIT_NOT_DIVISIBLE | DUPLICATE_LINE'}}
+  /sales-orders/{orderId}:
+    get: {operationId: getSalesOrder, description: 'Lines with ordered/cancelled/dispatched/awaiting_invoice/remaining/pending, attempts, amendments.', responses: {'200': {description: OrderOut}}}
+    put:
+      operationId: updateSalesOrderDraft
+      description: 'DRAFT only; optimistic version.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: OrderOut}, '409': {description: 'VERSION_CONFLICT | INVALID_STATE'}}
+  /sales-orders/{orderId}/confirm:
+    post:
+      operationId: confirmSalesOrder
+      description: 'Resolves and freezes rate + price snapshot per line (DB trigger blocks later change). No invoice number.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: OrderOut}, '422': {description: NO_PRICE}, '409': {description: 'VERSION_CONFLICT | INVALID_STATE'}}
+  /sales-orders/{orderId}/cancel:
+    post:
+      operationId: cancelSalesOrder
+      description: 'DRAFT needs sales_order.manage; CONFIRMED with no live picks needs sales_order.close. Reason required.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: OrderOut}, '409': {description: 'ORDER_HAS_PICKS | INVALID_STATE'}}
+  /sales-orders/{orderId}/lines/{lineId}/cancel:
+    post:
+      operationId: cancelOrderLineQty
+      description: 'sales_order.close. Cancels up to pending qty with reason; append-only amendment.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: OrderOut}, '422': {description: EXCEEDS_PENDING}}
+  /sales-orders/{orderId}/close:
+    post:
+      operationId: closeSalesOrder
+      description: 'sales_order.close. Cancels all pending → CLOSED_WITH_SHORTAGE (or CANCELLED if nothing supplied).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: OrderOut}, '409': {description: 'AWAITING_INVOICE | INVALID_STATE'}}
+  /sales-orders/{orderId}/pick-attempts:
+    post:
+      operationId: openPickAttempt
+      description: 'sales_order.manage. One open sheet per order (partial unique index); requests pending = remaining − awaiting invoice. Code {{order_no}}-P{{n}}.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: PickOut}, '409': {description: 'OPEN_PICK_EXISTS (attempt_id) | NOTHING_TO_PICK'}}
+  /pick-attempts:
+    get: {operationId: listPickAttempts, description: 'Filters status (csv), warehouse_id, code (QR lookup).', responses: {'200': {description: 'PickSummaryOut[]'}}}
+  /pick-attempts/{pickId}:
+    get: {operationId: getPickAttempt, responses: {'200': {description: PickOut}}}
+  /pick-attempts/{pickId}/record:
+    post:
+      operationId: recordPick
+      description: 'pick.record. Packed qty per line; 0 = NO (stays pending, not cancelled). Short lines need shortage_reason.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PickOut}, '422': {description: 'OVER_PICK | SHORTAGE_REASON_REQUIRED | INVALID_LINE | UNIT_NOT_DIVISIBLE'}}
+  /pick-attempts/{pickId}/submit:
+    post:
+      operationId: submitPick
+      description: 'All lines recorded → SUBMITTED.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PickOut}, '422': {description: PICK_INCOMPLETE}}
+  /pick-attempts/{pickId}/verify:
+    post:
+      operationId: verifyPick
+      description: 'pick.verify. dispositions keyed by order_line_id: BACKORDER (default, stays pending) or CANCEL (needs sales_order.close + reason).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PickOut (VERIFIED, awaiting invoice)}, '422': {description: 'REASON_REQUIRED | INVALID_LINE'}, '409': {description: 'VERSION_CONFLICT | INVALID_STATE'}}
+  /pick-attempts/{pickId}/return:
+    post:
+      operationId: returnPick
+      description: 'pick.verify. SUBMITTED → NEEDS_CORRECTION with note.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PickOut}}
+  /pick-attempts/{pickId}/abort:
+    post:
+      operationId: abortPick
+      description: 'sales_order.manage. Voids an unverified sheet with reason.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'200': {description: PickOut}}
+  /pick-attempts/{pickId}/invoice-preview:
+    post:
+      operationId: previewInvoiceFromPick
+      description: 'invoice.prepare or invoice.issue. Draft lines, optional catch weights {pick_line_id: [{cases, weight_lb}]}, stock check and totals. No numbering, no stock movement.'
+      parameters: [{name: pickId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: InvoicePreviewOut}, '409': {description: 'ALREADY_INVOICED (invoice_id) | INVALID_STATE (not VERIFIED)'}, '422': {description: 'WEIGHTS_NOT_ALLOWED | WEIGHTS_MISMATCH | INVALID_LINE | NO_PRICE'}}
+  /pick-attempts/{pickId}/issue-invoice:
+    post:
+      operationId: issueInvoiceFromPick
+      description: 'invoice.issue (MFA). Body {version, dispatch_confirmed, weights, note}. One transaction: FEFO stock postings, gapless number {prefix}-{year}-{n:06d}, price/tax snapshot, stored PDF (sha256), email outbox.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: pickId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'201': {description: InvoiceOut — one immutable issued invoice; stock posted}, '409': {description: 'INSUFFICIENT_STOCK | VERSION_CONFLICT | ALREADY_INVOICED | INVALID_STATE | TAX_RULES_UNVERIFIED'}, '422': {description: 'DISPATCH_NOT_CONFIRMED | NOTHING_TO_INVOICE | WEIGHTS_MISMATCH'}}
+  /invoices:
+    get:
+      operationId: listInvoices
+      description: 'invoice.read, warehouse-scoped. Filters state, customer_id, sales_order_id, picking_attempt_id, email_status, q; limit/cursor.'
+      responses: {'200': {description: InvoicePage}}
+  /invoices/{invoiceId}:
+    get:
+      operationId: getInvoice
+      parameters: [{name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: InvoiceOut — immutable issued snapshot with lines and stock movements}}
+  /invoices/{invoiceId}/pdf:
+    get:
+      operationId: getInvoicePdf
+      description: 'Stored issued PDF bytes (never re-rendered). ETag = sha256; 304 on If-None-Match; X-Content-SHA256 header.'
+      parameters: [{name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: application/pdf}, '304': {description: Not modified}}
+  /invoices/{invoiceId}/email:
+    post:
+      operationId: resendInvoiceEmail
+      description: 'invoice.issue or invoice.prepare. Queues another send via outbox (dev sink until D-15).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: InvoiceOut}, '409': {description: EMAIL_QUEUED}, '422': {description: NO_EMAIL_ADDRESS}}
+  /invoices/{invoiceId}/payments:
+    post:
+      operationId: recordManualPayment
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'201': {description: Reported payment pending manual verification}}
+  /vendors:
+    get:
+      operationId: listVendors
+      description: 'Readable with catalog.read, grn.record or grn.approve.'
+      parameters: [{name: active, in: query, schema: {type: boolean}}, {name: q, in: query, schema: {type: string}}]
+      responses: {'200': {description: 'VendorOut[]'}}
+    post:
+      operationId: createVendor
+      description: 'Needs catalog.manage.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [code, name], properties: {code: {type: string, maxLength: 32}, name: {type: string}, country_code: {type: [string, 'null'], minLength: 2, maxLength: 2}, email: {type: [string, 'null']}, currency: {type: string, minLength: 3, maxLength: 3}}}}}}
+      responses: {'201': {description: VendorOut}, '409': {description: VENDOR_CODE_TAKEN}}
+  /vendors/{vendorId}:
+    patch:
+      operationId: updateVendor
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: vendorId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: VendorOut}, '409': {description: VERSION_CONFLICT}}
+  /shipments:
+    get:
+      operationId: listShipments
+      parameters: [{name: status, in: query, description: 'comma list of OPEN|COUNTED|POSTED|CANCELLED', schema: {type: string}}, {name: warehouse_id, in: query, schema: {type: string, format: uuid}}, {name: vendor_id, in: query, schema: {type: string, format: uuid}}, {name: q, in: query, schema: {type: string}}, {name: limit, in: query, schema: {type: integer}}, {name: cursor, in: query, schema: {type: string}}]
+      responses: {'200': {description: 'ShipmentPage {items, total, next_cursor}'}}
+    post:
+      operationId: createShipment
+      description: 'Needs grn.record in the warehouse. Starts OPEN; nothing touches stock until post.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [warehouse_id, vendor_id], properties: {warehouse_id: {type: string, format: uuid}, vendor_id: {type: string, format: uuid}, vendor_invoice_no: {type: [string, 'null']}, awb_no: {type: [string, 'null']}, expected_on: {type: [string, 'null'], format: date}, note: {type: [string, 'null']}}}}}}
+      responses: {'201': {description: ShipmentDetail}, '409': {description: VENDOR_INACTIVE}, '422': {description: INVALID_WAREHOUSE | INVALID_VENDOR}}
+  /shipments/{shipmentId}:
+    get:
+      operationId: getShipment
+      parameters: [{name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ShipmentDetail (documents, declared, counted, costs, comparison rows MATCH|SHORT|OVER|DAMAGED|NOT_DECLARED|NOT_RECEIVED|DOC_CONFLICT, cost_totals)'}}
+  /shipments/{shipmentId}/documents:
+    post:
+      operationId: attachShipmentScan
+      description: 'Attach an UPLOADED scan job''s document. Documents are append-only and never altered.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, scan_job_id, kind], properties: {version: {type: integer}, scan_job_id: {type: string, format: uuid}, kind: {type: string, enum: [AWB, INVOICE, PACKING_LIST, COMBINED, OTHER]}, doc_ref: {type: [string, 'null']}}}}}}
+      responses: {'200': {description: ShipmentDetail}, '409': {description: SCAN_NOT_RECEIVED | ALREADY_ATTACHED | VERSION_CONFLICT}, '422': {description: INVALID_SCAN}}
+  /shipments/{shipmentId}/documents/upload:
+    post:
+      operationId: uploadShipmentDocument
+      description: 'Raw file body (PDF/PNG/JPEG/TIFF); creates a VENDOR_DOCUMENT scan job (channel MANUAL) or reuses the same stored document.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}, {name: kind, in: query, required: true, schema: {type: string}}, {name: version, in: query, required: true, schema: {type: integer}}, {name: doc_ref, in: query, schema: {type: string}}, {name: filename, in: query, schema: {type: string}}]
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses: {'200': {description: ShipmentDetail}, '413': {description: FILE_TOO_LARGE}, '415': {description: UNSUPPORTED_FILE}}
+  /shipments/{shipmentId}/declared:
+    post:
+      operationId: addDeclaredLine
+      description: 'What a document says. Never posted to stock. Unmapped labels resolve through vendor alias memory (vendor:CODE) then SKU/name.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, raw_label, unit_code, declared_qty], properties: {version: {type: integer}, shipment_document_id: {type: [string, 'null'], format: uuid}, raw_label: {type: string}, product_id: {type: [string, 'null'], format: uuid}, unit_code: {type: string, enum: [BOX, PIECE, LB, KG]}, declared_qty: {$ref: '#/components/schemas/Decimal'}, unit_cost: {oneOf: [{$ref: '#/components/schemas/Decimal'}, {type: 'null'}]}, remember_alias: {type: boolean}}}}}}
+      responses: {'200': {description: ShipmentDetail}, '422': {description: UNMAPPED_LABEL | UNIT_NOT_DIVISIBLE}}
+  /shipments/{shipmentId}/declared/{lineId}/withdraw:
+    post:
+      operationId: withdrawDeclaredLine
+      description: 'Soft withdraw with reason; row kept.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}, {name: lineId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, reason], properties: {version: {type: integer}, reason: {type: string, minLength: 3}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /shipments/{shipmentId}/count:
+    post:
+      operationId: addCountLine
+      description: 'Physical count, OPEN only. accepted/damaged/rejected ≥ 0 with a positive sum.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, product_id, unit_code, accepted_qty], properties: {version: {type: integer}, product_id: {type: string, format: uuid}, unit_code: {type: string}, accepted_qty: {$ref: '#/components/schemas/Decimal'}, damaged_qty: {$ref: '#/components/schemas/Decimal'}, rejected_qty: {$ref: '#/components/schemas/Decimal'}, batch_ref: {type: [string, 'null']}, expires_at: {type: [string, 'null'], format: date}, note: {type: [string, 'null']}}}}}}
+      responses: {'200': {description: ShipmentDetail}, '422': {description: EMPTY_COUNT | EXPIRY_REQUIRED | UNIT_NOT_DIVISIBLE}}
+  /shipments/{shipmentId}/count/{lineId}:
+    put:
+      operationId: editCountLine
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}, {name: lineId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, line_version, product_id, unit_code, accepted_qty], properties: {version: {type: integer}, line_version: {type: integer}, product_id: {type: string, format: uuid}, unit_code: {type: string}, accepted_qty: {$ref: '#/components/schemas/Decimal'}, damaged_qty: {$ref: '#/components/schemas/Decimal'}, rejected_qty: {$ref: '#/components/schemas/Decimal'}, batch_ref: {type: [string, 'null']}, expires_at: {type: [string, 'null'], format: date}, note: {type: [string, 'null']}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /shipments/{shipmentId}/count/{lineId}/remove:
+    post:
+      operationId: removeCountLine
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}, {name: lineId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /shipments/{shipmentId}/costs:
+    post:
+      operationId: addLandedCost
+      description: 'Freight/duty/brokerage/insurance/other recorded against the shipment; allowed after POSTED. Not allocated to lots (no speculative allocation).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, kind, amount, currency], properties: {version: {type: integer}, kind: {type: string, enum: [FREIGHT, DUTY, BROKERAGE, INSURANCE, OTHER]}, amount: {$ref: '#/components/schemas/Decimal'}, currency: {type: string}, shipment_document_id: {type: [string, 'null'], format: uuid}, note: {type: [string, 'null']}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /shipments/{shipmentId}/costs/{costId}/withdraw:
+    post:
+      operationId: withdrawLandedCost
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}, {name: costId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, reason], properties: {version: {type: integer}, reason: {type: string, minLength: 3}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /shipments/{shipmentId}/submit-count:
+    post:
+      operationId: submitShipmentCount
+      description: 'OPEN → COUNTED; count frozen for approval.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
+      responses: {'200': {description: ShipmentDetail}, '422': {description: NOTHING_COUNTED}}
+  /shipments/{shipmentId}/reopen:
+    post:
+      operationId: reopenShipment
+      description: 'COUNTED → OPEN.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, reason], properties: {version: {type: integer}, reason: {type: string, minLength: 3}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /shipments/{shipmentId}/post:
+    post:
+      operationId: postShipment
+      description: 'Needs grn.approve. COUNTED → POSTED once: accepted qty → new SALEABLE lot, damaged → DAMAGED companion lot, refused not posted; declared qty never posted. Posting keys grn:{line}:{part} make retries exactly-once.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}, acknowledge_discrepancies: {type: boolean}, discrepancy_note: {type: [string, 'null'], minLength: 3}}}}}}
+      responses: {'200': {description: ShipmentDetail with grn_no}, '409': {description: INVALID_STATE | VERSION_CONFLICT}, '422': {description: DISCREPANCY_ACK_REQUIRED}}
+  /shipments/{shipmentId}/cancel:
+    post:
+      operationId: cancelShipment
+      description: 'Needs grn.approve. No stock change.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, reason], properties: {version: {type: integer}, reason: {type: string, minLength: 3}}}}}}
+      responses: {'200': {description: ShipmentDetail}}
+  /scan-devices:
+    get:
+      operationId: listScanDevices
+      description: 'scan.create, scan.review or scan.device.manage. Filters warehouse_id, include_revoked. Fingerprints and token hashes are never returned.'
+      responses: {'200': {description: 'ScanDeviceOut[] (status PENDING|ACTIVE|REVOKED, online, scanner_state, last_seen_at)'}}
+  /scan-devices/pairings:
+    post:
+      operationId: createScanPairing
+      description: 'scan.device.manage (warehouse-scoped). Single-use pairing code, 10 minute TTL; only its hash is stored.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: '{device_id, pairing_code, expires_at}'}}
+  /scan-devices/{deviceId}/approve:
+    post:
+      operationId: approveScanDevice
+      description: 'scan.device.manage. Body {version, fingerprint}; fingerprint is printed by the bridge on pairing (proves the operator sees the right PC).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ScanDeviceOut ACTIVE'}, '409': {description: 'NOT_PAIRED / INVALID_STATE / VERSION_CONFLICT'}, '422': {description: 'FINGERPRINT_MISMATCH'}}
+  /scan-devices/{deviceId}/revoke:
+    post:
+      operationId: revokeScanDevice
+      description: 'scan.device.manage. Body {version, reason}. Token stops working immediately; open jobs on the device are marked FAILED (DEVICE_REVOKED).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ScanDeviceOut REVOKED'}}
+  /scans/jobs:
+    get:
+      operationId: listScanJobs
+      description: 'scan.create or scan.review, warehouse-scoped. Filters status (comma list), job_type, channel, warehouse_id, q; limit/cursor.'
+      responses: {'200': {description: 'ScanJobPage'}}
+    post:
+      operationId: createScanJob
+      description: 'scan.create. Body {warehouse_id, job_type, device_id, note}. Returns a signed single-use capability (300 s) that the browser hands to the localhost bridge. Never touches stock or invoices.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: 'ScanJobCreatedOut (job + capability, capability_expires_at)'}, '409': {description: 'DEVICE_NOT_ACTIVE'}, '422': {description: 'WRONG_WAREHOUSE / INVALID_DEVICE'}, '503': {description: 'SCANNER_NOT_CONFIGURED'}}
+  /scans/jobs/{jobId}:
+    get:
+      operationId: getScanJob
+      parameters: [{name: jobId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ScanJobOut'}}
+  /scans/jobs/{jobId}/cancel:
+    post:
+      operationId: cancelScanJob
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: jobId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ScanJobOut CANCELLED'}, '409': {description: 'INVALID_STATE / VERSION_CONFLICT'}}
+  /scans/uploads:
+    post:
+      operationId: uploadScan
+      description: 'scan.create. Manual fallback. Raw body (application/pdf, image/png, image/jpeg, image/tiff; magic bytes must match), query warehouse_id, job_type, filename, note. Same SHA-256 in the company returns the existing job (200, duplicate true).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: {'201': {description: 'ScanJobOut UPLOADED'}, '200': {description: 'Duplicate of an existing document'}, '409': {description: 'DUPLICATE_UPLOAD (same key, different bytes)'}, '413': {description: 'FILE_TOO_LARGE (20 MB)'}, '415': {description: 'UNSUPPORTED_FILE / FILE_TYPE_MISMATCH'}, '422': {description: 'EMPTY_FILE'}}
+  /scans/documents/{documentId}/content:
+    get:
+      operationId: getScanDocument
+      description: 'Original bytes, inline, CSP sandbox, nosniff; ETag = sha256.'
+      parameters: [{name: documentId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'Original file'}, '304': {description: 'Not modified'}}
+  /scan-bridge/pair:
+    post:
+      operationId: bridgePair
+      description: 'Unauthenticated except for the single-use pairing code. Returns device token (stored by the bridge, hashed server-side) and fingerprint.'
+      responses: {'200': {description: '{device_id, device_token, fingerprint}'}, '403': {description: 'PAIRING_CODE_INVALID (unknown, expired or already used)'}}
+  /scan-bridge/heartbeat:
+    post:
+      operationId: bridgeHeartbeat
+      description: 'Device bearer token. Reports bridge_version, scanner_state, scanner_detail.'
+      responses: {'200': {description: 'OK'}, '401': {description: 'DEVICE_AUTH_FAILED / DEVICE_REVOKED'}, '403': {description: 'DEVICE_NOT_APPROVED'}}
+  /scan-bridge/jobs/{jobId}/claim:
+    post:
+      operationId: bridgeClaimJob
+      description: 'Device token + capability. Single use; job must belong to the device. REQUESTED → SCANNING.'
+      parameters: [{name: jobId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'Claimed'}, '401': {description: 'DEVICE_AUTH_FAILED / DEVICE_REVOKED'}, '403': {description: 'CAPABILITY_INVALID / CAPABILITY_EXPIRED / CAPABILITY_USED / DEVICE_NOT_APPROVED'}, '409': {description: 'SCANNER_BUSY'}}
+  /scan-bridge/jobs/{jobId}/upload:
+    post:
+      operationId: bridgeUpload
+      parameters: [{name: jobId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ScanJobOut UPLOADED'}}
+  /scan-bridge/jobs/{jobId}/fail:
+    post:
+      operationId: bridgeFail
+      description: 'Body {code, detail}; code one of SCANNER_NOT_FOUND, DRIVER_MISSING, SCAN_TIMEOUT, NO_PAGES, OUTPUT_INVALID, ERROR.'
+      parameters: [{name: jobId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'ScanJobOut FAILED'}}
+  # ---- Module 07: OCR reading + human review (perm scan.review per warehouse) ----
+  # Reading never creates an issued invoice, reservation or stock movement; accept creates a DRAFT order only.
+  /ocr/extractions:
+    get:
+      operationId: listOcrExtractions
+      parameters:
+        - {name: status, in: query, description: 'Comma list of QUEUED,NEEDS_REVIEW,FAILED,ACCEPTED,REJECTED,SUPERSEDED (default all but SUPERSEDED)', schema: {type: string}}
+        - {name: warehouse_id, in: query, schema: {type: string, format: uuid}}
+        - {name: scan_job_id, in: query, schema: {type: string, format: uuid}}
+        - {name: q, in: query, description: Scan number or customer name, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses: {'200': {description: 'Page {items, total, next_cursor} of extractions'}}
+    post:
+      operationId: readScan
+      description: 'Queue a (re)reading of a received scan. A live earlier run becomes SUPERSEDED. Engine disabled → NEEDS_REVIEW with warning OCR_DISABLED (manual entry).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [scan_job_id], properties: {scan_job_id: {type: string, format: uuid}}}}}}
+      responses:
+        '201': {description: Extraction QUEUED (read by worker via outbox event ocr.extract)}
+        '409': {description: 'SCAN_NOT_RECEIVED | EXTRACTION_FINAL (already accepted)'}
+  /ocr/extractions/{extractionId}:
+    get:
+      operationId: getOcrExtraction
+      parameters: [{name: extractionId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'Detail with fields (read value, confidence Decimal string, status OK|LOW_CONFIDENCE|UNREADABLE|UNMAPPED, resolution, final values) and correction history'}}
+  /ocr/extractions/{extractionId}/fields/{fieldId}/resolve:
+    post:
+      operationId: resolveOcrField
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+        - {name: extractionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: fieldId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, action]
+              properties:
+                version: {type: integer}
+                action: {type: string, enum: [CONFIRM, CORRECT, REMOVE]}
+                product_id: {type: [string, 'null'], format: uuid}
+                unit_code: {type: [string, 'null'], enum: [BOX, PIECE, LB, KG, null]}
+                qty: {oneOf: [{$ref: '#/components/schemas/Decimal'}, {type: 'null'}]}
+                reason: {type: [string, 'null'], maxLength: 500, description: Required when overriding a clearly read line}
+      responses:
+        '200': {description: Updated extraction detail}
+        '409': {description: 'VERSION_CONFLICT | INVALID_STATE'}
+        '422': {description: 'NEEDS_CORRECTION (unclear line cannot be confirmed) | INCOMPLETE_LINE | REASON_REQUIRED | UNIT_NOT_DIVISIBLE'}
+  /ocr/extractions/{extractionId}/lines:
+    post:
+      operationId: addOcrLine
+      description: 'Add a line the reading missed (kind MANUAL; counted as a miss in accuracy).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: extractionId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, product_id, unit_code, qty, reason], properties: {version: {type: integer}, product_id: {type: string, format: uuid}, unit_code: {type: string, enum: [BOX, PIECE, LB, KG]}, qty: {$ref: '#/components/schemas/Decimal'}, reason: {type: string, minLength: 3}}}}}}
+      responses: {'201': {description: Updated extraction detail}, '409': {description: VERSION_CONFLICT | INVALID_STATE}}
+  /ocr/extractions/{extractionId}/accept:
+    post:
+      operationId: acceptOcrExtraction
+      description: 'Needs sales_order.manage too. Creates a DRAFT sales order (source SCAN, linked to the original document). Nothing is reserved, picked or invoiced.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: extractionId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, customer_id, reviewed_all], properties: {version: {type: integer}, customer_id: {type: string, format: uuid}, requested_for: {type: [string, 'null'], format: date}, note: {type: [string, 'null']}, reviewed_all: {type: boolean, const: true}}}}}}
+      responses:
+        '200': {description: ACCEPTED with sales_order_id}
+        '409': {description: 'FIELDS_UNRESOLVED (open_lines) | VERSION_CONFLICT | INVALID_STATE'}
+        '422': {description: NO_LINES}
+  /ocr/extractions/{extractionId}/reject:
+    post:
+      operationId: rejectOcrExtraction
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: extractionId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, reason], properties: {version: {type: integer}, reason: {type: string, minLength: 3}}}}}}
+      responses: {'200': {description: REJECTED (scan and reading kept)}}
+  /ocr/accuracy:
+    get:
+      operationId: ocrAccuracy
+      description: 'Exact-field accuracy over accepted readings. Automation is only claimed with ≥50 samples at ≥95%.'
+      responses: {'200': {description: '{samples, correct, accuracy (Decimal string), target "0.95", minimum_samples 50, meets_target, by_status}'}}
+  /ocr/order-sheet:
+    get:
+      operationId: orderSheetPdf
+      parameters:
+        - {name: customer_id, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: warehouse_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses: {'200': {description: Printable PT-OS-1 order sheet, content: {application/pdf: {}}}}
+  /documents:
+    get:
+      operationId: listDocuments
+      description: 'document.read, warehouse-scoped. Archive index of issued invoice PDFs, PODs, vendor documents and scans. Bytes are never copied or rewritten; rows are append-only (DB trigger). counts = per sync_status totals.'
+      parameters:
+        - {name: kind, in: query, schema: {type: string, enum: [INVOICE_PDF, POD, VENDOR_DOC, SCAN]}}
+        - {name: sync_status, in: query, schema: {type: string, enum: [PENDING, SYNCED, FAILED, LOCAL_ONLY]}}
+        - {name: warehouse_id, in: query, schema: {type: string, format: uuid}}
+        - {name: invoice_id, in: query, schema: {type: string, format: uuid}}
+        - {name: shipment_id, in: query, schema: {type: string, format: uuid}}
+        - {name: q, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses: {'200': {description: 'DocumentPage {items, total, next_cursor, counts, drive_provider}'}}
+  /documents/{documentFileId}:
+    get:
+      operationId: getDocument
+      parameters: [{name: documentFileId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: DocumentFileOut}, '404': {description: 'Not found or out of scope'}}
+  /documents/{documentFileId}/content:
+    get:
+      operationId: getDocumentContent
+      description: 'Stored bytes exactly as issued/uploaded; ETag and X-Content-SHA256 = sha256.'
+      parameters: [{name: documentFileId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: 'Original file'}, '304': {description: 'Not modified'}}
+  /documents/{documentFileId}/retry-sync:
+    post:
+      operationId: retryDocumentSync
+      description: 'document.manage. FAILED → PENDING and re-queues the Drive copy. Drive outages never affect invoices; sync runs from the outbox (5 attempts, transient errors retried, permanent errors fail at once).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: documentFileId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
+      responses: {'200': {description: 'DocumentFileOut PENDING'}, '409': {description: 'INVALID_STATE | DRIVE_DISABLED | VERSION_CONFLICT'}}
+  /invoices/{invoiceId}/pod:
+    post:
+      operationId: uploadProofOfDelivery
+      description: 'invoice.read + document.manage. Raw body (PDF/PNG/JPEG/TIFF), query filename, note. Append-only: a new POD never replaces an earlier one; same bytes return the existing file (200).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: invoiceId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'201': {description: 'DocumentFileOut POD'}, '200': {description: 'Same file already filed'}, '415': {description: 'UNSUPPORTED_FILE / FILE_TYPE_MISMATCH'}}
+  /analytics/sales:
+    get:
+      operationId: salesMetrics
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: customer_id, in: query, schema: {type: string, format: uuid}}
+      responses: {'200': {description: Reconciled sales metrics}}
+  /events:
+    get:
+      operationId: streamEvents
+      responses: {'200': {description: SSE stream of invalidation events}}
+components:
+  securitySchemes:
+    sessionCookie: {type: apiKey, in: cookie, name: tami_session}
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 12, maxLength: 128}
+  responses:
+    Forbidden: {description: 'FORBIDDEN or MFA_REQUIRED (privileged grants need verified MFA)'}
+    Conflict: {description: 'VERSION_CONFLICT (body.current_version) | DUPLICATE | IDEMPOTENCY_KEY_REUSED'}
+  schemas:
+    Decimal: {type: string, pattern: '^-?\\d+(\\.\\d+)?$', description: Decimal as string; never float}
+    UnitProfileIn:
+      type: object
+      required: [code, unit_code]
+      properties:
+        code: {type: string, maxLength: 32}
+        unit_code: {type: string, enum: [BOX, PIECE, LB, KG]}
+        pieces_per_unit: {oneOf: [{$ref: '#/components/schemas/Decimal'}, {type: 'null'}]}
+        weight_lb_per_unit: {oneOf: [{$ref: '#/components/schemas/Decimal'}, {type: 'null'}], description: Null = unknown; weight must then be entered}
+        is_default: {type: boolean}
+    ProductIn:
+      type: object
+      required: [sku, name, stock_unit]
+      properties:
+        sku: {type: string, pattern: '^[A-Za-z0-9._-]+$', maxLength: 64}
+        name: {type: string, maxLength: 200}
+        category_id: {type: [string, 'null'], format: uuid}
+        stock_unit: {type: string, enum: [LB, KG]}
+        tracks_expiry: {type: boolean}
+        unit_profiles: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/UnitProfileIn'}}
+        aliases: {type: array, maxItems: 50, items: {type: object, required: [alias], properties: {alias: {type: string}, source_label: {type: string}}}}
+    WeightCalcIn:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [profile_id, count]
+            properties:
+              profile_id: {type: string, format: uuid}
+              count: {$ref: '#/components/schemas/Decimal'}
+              case_weight_lb: {oneOf: [{$ref: '#/components/schemas/Decimal'}, {type: 'null'}]}
+    SalesOrderLine:
+      type: object
+      required: [product_id, unit_code, ordered_qty]
+      properties:
+        product_id: {type: string, format: uuid}
+        unit_code: {type: string, enum: [BOX, PIECE, LB, KG]}
+        ordered_qty: {type: string, description: Decimal string}
+    CreateSalesOrder:
+      type: object
+      required: [customer_id, lines]
+      properties:
+        customer_id: {type: string, format: uuid}
+        source_document_id: {type: [string, 'null'], format: uuid}
+        lines: {type: array, minItems: 1, items: {$ref: '#/components/schemas/SalesOrderLine'}}

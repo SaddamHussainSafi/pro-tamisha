@@ -1,0 +1,12 @@
+{
+  "shipment_ref":"EXAMPLE-AWB-5678", "vendor":"Example Exporter Ltd", "documents":["air_waybill.pdf","packing_list.pdf","supplier_invoice.pdf"],
+  "extracted_declarations":[
+    {"sku":"CASSAVA","declared_boxes":"25","supplier_unit_cost_usd":"18.00"},
+    {"sku":"CHO-CHO","declared_boxes":"15","supplier_unit_cost_usd":"22.00"}
+  ],
+  "warehouse_confirmation":[
+    {"sku":"CASSAVA","received_boxes":"25","accepted_boxes":"23","damaged_boxes":"2"},
+    {"sku":"CHO-CHO","received_boxes":"15","accepted_boxes":"15","damaged_boxes":"0"}
+  ],
+  "expected":"After GRN approval, saleable inventory increases Cassava +23 boxes, Cho Cho +15 boxes exactly once."
+}

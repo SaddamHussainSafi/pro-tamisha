@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* Semantic tokens mirrored from design/tokens.json (layout of design/references 01 + 03, Tamisha green).
+   src/tokens.test.ts fails if these drift from tokens.json. */
+@theme {
+  --color-brand-primary: #1B7A30;
+  --color-brand-primary-hover: #125E23;
+  --color-brand-secondary: #18181B;
+  --color-brand-accent: #28A745;
+  --color-brand-gray: #A1A1AA;
+  --color-canvas: #EFEFF1;
+  --color-card: #FFFFFF;
+  --color-subtle: #F6F6F8;
+  --color-ink: #18181B;
+  --color-ink-muted: #6B6B74;
+  --color-line: #E8E8EB;
+  --color-success: #167C46;
+  --color-warning: #A15C0A;
+  --color-danger: #B63838;
+  --color-info: #2459C6;
+  /* Tamisha Trading green ("apple" ramp from Kigen.design); 400 is the main brand colour. */
+  --color-apple-50: #C8FECF;
+  --color-apple-100: #4DFD72;
+  --color-apple-200: #38DD5E;
+  --color-apple-300: #30C151;
+  --color-apple-400: #28A745;
+  --color-apple-500: #22943C;
+  --color-apple-600: #1B7A30;
+  --color-apple-700: #125E23;
+  --color-apple-800: #094116;
+  --color-apple-900: #032409;
+  --color-apple-950: #011504;
+  /* Chart series, fixed order; validated with the dataviz palette checker (CVD + contrast). */
+  --color-series-1: #28A745;
+  --color-series-2: #3B6FE0;
+  --color-series-3: #F26430;
+  --color-series-4: #8B5CF6;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius-card: 24px;
+  --radius-ctl: 14px;
+
+  /* Larger type and roomier spacing across every page. */
+  --spacing: 0.275rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.15rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.4rem;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.6rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+}
+
+html, body, #root { height: 100%; }
+body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: "cv11", "ss01"; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--color-brand-primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+@utility card { @apply bg-card rounded-[var(--radius-card)] shadow-[0_1px_2px_rgb(24_24_27/0.04)]; }
+@utility btn { @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50; }
+@utility btn-primary { @apply btn bg-brand-secondary text-white hover:bg-ink/85; }
+@utility btn-accent { @apply btn bg-brand-primary text-white hover:bg-brand-primary-hover; }
+@utility btn-ghost { @apply btn border border-line bg-card text-ink hover:bg-subtle; }
+@utility icon-btn { @apply grid size-11 shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-card text-ink transition-colors duration-200 hover:bg-subtle; }
+@utility input { @apply w-full rounded-[var(--radius-ctl)] border border-line bg-card px-4 py-2.5 text-sm text-ink transition-colors duration-200 placeholder:text-ink-muted focus:border-brand-primary focus:outline-none; }
+@utility label { @apply mb-1.5 block text-sm font-medium text-ink; }
+@utility alert-danger { @apply rounded-[var(--radius-ctl)] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger; }
+@utility alert-warning { @apply rounded-[var(--radius-ctl)] border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-ink; }
+@utility alert-success { @apply rounded-[var(--radius-ctl)] border border-success/25 bg-success/5 px-4 py-3 text-sm text-ink; }
+@utility chip { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium; }
+@utility th { @apply sticky top-0 z-10 border-b border-line bg-subtle px-5 py-3.5 text-left text-sm font-medium text-ink-muted; }
+@utility td { @apply border-b border-line px-5 py-4 text-sm; }
+@utility kicker { @apply text-sm font-medium text-ink-muted; }
+
+/* Striped bars and tracks from the reference charts. */
+@utility hatch { background: repeating-linear-gradient(135deg, var(--color-line) 0 7px, var(--color-subtle) 7px 14px); }
+@utility hatch-accent { background: repeating-linear-gradient(135deg, var(--color-brand-accent) 0 7px, color-mix(in srgb, var(--color-brand-accent) 78%, white) 7px 14px); }

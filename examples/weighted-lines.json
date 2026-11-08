@@ -1,0 +1,11 @@
+{
+  "product": "Cassava", "product_sku": "CASSAVA", "billing_mode": "LB", "customer_rate_cad_per_lb": "1.50",
+  "lines": [
+    {"cases":"2","actual_weight_lb_per_case":"20","billed_lb":"40"},
+    {"cases":"2","actual_weight_lb_per_case":"30","billed_lb":"60"},
+    {"cases":"2","actual_weight_lb_per_case":"40","billed_lb":"80"},
+    {"cases":"1","actual_weight_lb_per_case":"25","billed_lb":"25"}
+  ],
+  "total_cases":"7", "total_weight_lb":"205", "line_total_cad":"307.50",
+  "notes":"Seven boxes (although original spoken example introduced as five); use verified actual weight for billing and inventory. One canonical product repeated on invoice lines."
+}

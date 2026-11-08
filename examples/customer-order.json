@@ -1,0 +1,12 @@
+{
+  "source": "handwritten_fixed_form", "customer_name": "Example Grocery", "source_document_id": "REPLACE_WITH_UUID", "status": "DRAFT",
+  "items": [
+    {"sku":"SAWA","requested_qty":"15","unit":"BOX"},
+    {"sku":"GREEN-PLANTAIN","requested_qty":"1","unit":"BOX"}
+  ],
+  "warehouse_attempt_1": [
+    {"sku":"SAWA","picked_qty":"10","unit":"BOX","shortage_qty":"5","reason":"SHORT_STOCK"},
+    {"sku":"GREEN-PLANTAIN","picked_qty":"0","unit":"BOX","reason":"NO_STOCK","handwritten_mark":"NO"}
+  ],
+  "expected": "Issue new invoice for 10 Sawa boxes only, keep 5 Sawa and 1 plantain unfulfilled; later verified delivery gets new invoice number."
+}
