@@ -37,7 +37,7 @@ The dev database `tami` is at migration `0013` (head).
 
 ## Last verified test results
 
-All from 2026-11-08, on this machine, after the owner menu changes.
+All from 2026-11-08, on this machine, after the card grid view (API last run clean at 220 before it; the change has no API code).
 
 ### API (`apps/api`)
 - `ruff check`, `ruff format --check`, `mypy src`: clean.
@@ -45,8 +45,8 @@ All from 2026-11-08, on this machine, after the owner menu changes.
 
 ### Web (`apps/web`)
 - `eslint`, `tsc -b`: clean.
-- `vitest`: **115 passed**.
-- `playwright test`: **39 passed**, including axe WCAG 2.2 AA (design-preview spec removed with the previews).
+- `vitest`: **117 passed**.
+- `playwright test`: **40 passed**, including axe WCAG 2.2 AA (new `e2e/grid-view.spec.ts`).
 - Known flake (not seen this run): `documents.spec.ts` "warehouse role has no access to the archive" failed once in an earlier parallel run; passed 3/3 alone.
 
 ## Not built / not verified

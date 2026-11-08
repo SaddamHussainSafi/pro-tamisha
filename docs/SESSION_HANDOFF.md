@@ -88,6 +88,7 @@ Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
   - Only one `role="status"` or `role="alert"` may exist at a time on the Scan Center, so embedded review notices are quiet.
   - The Overview `h1` must contain "Overview" (it is screen-reader-only text).
 - **Lint rule:** no hex colours in TSX. Use token classes such as `fill-card` and `stroke-line`.
+- **Card grid (2026-11-08):** Products, Customers, Suppliers, Case sizes and Users open as cards (`ui/CardGrid.tsx`, `ui/ViewToggle.tsx`, `lib/viewMode.ts`); e2e finds them with `getByRole("list", { name })` or clicks View › "List" first to use the table. Inner lists in cards must not reuse the grid's label (strict-mode clashes).
 
 ## Working tree at handoff
 
