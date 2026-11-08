@@ -74,4 +74,4 @@ Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
 
 ## Working tree at handoff
 
-Module 10 changes are in the working tree, **not committed** (last commit `6b1a324`). Commit them before starting the next module.
+Module 10 is committed and pushed as `a147b91` on `main`.
