@@ -67,6 +67,7 @@ export function App() {
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/users" element={<SettingsPage />} />
         <Route path="settings/*" element={<Navigate to="/settings" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

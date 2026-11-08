@@ -1821,3 +1821,48 @@ class VendorReceivingRowOut(BaseModel):
 class ReceivingReportOut(ReportPeriodOut):
     shipments: int
     rows: list[VendorReceivingRowOut]
+
+
+# ---------------------------------------------------------------- Settings: users / my account
+RoleCode = Literal["OWNER_ADMIN", "MANAGER", "SALES_OPERATOR", "WAREHOUSE", "FINANCE"]
+# Passwords: 12-128 characters. Never logged, audited or kept in idempotency records.
+Password = Annotated[str, Field(min_length=12, max_length=128)]
+EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class StaffOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    display_name: str
+    active: bool
+    roles: list[str]
+    mfa_enrolled: bool
+    locked: bool
+    last_seen_at: datetime | None
+    created_at: datetime
+
+
+class StaffCreateIn(BaseModel):
+    email: str = Field(max_length=320, pattern=EMAIL_RE)
+    display_name: str = Field(min_length=1, max_length=200)
+    role_code: RoleCode
+    password: Password
+
+
+class StaffPatchIn(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+    role_code: RoleCode | None = None
+    active: bool | None = None
+
+
+class PasswordSetIn(BaseModel):
+    password: Password
+
+
+class MyAccountIn(BaseModel):
+    display_name: str = Field(min_length=1, max_length=200)
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: Password

@@ -8,6 +8,47 @@ servers:
 security:
   - sessionCookie: []
 paths:
+  # Settings › My account and Settings › Users (owner direction 2026-11-08). Passwords 12-128
+  # chars, never logged/audited/stored in idempotency records. Changes to a person's role,
+  # active flag, password or two-step sign-in revoke their sessions.
+  /auth/me:
+    patch:
+      operationId: updateMyAccount
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [display_name], properties: {display_name: {type: string, maxLength: 200}}}}}}
+      responses: {'200': {description: StaffOut}}
+  /auth/password:
+    post:
+      operationId: changeMyPassword
+      description: 'Verifies current_password; other sessions are revoked, this one stays.'
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [current_password, new_password], properties: {current_password: {type: string}, new_password: {type: string, minLength: 12, maxLength: 128}}}}}}
+      responses: {'204': {description: Changed}, '422': {description: 'WRONG_PASSWORD | SAME_PASSWORD | WEAK_PASSWORD | VALIDATION'}}
+  /employees:
+    get: {operationId: listStaff, description: 'Company-wide employee.manage.', responses: {'200': {description: 'StaffOut[] {id, email, display_name, active, roles, mfa_enrolled, locked, last_seen_at, created_at}'}, '403': {$ref: '#/components/responses/Forbidden'}}}
+    post:
+      operationId: createStaff
+      description: 'One company-wide role per person.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [email, display_name, role_code, password], properties: {email: {type: string}, display_name: {type: string, maxLength: 200}, role_code: {type: string, enum: [OWNER_ADMIN, MANAGER, SALES_OPERATOR, WAREHOUSE, FINANCE]}, password: {type: string, minLength: 12, maxLength: 128}}}}}}
+      responses: {'201': {description: StaffOut}, '409': {description: EMAIL_TAKEN}, '422': {description: 'WEAK_PASSWORD | INVALID_ROLE | VALIDATION'}}
+  /employees/{employeeId}:
+    patch:
+      operationId: updateStaff
+      description: 'display_name, role_code (replaces all grants), active. Not on yourself (SELF_CHANGE); keeps one active OWNER_ADMIN (LAST_OWNER).'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, {name: employeeId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: StaffOut}, '404': {description: NOT_FOUND}, '422': {description: 'SELF_CHANGE | LAST_OWNER | INVALID_ROLE'}}
+  /employees/{employeeId}/reset-password:
+    post:
+      operationId: resetStaffPassword
+      description: 'Temporary password set by an admin; clears lockout; revokes their sessions. Not on yourself.'
+      parameters: [{name: employeeId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [password], properties: {password: {type: string, minLength: 12, maxLength: 128}}}}}}
+      responses: {'200': {description: StaffOut}, '422': {description: 'SELF_CHANGE | WEAK_PASSWORD'}}
+  /employees/{employeeId}/reset-mfa:
+    post:
+      operationId: resetStaffMfa
+      description: 'Lost phone: clears two-step sign-in; they enroll again at next sign-in. Not on yourself.'
+      parameters: [{name: employeeId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: StaffOut}, '422': {description: SELF_CHANGE}}
   /auth/session:
     get:
       operationId: getSession

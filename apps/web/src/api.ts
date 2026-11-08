@@ -1096,6 +1096,15 @@ export const api = {
   rejectPayment: (id: string, b: { version: number; reason: string }) => request<Payment>("POST", `/payments/${id}/reject`, b, true),
   receivables: () => request<Receivables>("GET", "/receivables"),
 
+  /* Settings: my account + staff users */
+  updateMe: (b: { display_name: string }) => request<StaffMember>("PATCH", "/auth/me", b, true),
+  changePassword: (b: { current_password: string; new_password: string }) => request<undefined>("POST", "/auth/password", b, true),
+  staff: () => request<StaffMember[]>("GET", "/employees"),
+  createStaff: (b: { email: string; display_name: string; role_code: RoleCode; password: string }) => request<StaffMember>("POST", "/employees", b, true),
+  updateStaff: (id: string, b: { display_name?: string; role_code?: RoleCode; active?: boolean }) => request<StaffMember>("PATCH", `/employees/${id}`, b, true),
+  resetStaffPassword: (id: string, password: string) => request<StaffMember>("POST", `/employees/${id}/reset-password`, { password }, true),
+  resetStaffMfa: (id: string) => request<StaffMember>("POST", `/employees/${id}/reset-mfa`, undefined, true),
+
   /* Module 12: reports (read-only; report.read) */
   reportSales: (q: ReportQuery & { bucket?: "day" | "month" }) => request<SalesReport>("GET", `/reports/sales?${qs(q)}`),
   reportByProduct: (q: ReportQuery & { sort?: ReportSort; limit?: number }) =>
@@ -1266,3 +1275,17 @@ export type VendorReceivingRow = {
   rejected: string;
 };
 export type ReceivingReport = ReportPeriod & { shipments: number; rows: VendorReceivingRow[] };
+
+/* ---------- Settings: staff users ---------- */
+export type RoleCode = "OWNER_ADMIN" | "MANAGER" | "SALES_OPERATOR" | "WAREHOUSE" | "FINANCE";
+export type StaffMember = {
+  id: string;
+  email: string;
+  display_name: string;
+  active: boolean;
+  roles: string[];
+  mfa_enrolled: boolean;
+  locked: boolean;
+  last_seen_at: string | null;
+  created_at: string;
+};

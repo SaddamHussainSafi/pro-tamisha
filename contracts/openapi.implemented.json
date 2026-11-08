@@ -4697,6 +4697,21 @@
         "title": "MovementPage",
         "type": "object"
       },
+      "MyAccountIn": {
+        "properties": {
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "MyAccountIn",
+        "type": "object"
+      },
       "OcrAcceptIn": {
         "properties": {
           "customer_id": {
@@ -6555,6 +6570,43 @@
           "expires_at"
         ],
         "title": "PairingOut",
+        "type": "object"
+      },
+      "PasswordChangeIn": {
+        "properties": {
+          "current_password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChangeIn",
+        "type": "object"
+      },
+      "PasswordSetIn": {
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "PasswordSetIn",
         "type": "object"
       },
       "PaymentAllocateIn": {
@@ -10987,6 +11039,161 @@
         "title": "ShipmentPage",
         "type": "object"
       },
+      "StaffCreateIn": {
+        "properties": {
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          },
+          "role_code": {
+            "enum": [
+              "OWNER_ADMIN",
+              "MANAGER",
+              "SALES_OPERATOR",
+              "WAREHOUSE",
+              "FINANCE"
+            ],
+            "title": "Role Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "display_name",
+          "role_code",
+          "password"
+        ],
+        "title": "StaffCreateIn",
+        "type": "object"
+      },
+      "StaffOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "mfa_enrolled": {
+            "title": "Mfa Enrolled",
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "active",
+          "roles",
+          "mfa_enrolled",
+          "locked",
+          "last_seen_at",
+          "created_at"
+        ],
+        "title": "StaffOut",
+        "type": "object"
+      },
+      "StaffPatchIn": {
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "role_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "OWNER_ADMIN",
+                  "MANAGER",
+                  "SALES_OPERATOR",
+                  "WAREHOUSE",
+                  "FINANCE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Code"
+          }
+        },
+        "title": "StaffPatchIn",
+        "type": "object"
+      },
       "StockCheckOut": {
         "properties": {
           "available_qty": {
@@ -12004,6 +12211,47 @@
         ]
       }
     },
+    "/api/v1/auth/me": {
+      "patch": {
+        "operationId": "update_me_api_v1_auth_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MyAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Me",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v1/auth/mfa/enroll": {
       "post": {
         "operationId": "mfa_enroll_api_v1_auth_mfa_enroll_post",
@@ -12063,6 +12311,41 @@
         "summary": "Mfa Verify",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "description": "Change your own password. Other devices are signed out; this one stays signed in.",
+        "operationId": "change_password_api_v1_auth_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Password",
+        "tags": [
+          "users"
         ]
       }
     },
@@ -12742,6 +13025,245 @@
         "summary": "Retry Sync",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/employees": {
+      "get": {
+        "operationId": "list_staff_api_v1_employees_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffOut"
+                  },
+                  "title": "Response List Staff Api V1 Employees Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Staff",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "operationId": "create_staff_api_v1_employees_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Staff",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/employees/{employee_id}": {
+      "patch": {
+        "operationId": "patch_staff_api_v1_employees__employee_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "employee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Employee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffPatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Staff",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/employees/{employee_id}/reset-mfa": {
+      "post": {
+        "description": "Lost phone: clear two-step sign-in; they set it up again at their next sign-in.",
+        "operationId": "reset_mfa_api_v1_employees__employee_id__reset_mfa_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "employee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Employee Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Mfa",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/employees/{employee_id}/reset-password": {
+      "post": {
+        "description": "Set a temporary password (share it in person). Clears a lockout; signs them out.",
+        "operationId": "reset_password_api_v1_employees__employee_id__reset_password_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "employee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Employee Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordSetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password",
+        "tags": [
+          "users"
         ]
       }
     },
