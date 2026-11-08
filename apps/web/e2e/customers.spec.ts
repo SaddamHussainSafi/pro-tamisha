@@ -114,6 +114,14 @@ test("sales can look customers up but not change them", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: /Kingston Kitchen/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   await expect(page.getByText("Net 14 days").first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Recent orders" })).toBeVisible();
+  await axe(page);
+  // Invoices and orders each have their own tab.
+  await page.getByRole("navigation", { name: "Customer sections" }).getByRole("link", { name: "Orders" }).click();
+  await expect(page).toHaveURL(/\?tab=orders$/);
+  await expect(page.getByRole("table", { name: "Customer orders" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Customer orders" }).getByRole("link").first()).toHaveText(/^SO-/);
+  await page.getByRole("navigation", { name: "Customer sections" }).getByRole("link", { name: "Invoices" }).click();
+  await expect(page.getByRole("heading", { name: "Invoices", exact: true })).toBeVisible();
+  await expect(page.getByText(/^\d+ invoices?/)).toBeVisible();
   await axe(page);
 });

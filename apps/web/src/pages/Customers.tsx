@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import {
-  api,
-  has,
-  hasCompanyWide,
-  type AgingCustomer,
-  type Customer,
-  type CustomerGroup,
-  type InvoiceSummary,
-  type OrderSummary,
-} from "../api";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { api, has, hasCompanyWide, type AgingCustomer, type Customer, type CustomerGroup, type InvoiceSummary, type OrderSummary } from "../api";
 import { useAuth } from "../auth";
 import { cad, dec } from "../lib/decimal";
 import { buildCreate, buildPatch, customerMessage, EMPTY_FORM, formFrom, formProblems, termsLabel, type CustomerForm } from "../lib/customers";
@@ -25,7 +16,12 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
   { value: "all", label: "All" },
 ];
 const money = (v: string) => cad(dec(v));
-const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 const link = "font-medium text-brand-primary hover:underline";
 
 function canRead(s: NonNullable<ReturnType<typeof useAuth>["session"]>) {
@@ -163,7 +159,14 @@ export function CustomersPage() {
   const load = useCallback(async () => {
     if (!allowed) return;
     try {
-      setRows(await api.customers({ q: q || undefined, group_id: group || undefined, active: status === "all" ? undefined : status === "active", limit: 500 }));
+      setRows(
+        await api.customers({
+          q: q || undefined,
+          group_id: group || undefined,
+          active: status === "all" ? undefined : status === "active",
+          limit: 500,
+        }),
+      );
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -210,12 +213,35 @@ export function CustomersPage() {
       ),
       sort: (c) => c.name.toLowerCase(),
     },
-    { key: "ref", header: "Reference", cell: (c) => c.external_ref ?? "—", sort: (c) => c.external_ref ?? "" },
-    { key: "group", header: "Group", cell: (c) => groupName(c.group_id), sort: (c) => groupName(c.group_id) },
-    { key: "email", header: "Email", cell: (c) => c.email ?? <span className="text-ink-muted">No email</span> },
+    {
+      key: "ref",
+      header: "Reference",
+      cell: (c) => c.external_ref ?? "—",
+      sort: (c) => c.external_ref ?? "",
+    },
+    {
+      key: "group",
+      header: "Group",
+      cell: (c) => groupName(c.group_id),
+      sort: (c) => groupName(c.group_id),
+    },
+    {
+      key: "email",
+      header: "Email",
+      cell: (c) => c.email ?? <span className="text-ink-muted">No email</span>,
+    },
     { key: "phone", header: "Phone", cell: (c) => c.phone ?? "—" },
-    { key: "terms", header: "Terms", cell: (c) => termsLabel(c.payment_terms_days), sort: (c) => BigInt(c.payment_terms_days) },
-    { key: "status", header: "Status", cell: (c) => <ActiveChip active={c.active} /> },
+    {
+      key: "terms",
+      header: "Terms",
+      cell: (c) => termsLabel(c.payment_terms_days),
+      sort: (c) => BigInt(c.payment_terms_days),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (c) => <ActiveChip active={c.active} />,
+    },
   ];
 
   return (
@@ -304,7 +330,10 @@ function Groups({ groups, canManage, onAdded }: { groups: CustomerGroup[]; canMa
     e.preventDefault();
     setMsg(null);
     try {
-      const g = await api.createCustomerGroup({ code: code.trim().toUpperCase(), name: name.trim() });
+      const g = await api.createCustomerGroup({
+        code: code.trim().toUpperCase(),
+        name: name.trim(),
+      });
       setMsg({ tone: "ok", text: `Group ${g.name} added.` });
       setCode("");
       setName("");
@@ -361,6 +390,7 @@ export function CustomerDetailPage() {
   const [f, setF] = useState<CustomerForm>(EMPTY_FORM);
   const [loadError, setLoadError] = useState<string | null>(null);
   const created = (useLocation().state as { created?: boolean } | null)?.created;
+  const [params] = useSearchParams();
   const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string } | null>(created ? { tone: "ok", text: "Customer added." } : null);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -388,6 +418,13 @@ export function CustomerDetailPage() {
   if (loadError) return <ErrorState title="Couldn't load this customer" detail={loadError} onRetry={() => void load()} />;
   if (!c) return <LoadingRows cols={4} />;
 
+  const tabs = [
+    { key: "details", label: "Details" },
+    ...(has(session, "invoice.read") ? [{ key: "invoices", label: "Invoices" }] : []),
+    ...(has(session, "sales_order.read") ? [{ key: "orders", label: "Orders" }] : []),
+  ];
+  const want = params.get("tab") ?? "details";
+  const tab = tabs.some((t) => t.key === want) ? want : "details";
   const patch = buildPatch(c, f);
   const problems = tried ? formProblems(f) : {};
   const group = groups.find((g) => g.id === c.group_id);
@@ -438,43 +475,57 @@ export function CustomerDetailPage() {
           </>
         }
       />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <section className="card space-y-4 p-6" aria-labelledby="cu-details">
-          <CardTitle id="cu-details" title="Details" />
-          {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-          {canManage ? (
-            <form className="space-y-4" onSubmit={save} noValidate aria-labelledby="cu-details">
-              <CustomerFields f={f} set={(k, v) => setF((p) => ({ ...p, [k]: v }))} problems={problems} groups={groups} isNew={false} />
-              <div className="flex justify-end gap-2">
-                <button type="button" className="btn-ghost" disabled={!patch || busy} onClick={() => setF(formFrom(c))}>
-                  Undo changes
-                </button>
-                <button className="btn-primary" disabled={!patch || busy}>
-                  Save changes
-                </button>
-              </div>
-            </form>
-          ) : (
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
-              <dt className="text-ink-muted">Reference</dt>
-              <dd>{c.external_ref ?? "—"}</dd>
-              <dt className="text-ink-muted">Email</dt>
-              <dd>{c.email ?? "No email"}</dd>
-              <dt className="text-ink-muted">Phone</dt>
-              <dd>{c.phone ?? "—"}</dd>
-              <dt className="text-ink-muted">Group</dt>
-              <dd>{group?.name ?? "No group"}</dd>
-              <dt className="text-ink-muted">Payment terms</dt>
-              <dd>{termsLabel(c.payment_terms_days)}</dd>
-            </dl>
-          )}
-        </section>
-        <div className="space-y-5">
-          <Balance customerId={c.id} />
-          <RecentInvoices customerId={c.id} />
-          <RecentOrders customerId={c.id} />
+      <nav aria-label="Customer sections" className="flex flex-wrap gap-1.5">
+        {tabs.map((t) => (
+          <Link
+            key={t.key}
+            to={t.key === "details" ? `/customers/${c.id}` : `/customers/${c.id}?tab=${t.key}`}
+            aria-current={tab === t.key ? "page" : undefined}
+            className={`chip px-4 py-2 text-sm ${tab === t.key ? "border-brand-secondary bg-brand-secondary text-white" : "border-line bg-card text-ink hover:bg-subtle"}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+      {tab === "invoices" && <CustomerInvoices customerId={c.id} />}
+      {tab === "orders" && <CustomerOrders customerId={c.id} />}
+      {tab === "details" && (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+          <section className="card space-y-4 p-6" aria-labelledby="cu-details">
+            <CardTitle id="cu-details" title="Details" />
+            {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+            {canManage ? (
+              <form className="space-y-4" onSubmit={save} noValidate aria-labelledby="cu-details">
+                <CustomerFields f={f} set={(k, v) => setF((p) => ({ ...p, [k]: v }))} problems={problems} groups={groups} isNew={false} />
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="btn-ghost" disabled={!patch || busy} onClick={() => setF(formFrom(c))}>
+                    Undo changes
+                  </button>
+                  <button className="btn-primary" disabled={!patch || busy}>
+                    Save changes
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
+                <dt className="text-ink-muted">Reference</dt>
+                <dd>{c.external_ref ?? "—"}</dd>
+                <dt className="text-ink-muted">Email</dt>
+                <dd>{c.email ?? "No email"}</dd>
+                <dt className="text-ink-muted">Phone</dt>
+                <dd>{c.phone ?? "—"}</dd>
+                <dt className="text-ink-muted">Group</dt>
+                <dd>{group?.name ?? "No group"}</dd>
+                <dt className="text-ink-muted">Payment terms</dt>
+                <dd>{termsLabel(c.payment_terms_days)}</dd>
+              </dl>
+            )}
+          </section>
+          <div className="space-y-5">
+            <Balance customerId={c.id} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -484,7 +535,11 @@ function Balance({ customerId }: { customerId: string }) {
   const allowed = !!session && has(session, "invoice.read") && (has(session, "payment.record") || has(session, "payment.verify"));
   const [row, setRow] = useState<AgingCustomer | null | undefined>(undefined);
   useEffect(() => {
-    if (allowed) api.receivables().then((r) => setRow(r.customers.find((x) => x.customer_id === customerId) ?? null), () => setRow(undefined));
+    if (allowed)
+      api.receivables().then(
+        (r) => setRow(r.customers.find((x) => x.customer_id === customerId) ?? null),
+        () => setRow(undefined),
+      );
   }, [allowed, customerId]);
   if (!allowed || row === undefined) return null;
   const late = row ? dec(row.d1_30) + dec(row.d31_60) + dec(row.d61_90) + dec(row.d90_plus) : 0n;
@@ -512,60 +567,184 @@ function Balance({ customerId }: { customerId: string }) {
   );
 }
 
-function RecentInvoices({ customerId }: { customerId: string }) {
-  const { session } = useAuth();
-  const allowed = !!session && has(session, "invoice.read");
+/** Customer › Invoices tab: every invoice, newest first, 50 at a time. */
+function CustomerInvoices({ customerId }: { customerId: string }) {
   const [rows, setRows] = useState<InvoiceSummary[] | null>(null);
+  const [next, setNext] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  useEffect(() => {
-    if (allowed)
-      api.invoices({ customer_id: customerId, limit: 8 }).then(
-        (p) => {
-          setRows(p.items);
-          setTotal(p.total);
-        },
-        () => setRows([]),
-      );
-  }, [allowed, customerId]);
-  if (!allowed) return null;
+  const [error, setError] = useState(false);
+  const page = useCallback(
+    async (cursor?: string) => {
+      try {
+        const p = await api.invoices({
+          customer_id: customerId,
+          limit: 50,
+          cursor,
+        });
+        setRows((r) => (cursor && r ? [...r, ...p.items] : p.items));
+        setNext(p.next_cursor);
+        setTotal(p.total);
+        setError(false);
+      } catch {
+        setError(true);
+      }
+    },
+    [customerId],
+  );
+  useEffect(() => void page(), [page]);
+  const open = rows?.filter((i) => i.state === "ISSUED" || i.state === "PARTIALLY_PAID") ?? [];
   const cols: Column<InvoiceSummary>[] = [
-    { key: "n", header: "Invoice", cell: (i) => <Link className={`${link} whitespace-nowrap`} to={`/invoices/${i.id}`}>{i.invoice_no}</Link> },
-    { key: "d", header: "Issued", cell: (i) => <span className="whitespace-nowrap">{day(i.issued_at)}</span> },
-    { key: "t", header: "Total", align: "right", cell: (i) => <span className="num whitespace-nowrap">{money(i.total)}</span> },
-    { key: "s", header: "State", cell: (i) => <StatusChip tone={INVOICE_STATE[i.state].tone}>{INVOICE_STATE[i.state].label}</StatusChip> },
+    {
+      key: "n",
+      header: "Invoice",
+      cell: (i) => (
+        <Link className={`${link} whitespace-nowrap`} to={`/invoices/${i.id}`}>
+          {i.invoice_no}
+        </Link>
+      ),
+      sort: (i) => i.invoice_no,
+    },
+    {
+      key: "o",
+      header: "Order",
+      cell: (i) => <span className="whitespace-nowrap">{i.order_no}</span>,
+    },
+    {
+      key: "d",
+      header: "Issued",
+      cell: (i) => <span className="whitespace-nowrap">{day(i.issued_at)}</span>,
+      sort: (i) => i.issued_at,
+    },
+    {
+      key: "u",
+      header: "Due",
+      cell: (i) => <span className="whitespace-nowrap">{day(i.due_at)}</span>,
+      sort: (i) => i.due_at,
+    },
+    {
+      key: "t",
+      header: "Total",
+      align: "right",
+      cell: (i) => <span className="num whitespace-nowrap">{money(i.total)}</span>,
+      sort: (i) => dec(i.total),
+    },
+    {
+      key: "b",
+      header: "Balance",
+      align: "right",
+      cell: (i) => <span className="num whitespace-nowrap font-semibold">{money(i.balance)}</span>,
+      sort: (i) => dec(i.balance),
+    },
+    {
+      key: "s",
+      header: "State",
+      cell: (i) => <StatusChip tone={INVOICE_STATE[i.state].tone}>{INVOICE_STATE[i.state].label}</StatusChip>,
+    },
   ];
   return (
-    <section className="card space-y-3 p-6" aria-labelledby="cu-invoices">
-      <CardTitle id="cu-invoices" title="Recent invoices" />
-      {rows === null ? (
-        <LoadingRows rows={3} cols={4} />
+    <section className="card space-y-4 p-6" aria-labelledby="cu-invoices">
+      <CardTitle id="cu-invoices" title="Invoices" />
+      {error ? (
+        <ErrorState title="Couldn't load invoices" onRetry={() => void page()} />
+      ) : rows === null ? (
+        <LoadingRows rows={4} cols={6} />
       ) : (
         <>
-          <DataGrid rows={rows} columns={cols} rowKey={(i) => i.id} caption="Recent invoices" empty={<EmptyState title="No invoices yet" />} />
-          {total > rows.length && <p className="text-sm text-ink-muted">Showing the latest {rows.length} of {total}.</p>}
+          <p className="text-sm text-ink-muted">
+            {total} {total === 1 ? "invoice" : "invoices"}
+            {open.length > 0 && ` · ${open.length} open`}
+          </p>
+          <DataGrid rows={rows} columns={cols} rowKey={(i) => i.id} caption="Customer invoices" empty={<EmptyState title="No invoices yet" />} />
+          {next && (
+            <button type="button" className="btn-ghost" onClick={() => void page(next)}>
+              Show more
+            </button>
+          )}
         </>
       )}
     </section>
   );
 }
 
-function RecentOrders({ customerId }: { customerId: string }) {
-  const { session } = useAuth();
-  const allowed = !!session && has(session, "sales_order.read");
+/** Customer › Orders tab: every sales order, newest first, 50 at a time. */
+function CustomerOrders({ customerId }: { customerId: string }) {
   const [rows, setRows] = useState<OrderSummary[] | null>(null);
-  useEffect(() => {
-    if (allowed) api.orders({ customer_id: customerId, limit: 8 }).then((p) => setRows(p.items), () => setRows([]));
-  }, [allowed, customerId]);
-  if (!allowed) return null;
+  const [next, setNext] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState(false);
+  const page = useCallback(
+    async (cursor?: string) => {
+      try {
+        const p = await api.orders({
+          customer_id: customerId,
+          limit: 50,
+          cursor,
+        });
+        setRows((r) => (cursor && r ? [...r, ...p.items] : p.items));
+        setNext(p.next_cursor);
+        setTotal(p.total);
+        setError(false);
+      } catch {
+        setError(true);
+      }
+    },
+    [customerId],
+  );
+  useEffect(() => void page(), [page]);
   const cols: Column<OrderSummary>[] = [
-    { key: "n", header: "Order", cell: (o) => <Link className={`${link} whitespace-nowrap`} to={`/orders/${o.id}`}>{o.order_no}</Link> },
-    { key: "d", header: "Created", cell: (o) => <span className="whitespace-nowrap">{day(o.created_at)}</span> },
-    { key: "s", header: "Status", cell: (o) => <StatusChip tone={ORDER_STATUS[o.status].tone}>{ORDER_STATUS[o.status].label}</StatusChip> },
+    {
+      key: "n",
+      header: "Order",
+      cell: (o) => (
+        <Link className={`${link} whitespace-nowrap`} to={`/orders/${o.id}`}>
+          {o.order_no}
+        </Link>
+      ),
+      sort: (o) => o.order_no,
+    },
+    {
+      key: "d",
+      header: "Created",
+      cell: (o) => <span className="whitespace-nowrap">{day(o.created_at)}</span>,
+      sort: (o) => o.created_at,
+    },
+    {
+      key: "r",
+      header: "Wanted for",
+      cell: (o) => (o.requested_for ? <span className="whitespace-nowrap">{day(o.requested_for)}</span> : "—"),
+    },
+    {
+      key: "l",
+      header: "Lines",
+      align: "right",
+      cell: (o) => <span className="num">{o.line_count}</span>,
+    },
+    {
+      key: "s",
+      header: "Status",
+      cell: (o) => <StatusChip tone={ORDER_STATUS[o.status].tone}>{ORDER_STATUS[o.status].label}</StatusChip>,
+    },
   ];
   return (
-    <section className="card space-y-3 p-6" aria-labelledby="cu-orders">
-      <CardTitle id="cu-orders" title="Recent orders" />
-      {rows === null ? <LoadingRows rows={3} cols={3} /> : <DataGrid rows={rows} columns={cols} rowKey={(o) => o.id} caption="Recent orders" empty={<EmptyState title="No orders yet" />} />}
+    <section className="card space-y-4 p-6" aria-labelledby="cu-orders">
+      <CardTitle id="cu-orders" title="Orders" />
+      {error ? (
+        <ErrorState title="Couldn't load orders" onRetry={() => void page()} />
+      ) : rows === null ? (
+        <LoadingRows rows={4} cols={5} />
+      ) : (
+        <>
+          <p className="text-sm text-ink-muted">
+            {total} {total === 1 ? "order" : "orders"}
+          </p>
+          <DataGrid rows={rows} columns={cols} rowKey={(o) => o.id} caption="Customer orders" empty={<EmptyState title="No orders yet" />} />
+          {next && (
+            <button type="button" className="btn-ghost" onClick={() => void page(next)}>
+              Show more
+            </button>
+          )}
+        </>
+      )}
     </section>
   );
 }
