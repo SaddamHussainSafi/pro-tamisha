@@ -75,7 +75,7 @@ Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
 Security checks (findings and fixes: `docs/SECURITY_REVIEW.md`, 2026-11-09):
 
 ```bash
-cd apps/api && PYTHONPATH=src uv run pytest -q tests/test_security.py tests/test_security_orders.py tests/test_security_receiving.py tests/test_security_ocr.py tests/test_dev_login.py
+cd apps/api && PYTHONPATH=src uv run pytest -q tests/test_security.py tests/test_security_routes.py tests/test_security_orders.py tests/test_security_receiving.py tests/test_security_ocr.py tests/test_dev_login.py
 ```
 
 ```bash
@@ -88,6 +88,8 @@ cd apps/web && npm audit --omit=dev
 
 - pytest needs Redis on 127.0.0.1:6379 (per-IP throttles) and poppler (`pdfinfo`, `pdftoppm`). `conftest.py` sets `LOGIN_IP_MAX_FAILURES` high because every test client shares one address.
 - `npm audit` without `--omit=dev` reports 7 moderate `minimatch` advisories in the eslint toolchain (known, dev-only).
+- `tests/test_security_routes.py` walks every route in the OpenAPI schema. A new route must require a session, a CSRF token on mutations and a permission. Truly public or self-service routes go in its allowlists, with a reason.
+- Request bodies over `MAX_REQUEST_BYTES` (1 MiB) get 413. File uploads are exempt by path in `bodylimit.py` `UPLOAD_PATHS`, so add any new upload route there.
 - Dev sign-in now answers only loopback requests with a localhost `Host` and a localhost `FRONTEND_ORIGIN`; staging/production refuse to start on dev keys or `COOKIE_SECURE=false`.
 
 ## Conventions learned this session

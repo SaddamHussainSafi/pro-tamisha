@@ -396,3 +396,63 @@ def test_unexpected_errors_use_the_envelope_and_hide_details():
     body = r.json()
     assert body["error"]["code"] == "INTERNAL" and body["error"]["request_id"]
     assert "hunter2" not in r.text and "/Users/" not in r.text
+
+
+# ------------------------------------------------------------------ request size, cross-site
+
+
+def test_oversized_json_bodies_are_refused_before_reading(api, monkeypatch):
+    monkeypatch.setattr(get_settings(), "max_request_bytes", 32 * 1024)
+    c = TestClient(create_app())
+    big = b'{"email": "a@example.test", "password": "' + b"x" * 64 * 1024 + b'"}'
+    r = c.post(f"{P}/auth/login", content=big, headers={"Content-Type": "application/json"})
+    assert r.status_code == 413 and r.json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+    def chunks():  # no Content-Length: the stream itself is counted
+        for _ in range(8):
+            yield b"x" * 8 * 1024
+
+    r = c.post(f"{P}/auth/login", content=chunks(), headers={"Content-Type": "application/json"})
+    assert r.status_code == 413 and r.json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
+def test_uploads_keep_their_own_larger_limit(make_api, world, monkeypatch):
+    monkeypatch.setattr(get_settings(), "max_request_bytes", 32 * 1024)
+    a = make_api()
+    a.c = TestClient(create_app())
+    a.login(world.emails["sales"])
+    pdf = b"%PDF-1.4\n" + b"%" + b"0" * 100 * 1024 + b"\n%%EOF\n"  # 100 KB > the JSON cap
+    q = f"warehouse_id={world.wh_a}&job_type=SALES_ORDER&filename=big.pdf"
+    h = {**a._h(idem()), "Content-Type": "application/pdf"}
+    r = a.c.post(f"{P}/scans/uploads?{q}", content=pdf, headers=h)
+    assert r.status_code == 201, r.text
+
+
+def test_cross_site_browser_requests_are_refused(api, world):
+    api.login(world.emails["sales"])
+    # no Origin header (stripped by an extension or old browser), but the browser says
+    # the request came from another site
+    r = api.c.post(
+        f"{P}/auth/logout",
+        headers={"X-CSRF-Token": api.csrf, "Sec-Fetch-Site": "cross-site"},
+    )
+    assert r.status_code == 403 and code(r) == "ORIGIN_REJECTED"
+    r = api.c.post(
+        f"{P}/auth/logout", headers={"X-CSRF-Token": api.csrf, "Sec-Fetch-Site": "same-origin"}
+    )
+    assert r.status_code == 204
+
+
+def test_framework_errors_use_the_envelope(api):
+    r = api.get(f"{P}/no-such-route")
+    assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
+    r = api.c.delete(f"{P}/auth/session")
+    assert r.status_code == 405 and r.json()["error"]["code"] == "METHOD_NOT_ALLOWED"
+
+
+def test_caller_request_ids_are_cleaned_before_echoing(api):
+    r = api.c.get("/health/live", headers={"X-Request-Id": "abc<script>" + "x" * 500})
+    rid = r.headers["x-request-id"]
+    assert rid.startswith("abcscript") and len(rid) == 64
+    r = api.c.get(f"{P}/auth/session", headers={"X-Request-Id": '"}{'})
+    assert r.json()["error"]["request_id"] != '"}{'  # nothing usable left: a fresh uuid

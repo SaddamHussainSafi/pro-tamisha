@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     scan_capability_ttl_seconds: int = Field(default=300, ge=30, le=900)
     scan_timeout_seconds: int = Field(default=180, ge=30, le=1800)
     scan_pairing_ttl_minutes: int = Field(default=10, ge=1, le=60)
+    # Cap for every non-upload request body (JSON). Uploads use SCAN_MAX_BYTES.
+    max_request_bytes: int = Field(default=1024 * 1024, ge=16 * 1024, le=50 * 1024 * 1024)
     scan_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     # Module 07 OCR. "fake" reads text drawn into synthetic PDFs (dev/test only); "document_ai"
     # calls Google Document AI server-side (unverified until the pilot); "disabled" = manual only.

@@ -157,3 +157,43 @@ def test_document_ai_setup_errors_do_not_expose_paths(monkeypatch):
         ocr.document_ai_provider(b"%PDF-1.4", "application/pdf")
     assert e.value.code == "OCR_NOT_CONFIGURED"
     assert "/srv/secret" not in e.value.detail
+
+
+# ------------------------------------------------------------------ OCR number ranges
+
+
+def _row(*words: str):
+    from decimal import Decimal
+
+    from pro_trading.ocr import Token
+
+    return [
+        Token(w, 1, Decimal(i) / 10, Decimal("0.1"), Decimal(i + 1) / 10, Decimal("0.2"),
+              Decimal("0.99"), False)
+        for i, w in enumerate(words)
+    ]  # fmt: skip
+
+
+def test_ocr_money_refuses_absurd_numbers():
+    from pro_trading.supplier_ocr import money
+
+    assert money("1" * 19) is None  # used to overflow Numeric(18,4): the read retried forever
+    assert money("999999999999.00") == money("999,999,999,999.00") is not None
+    assert money("1,000,000,000,000") is None
+    assert money("(5.00)") < 0  # credits on headers still read
+
+
+def test_negative_line_numbers_are_left_for_a_person(db):
+    from decimal import Decimal
+
+    from pro_trading import supplier_ocr
+
+    cat = SimpleNamespace(match=lambda _s: None, by_alias={})
+    got = supplier_ocr.read(
+        db, uuid.uuid4(), [_row("Yellow", "yam", "-4", "12.50", "-50.00")], cat,
+        Decimal("0.9"), lambda **kw: kw,
+    )  # fmt: skip
+    line = got.proposals[0]
+    # before: qty -4 was proposed and, once confirmed, hit the DB check as a "DUPLICATE" 409
+    assert line["qty"] is None and line["unit_price"] == Decimal("12.50")
+    assert any(w.startswith("LINE_NEGATIVE") for w in got.warnings)

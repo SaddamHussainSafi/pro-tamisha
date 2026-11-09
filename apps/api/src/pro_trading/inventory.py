@@ -265,6 +265,11 @@ def reserve(
     if not is_sellable(lot):
         raise ApiError(409, "LOT_NOT_SALEABLE", f"Lot {lot.lot_code} is not saleable")
     bal = lock_balances(db, [(lot.id, unit_code)]).get((lot.id, unit_code))
+    # Re-read the status under the balance lock: a quarantine that committed after the check
+    # above (it takes the same balance locks) must win over this reservation.
+    db.refresh(lot, attribute_names=["status"])
+    if not is_sellable(lot):
+        raise ApiError(409, "LOT_NOT_SALEABLE", f"Lot {lot.lot_code} is not saleable")
     available = (bal.qty - bal.reserved_qty) if bal else Decimal(0)
     if bal is None or qty > available:
         raise ApiError(

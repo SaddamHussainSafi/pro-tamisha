@@ -38,16 +38,29 @@ Also fixed with #8: the scan page cache (`_PAGE_CACHE`) is now guarded by a lock
 |---|---|---|---|
 | Low | `routes/pricing.py` `activate` | Activating a draft based on an older version silently reverts newer prices (the `stale` flag is display-only). CSV imports have no `based_on`, so blocking them would break the full-book import. | Needs an owner decision: block with an explicit override, or keep it as a warning. |
 | Low | `outbox.py` | Handlers run without a savepoint. A database error inside one handler aborts the batch, so the oldest event is retried first forever. The trigger is unconfirmed: no handler was found that raises a DB error. | Handlers deliberately write failure state before re-raising, so a savepoint would change their behaviour. Needs its own change and tests. |
-| Low | `inventory.py` `reserve`, `invoicing._lots`, `set_lot_status` | A lot being quarantined can race a reservation or invoice taking stock from it, because the lot status is read without a lock. | Needs a `FOR SHARE` lock-order change across three paths, plus concurrency tests. |
-| Low | `supplier_ocr.py` `money()` | Negative or 19+-digit numbers from OCR are not range-checked. Database constraints stop bad data, but the user sees a misleading 409 "DUPLICATE", or the read is retried 5×. | Should mark such values `UNREADABLE`. |
-| Low | `routes/orders.py`, `invoicing.py` | Catch weights and the `weights` / `dispositions` maps have no upper bounds. An extreme weight overflows `Numeric(18,2)` and returns 500. Only `invoice.issue` holders can send these. | Bounds need the owner's real maximum case weights. |
+| Low | `routes/orders.py`, `invoicing.py` | There is no upper bound on catch weights. An extreme weight overflows `Numeric(18,2)` and returns 500. Only `invoice.issue` holders can send these. The size of the `weights` / `dispositions` maps is now capped by the 1 MiB body limit (round 2, #24). | Per-value bounds need the owner's real maximum case weights. The schema bounds belong in `schemas.py`, which the SKU session is editing. |
 | Info | `routes/auth.py` `mfa_enroll` | First-time MFA enrollment is trust-on-first-use. A stolen password for a privileged user who has **not** enrolled lets the attacker enroll their own phone. | Have every Owner/Manager enroll on day one. An admin "must enroll in person" flow is a product decision. |
 | Info | `routes/employees.py` | Email uniqueness is global, so `create_staff` shows whether an email belongs to another company (409 `EMAIL_TAKEN`). Changing a role makes a warehouse-scoped grant company-wide. With one warehouse this has no effect today. | Inherent to global sign-in email; revisit if a second warehouse opens. |
 | Info | `payments.py` | Payment lists and aging are company-wide even for warehouse-scoped staff. | Documented as intended (company ledger). |
 | Info | `routes/scans.py` | The full single-use scan capability token (5 min, one job) is kept in the idempotency response record. | Very small exposure. |
-| Info | `apps/api/pyproject.toml` | The dev dependency `httpx2` (with `httpcore2`, `truststore`) is imported nowhere. It looks like a fork of `httpx` of unknown provenance. | Recommend removing it after confirming nobody added it on purpose. Not removed, per the owner's "do not delete anything". |
+| — | `apps/api/pyproject.toml` | **Corrected (round 2):** `httpx2` is legitimate and needed. Its metadata points to `github.com/pydantic/httpx2`, by the `httpx` author, and Starlette 1.10's `TestClient` imports `httpx2` first. Keep it. | — |
 | Info | `apps/web` | `npm audit`: 7 moderate (`minimatch` ReDoS) in the eslint toolchain only. `npm audit --omit=dev`: 0. | The fix is a breaking `typescript-eslint` major. Dev-only, so not urgent. |
 | Info | `/health/ready` | Shows the migration revision without auth. | Harmless; keep or hide behind the proxy. |
+| Info | `apps/web/index.html` | The Inter font loads from Google Fonts, which sends every visitor's IP to Google and adds a third-party origin to the page. | Self-host the font (needs a package download, so not done here). The production CSP must then allow `fonts.googleapis.com` / `fonts.gstatic.com` until it is self-hosted. |
+| Info | Deployment | There is no production web server config in the repo (`infra/` has only `compose.dev.yml`). | When the SPA is deployed, serve it with `Content-Security-Policy: default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'`, plus HSTS, `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`. Use the same origin as the API. Run uvicorn with `--proxy-headers` and require a Redis password or TLS. |
+
+## Round 2 (2026-11-09, recheck and further hardening)
+
+| # | Sev | Where | Problem | Fix | Test |
+|---|---|---|---|---|---|
+| 22 | Medium | `deps.py` `deny` | A permission denial on a route with a warehouse id the company doesn't have (made up, or another company's) wrote that id into the audit row's warehouse foreign key. The 403 became a **500** and the denial record was lost. Found by the new route sweep. | An unknown warehouse id goes into the audit detail, not the foreign key. | `test_security_routes.py::test_an_employee_without_a_role_can_reach_only_their_own_account` |
+| 23 | — | every route | No test guaranteed that each route needs a session, a CSRF token and a permission. A future route could forget one. | Walks every operation in the OpenAPI schema (~150). Anonymous → 401. Mutation without the token → `CSRF_FAILED`. A signed-in employee with no role → refused everywhere except their own account. | `test_security_routes.py` (3 tests) |
+| 24 | Medium | `main.py`, new `bodylimit.py` | FastAPI reads a whole JSON body into memory before validating it, so anyone (even unauthenticated, e.g. on `/auth/login`) could make the API buffer gigabytes. | `MAX_REQUEST_BYTES` (1 MiB) checks both `Content-Length` and the streamed bytes and answers 413 `PAYLOAD_TOO_LARGE`. Uploads keep their own `SCAN_MAX_BYTES` cap. | `test_oversized_json_bodies_are_refused_before_reading`, `test_uploads_keep_their_own_larger_limit` |
+| 25 | Low | `main.py` | Cross-site mutations were blocked only when the browser sent `Origin` (plus CSRF and SameSite). | Also refuses `Sec-Fetch-Site: cross-site` on unsafe methods. | `test_cross_site_browser_requests_are_refused` |
+| 26 | Low | `inventory.py` `reserve`, `invoicing.allocate`, `routes/inventory.py` `set_lot_status` | A lot quarantined at the same moment could still be reserved or invoiced from (the status was read before the stock locks). | Quarantine takes the lot's balance locks. Reserve and invoice re-read the status after taking them. | `test_reservation_rechecks_a_lot_quarantined_meanwhile`, `test_invoice_skips_a_lot_quarantined_meanwhile` (both fail without the fix) |
+| 27 | Low | `supplier_ocr.py`, `routes/ocr.py` | Numbers of 19+ digits from OCR overflowed the column, so the read retried 5× and stuck. Zero or negative quantities and negative prices reached the database check and showed as a misleading 409 "DUPLICATE". | Numbers are capped at 10¹² (otherwise treated as unread). A non-positive quantity or negative price is left blank for a person, with a `LINE_NEGATIVE` warning. Confirming a quantity ≤ 0 gives 422 `INVALID_QUANTITY`. | `test_ocr_money_refuses_absurd_numbers`, `test_negative_line_numbers_are_left_for_a_person` |
+| 28 | Low | `errors.py` | Unknown routes, wrong methods and body-parse errors answered `{"detail": ...}` outside the error envelope. | They now use the envelope (`NOT_FOUND`, `METHOD_NOT_ALLOWED`, `PAYLOAD_TOO_LARGE`, …). | `test_framework_errors_use_the_envelope` |
+| 29 | Low | `main.py` | The caller's `X-Request-Id` was echoed back unfiltered and unbounded in the response header and error bodies. | Only `A-Z a-z 0-9 . _ : -` are kept, up to 64 characters; otherwise a fresh UUID is used. | `test_caller_request_ids_are_cleaned_before_echoing` |
 
 ## Checked and OK
 
@@ -58,13 +71,15 @@ Also fixed with #8: the scan page cache (`_PAGE_CACHE`) is now guarded by a lock
 - **Sessions:** opaque 256-bit tokens stored as SHA-256. The cookie is `HttpOnly` and `SameSite=Strict` (`Secure` is enforced in production). Absolute and idle expiry, revocation on password or MFA reset and on disable. CSRF uses a double token plus an `Origin` check. CORS allows only `FRONTEND_ORIGIN`.
 - **Secrets:** `.env`, service-account JSON and keys are git-ignored. No secret is returned to the browser or logged.
 - **Dependencies:** `uv audit --frozen` found no known vulnerabilities in 70 packages.
+- **CSV exports:** the server-side price export and the browser-side report CSV (`lib/reports.ts` `toCsv`) both neutralise spreadsheet formulas.
+- **Web XSS sinks:** no `dangerouslySetInnerHTML` or `innerHTML`. Links use internal URLs only, and `target="_blank"` links carry `rel="noreferrer"`.
 
 ## How to re-run
 
 The commands are in `docs/SESSION_HANDOFF.md` → "Checks to run". The security-specific ones:
 
 ```bash
-cd apps/api && PYTHONPATH=src uv run pytest -q tests/test_security.py tests/test_security_orders.py tests/test_security_receiving.py tests/test_security_ocr.py tests/test_dev_login.py
+cd apps/api && PYTHONPATH=src uv run pytest -q tests/test_security.py tests/test_security_routes.py tests/test_security_orders.py tests/test_security_receiving.py tests/test_security_ocr.py tests/test_dev_login.py
 cd apps/api && uv audit --frozen
 cd apps/web && npm audit --omit=dev
 ```
@@ -75,5 +90,6 @@ cd apps/web && npm audit --omit=dev
 |---|---|---|
 | `LOGIN_IP_MAX_FAILURES` / `LOGIN_IP_WINDOW_MINUTES` | 30 / 15 | Failed sign-ins (and scanner auth failures) per client IP. Behind a reverse proxy, run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>` so the real client IP is used. Otherwise everyone shares the proxy's counter. |
 | `MFA_MAX_FAILURES` / `MFA_WINDOW_MINUTES` | 5 / 15 | Wrong MFA codes per employee before 429. |
+| `MAX_REQUEST_BYTES` | 1048576 | Largest non-upload request body (413 above it). |
 
 Production now refuses to start unless `MFA_ENCRYPTION_KEY` and `SCAN_CAPABILITY_KEY` are real, `COOKIE_SECURE=true`, `FRONTEND_ORIGIN` is https, `OCR_PROVIDER` is not `fake`, and `DRIVE_FAULT` is empty.

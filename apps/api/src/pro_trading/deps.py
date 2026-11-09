@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 
 from . import audit
 from .config import get_settings
-from .db import get_db
+from .db import get_db, get_sessionmaker
 from .errors import ApiError
-from .models import AuthSession, Employee, EmployeeRole, Role, RolePermission
+from .models import AuthSession, Employee, EmployeeRole, Role, RolePermission, Warehouse
 from .security import sha256_hex, tokens_match
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -106,12 +106,30 @@ def get_principal(request: Request, db: DbDep) -> Principal:
 PrincipalDep = Annotated[Principal, Depends(get_principal)]
 
 
+def _own_warehouse(company_id: uuid.UUID, warehouse_id: uuid.UUID) -> bool:
+    with get_sessionmaker()() as db:
+        return (
+            db.scalar(
+                select(Warehouse.id).where(
+                    Warehouse.id == warehouse_id, Warehouse.company_id == company_id
+                )
+            )
+            is not None
+        )
+
+
 def deny(
     request: Request,
     principal: Principal,
     permission: str,
     warehouse_id: uuid.UUID | None,
 ) -> ApiError:
+    detail: dict[str, object] = {"permission": permission, "mfa_pending": principal.mfa_required}
+    if warehouse_id is not None and not _own_warehouse(principal.company_id, warehouse_id):
+        # A made-up or foreign id must not reach the audit row's warehouse foreign key
+        # (that turned the 403 into a 500 and lost the denial record).
+        detail["requested_warehouse_id"] = str(warehouse_id)
+        warehouse_id = None
     audit.record_independent(
         action="permission.denied",
         success=False,
@@ -121,7 +139,7 @@ def deny(
         request_id=getattr(request.state, "request_id", None),
         target_type="route",
         target_id=f"{request.method} {request.url.path}",
-        detail={"permission": permission, "mfa_pending": principal.mfa_required},
+        detail=detail,
     )
     if principal.mfa_required and any(
         g.permission == permission for g in principal.grants if g.privileged

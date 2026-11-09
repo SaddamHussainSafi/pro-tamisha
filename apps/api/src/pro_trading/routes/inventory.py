@@ -736,11 +736,17 @@ def set_lot_status(
                 409, "VERSION_CONFLICT", "Lot changed; reload", current_version=locked.version
             )
         if body.status != "SALEABLE":
-            reserved = db.scalar(
-                select(func.coalesce(func.sum(InventoryBalance.reserved_qty), 0)).where(
-                    InventoryBalance.lot_id == lot_id
-                )
-            )
+            # Lock the balance rows (same order as inventory.lock_balances) so a reservation
+            # or invoice running now either commits first and is seen here, or waits and then
+            # sees the new status.
+            bals = db.scalars(
+                select(InventoryBalance)
+                .where(InventoryBalance.lot_id == lot_id)
+                .order_by(InventoryBalance.unit_code)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ).all()
+            reserved = sum((b.reserved_qty for b in bals), Decimal(0))
             if reserved:
                 raise ApiError(409, "LOT_RESERVED", "Release reservations on this lot first")
         before = locked.status

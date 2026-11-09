@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = logging.getLogger("pro_trading.errors")
 
@@ -24,6 +25,15 @@ def _body(request: Request, code: str, message: str, **extra: Any) -> dict[str, 
             **extra,
         }
     }
+
+
+HTTP_CODES = {
+    400: "BAD_REQUEST",
+    404: "NOT_FOUND",
+    405: "METHOD_NOT_ALLOWED",
+    413: "PAYLOAD_TOO_LARGE",
+    415: "UNSUPPORTED_MEDIA_TYPE",
+}
 
 
 def install(app: FastAPI) -> None:
@@ -46,6 +56,14 @@ def install(app: FastAPI) -> None:
         resp.headers["Cache-Control"] = "no-store"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         return resp
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        """Framework errors (unknown route, wrong method, body too large) in the same envelope."""
+        code = HTTP_CODES.get(exc.status_code, "HTTP_ERROR")
+        return JSONResponse(
+            _body(request, code, str(exc.detail)), exc.status_code, headers=exc.headers
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:

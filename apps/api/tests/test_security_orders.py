@@ -174,3 +174,68 @@ def test_damage_works_when_the_dmg_code_is_taken(owner, world, setup):
         dmg = owner.get(f"{P}/inventory/lots/{r.json()['lot_id']}").json()
         assert dmg["status"] == "DAMAGED" and len(dmg["lot_code"]) <= 64
         assert dmg["lot_code"] != code_ and "-DMG" in dmg["lot_code"]
+
+
+# ------------------------------------------------------------------ quarantine races
+
+
+def _quarantine(lot_id: str) -> None:
+    from pro_trading.models import InventoryLot
+
+    with get_sessionmaker()() as other, other.begin():
+        other.execute(
+            update(InventoryLot).where(InventoryLot.id == lot_id).values(status="QUARANTINE")
+        )
+
+
+def test_reservation_rechecks_a_lot_quarantined_meanwhile(owner, world, setup):
+    import uuid
+    from decimal import Decimal
+
+    import pytest
+
+    from pro_trading import inventory as inv
+    from pro_trading.errors import ApiError
+    from pro_trading.models import InventoryLot
+
+    from .test_inventory import lot_of, opening
+
+    lot_id = lot_of(opening(owner, world, setup["p"][sku(setup, "CAS")], [("BOX", "5")]))
+    with get_sessionmaker()() as db:
+        lot = db.get(InventoryLot, uuid.UUID(lot_id))  # read while still SALEABLE
+        assert lot is not None and lot.status == "SALEABLE"
+        _quarantine(lot_id)  # commits between the check and the balance lock
+        with pytest.raises(ApiError) as e:
+            inv.reserve(
+                db, lot, "BOX", Decimal("1"), source_type="SALES_ORDER", source_ref="race",
+                posting_key=f"race-{uuid.uuid4()}", actor_id=None,
+            )  # fmt: skip
+        assert e.value.code == "LOT_NOT_SALEABLE"  # used to reserve on the quarantined lot
+        db.rollback()
+
+
+def test_invoice_skips_a_lot_quarantined_meanwhile(owner, world, setup, monkeypatch):
+    from pro_trading import inventory as inv
+
+    cas = sku(setup, "CAS")
+    lot_id = stock(owner, world, setup, cas, "BOX", "5")
+    real = inv.lock_balances
+    flipped = []
+
+    def racing(db, keys):  # the quarantine commits just before invoicing takes the locks
+        if not flipped:
+            flipped.append(True)
+            _quarantine(lot_id)
+        return real(db, keys)
+
+    monkeypatch.setattr(inv, "lock_balances", racing)
+    body = {
+        "customer_id": setup["cust"],
+        "warehouse_id": str(world.wh_a),
+        "lines": [{"product_id": setup["p"][cas], "unit_code": "BOX", "qty": "1"}],
+        "dispatch_confirmed": True,
+    }
+    r = owner.post(f"{P}/invoices/direct", json=body, headers=idem())
+    assert flipped
+    # used to issue the invoice and take the box out of the quarantined lot
+    assert r.status_code == 409, r.text

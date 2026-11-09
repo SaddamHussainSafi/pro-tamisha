@@ -226,6 +226,8 @@ def _valid_line(db: Session, p: Principal, pid: uuid.UUID, unit: str, qty: Decim
     if not prod.active:
         raise ApiError(422, "PRODUCT_INACTIVE", f"{prod.sku} is inactive")
     inv.check_unit(db, prod, unit)
+    if qty <= 0:
+        raise ApiError(422, "INVALID_QUANTITY", "The quantity must be more than zero")
     inv.check_qty(unit, qty)
     return prod
 

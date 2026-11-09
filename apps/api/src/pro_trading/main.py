@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import errors
+from .bodylimit import BodySizeLimit
 from .config import get_settings
 from .routes import (
     admin,
@@ -34,6 +36,7 @@ from .routes import (
 )
 
 log = logging.getLogger("pro_trading.access")
+REQUEST_ID = re.compile(r"[^A-Za-z0-9._:-]")
 
 
 class JsonFormatter(logging.Formatter):
@@ -98,14 +101,17 @@ def create_app() -> FastAPI:
     async def request_context(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        rid = request.headers.get("x-request-id") or str(uuid.uuid4())
-        request.state.request_id = rid[:64]
+        # A caller may pass its own id for tracing; keep it short and plain before it is
+        # echoed into headers, error bodies and logs.
+        rid = REQUEST_ID.sub("", request.headers.get("x-request-id", ""))[:64] or str(uuid.uuid4())
+        request.state.request_id = rid
         # Cookie-auth mutations must come from our own origin (CORS is not authentication).
+        # Browsers also label every request with Sec-Fetch-Site; refuse cross-site ones even
+        # when an old browser or a privacy extension drops the Origin header.
         origin = request.headers.get("origin")
-        if (
-            request.method not in ("GET", "HEAD", "OPTIONS")
-            and origin is not None
-            and origin != s.frontend_origin
+        if request.method not in ("GET", "HEAD", "OPTIONS") and (
+            (origin is not None and origin != s.frontend_origin)
+            or request.headers.get("sec-fetch-site") == "cross-site"
         ):
             resp: Response = JSONResponse(
                 {
@@ -135,6 +141,9 @@ def create_app() -> FastAPI:
             )
         _security_headers(resp, rid, s.cookie_secure)
         return resp
+
+    # Outermost, so oversized bodies are refused before anything reads them.
+    app.add_middleware(BodySizeLimit, max_bytes=s.max_request_bytes)
 
     app.include_router(health.router)  # probes at /health/* (no auth, outside API version)
     for r in (

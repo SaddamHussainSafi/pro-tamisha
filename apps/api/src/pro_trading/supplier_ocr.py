@@ -28,8 +28,9 @@ HEADER_FIELDS = (
 CURRENCIES = ("USD", "CAD", "EUR", "GBP", "GHS", "JMD", "NGN", "TTD", "XCD")
 CENT = Decimal("0.01")
 MONEY = re.compile(
-    r"^\(?-?[$€£]?\d{1,3}(?:[,]\d{3})*(?:\.\d{1,4})?\)?$|^\(?-?[$€£]?\d+(?:\.\d{1,4})?\)?$"
+    r"^\(?-?[$€£]?\d{1,3}(?:[,]\d{3}){0,3}(?:\.\d{1,4})?\)?$|^\(?-?[$€£]?\d{1,12}(?:\.\d{1,4})?\)?$"
 )
+MONEY_MAX = Decimal("1e12")  # anything bigger is a misread (and would overflow Numeric(18,4))
 DOC_NO = re.compile(
     r"\b(?:invoice|inv|bill|order|po|p\.o\.|delivery|dn|packing|receipt|document|doc)\b\.?\s*"
     r"(?:no\.?|number|num|#)?\s*[:#.]?\s*([A-Z0-9/\-]*\d[A-Z0-9/\-]*)\b",
@@ -61,6 +62,8 @@ def money(s: str) -> Decimal | None:
     try:
         v = Decimal(re.sub(r"[^\d.\-]", "", t))
     except InvalidOperation:
+        return None
+    if abs(v) >= MONEY_MAX:
         return None
     return -v if neg else v
 
@@ -226,6 +229,14 @@ def read(
             status = "UNMAPPED"
         elif conf < threshold:
             status = "LOW_CONFIDENCE"
+        # A delivered line can't have a zero/negative quantity or a negative price: treat such
+        # readings as unread so a person types them, instead of the database refusing later.
+        if (qty is not None and qty <= 0) or (price is not None and price < 0):
+            qty = qty if qty is not None and qty > 0 else None
+            price = price if price is not None and price >= 0 else None
+            amount = None
+            status = "LOW_CONFIDENCE" if status == "OK" else status
+            warnings.append(f"LINE_NEGATIVE:{len(props) + 1}")
         if qty is not None and price is not None and amount is not None:
             if (qty * price).quantize(CENT) != amount.quantize(CENT):
                 status = "LOW_CONFIDENCE" if status == "OK" else status

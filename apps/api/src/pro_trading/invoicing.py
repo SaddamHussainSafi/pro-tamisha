@@ -283,6 +283,19 @@ def allocate(
     lots = _lots(db, order, draft.deductions)
     keys = [(lot.id, dd.unit_code) for dd in draft.deductions for lot in lots[dd.pick_line.id]]
     bals = inv.lock_balances(db, keys)  # one sorted lock pass across all lines
+    # Lot status read before the locks may be stale (a quarantine can commit in between; it
+    # takes these balance locks too), so only lots still saleable now are used.
+    ids = {k[0] for k in keys}
+    fresh = (
+        dict(
+            db.execute(
+                select(InventoryLot.id, InventoryLot.status).where(InventoryLot.id.in_(ids))
+            ).all()
+        )
+        if ids
+        else {}
+    )
+    lots = {k: [lot for lot in v if fresh.get(lot.id) == "SALEABLE"] for k, v in lots.items()}
     postings: list[inv.Posting] = []
     for dd in draft.deductions:
         need = dd.qty
