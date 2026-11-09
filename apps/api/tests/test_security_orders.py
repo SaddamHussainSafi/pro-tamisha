@@ -15,6 +15,13 @@ from .conftest import idem
 from .test_invoicing import stock
 from .test_orders import CSV, P, code, confirmed, owner, setup, user  # noqa: F401
 
+
+def sku(setup: dict, prefix: str) -> str:
+    """Fixture SKU by prefix ("CAS" or the older "CAS-01"), so these tests don't depend on the
+    SKU format the catalog session is changing."""
+    return next(k for k in setup["p"] if k.startswith(prefix))
+
+
 # ------------------------------------------------------------------ invoice PDF
 
 
@@ -60,7 +67,8 @@ def test_invoice_pdf_renders_windows_1252_punctuation():
 
 def test_line_cancel_idempotency_is_scoped_to_the_line(owner, user, world, setup):
     sales = user("sales")
-    o = confirmed(sales, world, setup, [("CAS", "BOX", "10"), ("PLN", "PIECE", "6")])
+    cas, pln = sku(setup, "CAS"), sku(setup, "PLN")
+    o = confirmed(sales, world, setup, [(cas, "BOX", "10"), (pln, "PIECE", "6")])
     a, b = o["lines"][0]["id"], o["lines"][1]["id"]
     key = idem()
     body = {"version": o["version"], "qty": "1", "reason": "customer reduced"}
@@ -76,7 +84,8 @@ def test_line_cancel_idempotency_is_scoped_to_the_line(owner, user, world, setup
 
 
 def test_zero_total_invoice_is_paid_at_issue(owner, world, setup):
-    csv = CSV + "NOP,Unpriced,BOX,0.00,CAD,,\r\n"
+    nop = sku(setup, "NOP")
+    csv = CSV + f"{nop},Unpriced,BOX,0.00,CAD,,\r\n"
     r = owner.post(
         f"{P}/price-books/versions/import",
         json={"version_code": "PB-ZERO", "csv": csv},
@@ -90,11 +99,11 @@ def test_zero_total_invoice_is_paid_at_issue(owner, world, setup):
         headers=idem(),
     )
     assert a.status_code == 200, a.text
-    stock(owner, world, setup, "NOP", "BOX", "3")
+    stock(owner, world, setup, nop, "BOX", "3")
     body = {
         "customer_id": setup["cust"],
         "warehouse_id": str(world.wh_a),
-        "lines": [{"product_id": setup["p"]["NOP"], "unit_code": "BOX", "qty": "1"}],
+        "lines": [{"product_id": setup["p"][nop], "unit_code": "BOX", "qty": "1"}],
         "dispatch_confirmed": True,
     }
     r = owner.post(f"{P}/invoices/direct", json=body, headers=idem())
@@ -151,7 +160,7 @@ def test_stock_stream_ends_when_the_session_is_revoked(owner, world):
 def test_damage_works_when_the_dmg_code_is_taken(owner, world, setup):
     from .test_inventory import lot_of, opening
 
-    cas = setup["p"]["CAS"]
+    cas = setup["p"][sku(setup, "CAS")]
     lot_of(opening(owner, world, cas, [("BOX", "5")], lot_code="X-DMG"))  # a user's own lot
     long_code = "L" * 64  # "<64 chars>-DMG" cut to 64 chars was the parent's own code
     for code_ in (long_code, "X"):
