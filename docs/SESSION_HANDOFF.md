@@ -106,6 +106,13 @@ cd apps/web && npm audit --omit=dev
   - Only one `role="status"` or `role="alert"` may exist at a time on the Scan Center, so embedded review notices are quiet.
   - The Overview `h1` must contain "Overview" (it is screen-reader-only text).
 - **Lint rule:** no hex colours in TSX. Use token classes such as `fill-card` and `stroke-line`.
+- **Plain UI rules (owner's "unslop" list, 2026-11-09):**
+  - **Radii:** three only. `rounded-card` (24px) for cards and dialogs, `rounded-ctl` (14px) for inputs, tiles, notices, tooltips and chart bars, `rounded-full` for buttons, chips, avatars and dots. No `rounded-xl/2xl/lg` or `rounded-[Npx]`.
+  - **Card padding:** always `p-6`.
+  - **No decoration:** no gradients (the striped `hatch` chart fills are the one exception), no decorative blobs or glows, no hover or float shadows. The only shadow is the dialog's.
+  - **Notes and badges:** KPI notes are plain text; only warning and danger get a colour. No filler badges (e.g. "all time", or "Active" on every card). Leave out an icon when every card in a row would repeat it (`KpiCard` `icon` is optional).
+  - **Sidebar:** anchored full height on the left (border-right), not a floating card. There is no notification bell until notifications exist.
+- `eslint src` can hang after linting on this machine, because the folder sits in a cloud-synced `Documents` (file reads time out). Lint changed files by name, or loop file by file, if it stalls.
 - **Card grid (2026-11-08):** Products, Customers, Suppliers, Case sizes and Users open as cards (`ui/CardGrid.tsx`, `ui/ViewToggle.tsx`, `lib/viewMode.ts`); e2e finds them with `getByRole("list", { name })` or clicks View › "List" first to use the table. Inner lists in cards must not reuse the grid's label (strict-mode clashes).
 
 ## Working tree at handoff

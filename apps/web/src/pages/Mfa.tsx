@@ -31,7 +31,13 @@ export function MfaPage() {
     try {
       setSession(await api.mfaVerify(code));
     } catch (err) {
-      setError(err instanceof ApiError && err.code === "MFA_INVALID" ? "That code is invalid or already used." : "Verification failed.");
+      setError(
+        err instanceof ApiError && err.code === "MFA_INVALID"
+          ? "That code is invalid or already used."
+          : err instanceof ApiError && err.code === "TOO_MANY_ATTEMPTS"
+            ? "Too many wrong codes. Wait a few minutes and try again."
+            : "Verification failed.",
+      );
     } finally {
       setBusy(false);
     }
@@ -58,7 +64,7 @@ export function MfaPage() {
             <form onSubmit={verify} className="space-y-4">
               {uri && (
                 <div className="space-y-2 text-center">
-                  <div className="inline-block rounded-lg border border-line bg-card p-3">
+                  <div className="inline-block rounded-ctl border border-line bg-card p-3">
                     <QRCodeSVG value={uri} size={168} aria-label="Authenticator QR code" />
                   </div>
                   <p className="text-xs text-ink-muted">

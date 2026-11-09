@@ -175,12 +175,11 @@ export function PaymentsPage() {
         <KpiCard
           label="To confirm at the bank"
           value={counts?.REPORTED ?? 0}
-          icon="payments"
           tone={counts?.REPORTED ? "warning" : "neutral"}
           note="Customer says sent"
         />
-        <KpiCard label="Confirmed, not applied" value={counts?.VERIFIED ?? 0} icon="payments" tone="info" note="Money to apply to invoices" />
-        <KpiCard label="Applied" value={counts?.APPLIED ?? 0} icon="payments" tone="success" note="Fully applied" />
+        <KpiCard label="Confirmed, not applied" value={counts?.VERIFIED ?? 0} tone="info" note="Money to apply to invoices" />
+        <KpiCard label="Applied" value={counts?.APPLIED ?? 0} tone="success" note="Fully applied" />
       </div>
       {recording && <RecordPayment onCancel={() => setRecording(false)} />}
       <FilterBar search={q} onSearch={setQ} options={views} value={view} onChange={setView} placeholder="Payment no., reference or customer" />
@@ -270,7 +269,7 @@ function RecordPayment({ onCancel }: { onCancel: () => void }) {
   };
 
   return (
-    <form className="card space-y-4 p-5 text-sm" aria-labelledby="rec-title" onSubmit={(e) => void submit(e)}>
+    <form className="card space-y-4 p-6 text-sm" aria-labelledby="rec-title" onSubmit={(e) => void submit(e)}>
       <div>
         <h2 id="rec-title" className="font-semibold">
           Record a payment the customer reported
@@ -457,7 +456,7 @@ function Facts({ pay }: { pay: Payment }) {
   }
   if (pay.note) rows.push(["Note", pay.note]);
   return (
-    <aside className="card space-y-2 self-start p-5 text-sm" aria-labelledby="pay-facts">
+    <aside className="card space-y-2 self-start p-6 text-sm" aria-labelledby="pay-facts">
       <h2 id="pay-facts" className="font-semibold">
         Details
       </h2>
@@ -620,7 +619,7 @@ function Confirm({ pay, onDone, onFail }: Act) {
   // The reject dialog sits outside the form so its buttons can never submit the confirmation.
   return (
     <>
-      <form className="card space-y-4 p-5 text-sm" aria-labelledby="confirm-title" onSubmit={(e) => void confirm(e)}>
+      <form className="card space-y-4 p-6 text-sm" aria-labelledby="confirm-title" onSubmit={(e) => void confirm(e)}>
         <div>
           <h2 id="confirm-title" className="font-semibold">
             Confirm at the bank
@@ -691,7 +690,7 @@ function Apply({ pay, onDone, onFail }: Act) {
     }
   };
   return (
-    <section className="card space-y-4 p-5 text-sm" aria-labelledby="apply-title">
+    <section className="card space-y-4 p-6 text-sm" aria-labelledby="apply-title">
       <h2 id="apply-title" className="font-semibold">
         Apply to invoices
       </h2>
@@ -889,16 +888,15 @@ export function ReceivablesPage() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Owed in total" value={money(data.total)} icon="payments" accent note={`As of ${day(data.as_of)}`} />
-            <KpiCard label="Not yet due" value={money(data.current)} icon="payments" tone="success" />
+            <KpiCard label="Owed in total" value={money(data.total)} accent note={`As of ${day(data.as_of)}`} />
+            <KpiCard label="Not yet due" value={money(data.current)} tone="success" />
             <KpiCard
               label="Late"
               value={cad(dec(data.d1_30) + dec(data.d31_60) + dec(data.d61_90) + dec(data.d90_plus))}
-              icon="payments"
               tone="danger"
               note={`Over 90 days: ${money(data.d90_plus)}`}
             />
-            <KpiCard label="Reported, not confirmed" value={money(data.reported_pending)} icon="payments" tone="warning" note="Check the bank" />
+            <KpiCard label="Reported, not confirmed" value={money(data.reported_pending)} tone="warning" note="Check the bank" />
           </div>
           <DataGrid
             rows={data.customers}
@@ -907,7 +905,7 @@ export function ReceivablesPage() {
             caption={`Customers with a balance (${data.customers.length})`}
             empty={<EmptyState title="Nothing is owed" hint="Every issued invoice is paid." />}
           />
-          <section className="card space-y-2 p-5 text-sm" aria-labelledby="pay-terms">
+          <section className="card space-y-2 p-6 text-sm" aria-labelledby="pay-terms">
             <h2 id="pay-terms" className="font-semibold">
               Reminders and payment instructions
             </h2>

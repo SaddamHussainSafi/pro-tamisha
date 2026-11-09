@@ -36,7 +36,7 @@ const ShipChip = ({ s }: { s: Pick<Shipment, "status"> }) => <StatusChip tone={S
 
 function Notice({ tone, children }: { tone: "error" | "ok"; children: React.ReactNode }) {
   return (
-    <p role={tone === "error" ? "alert" : "status"} className={`rounded-md border px-3 py-2 text-sm ${tone === "error" ? "border-danger/40 bg-danger/5 text-danger" : "border-success/40 bg-success/5 text-ink"}`}>
+    <p role={tone === "error" ? "alert" : "status"} className={`rounded-ctl border px-3 py-2 text-sm ${tone === "error" ? "border-danger/40 bg-danger/5 text-danger" : "border-success/40 bg-success/5 text-ink"}`}>
       {children}
     </p>
   );
@@ -179,7 +179,7 @@ function NewShipment({ warehouses, onCancel, onCreated }: { warehouses: Warehous
     }
   }
   return (
-    <form className="card grid gap-3 p-4 md:grid-cols-3" aria-label="New shipment" onSubmit={submit}>
+    <form className="card grid gap-3 p-6 md:grid-cols-3" aria-label="New shipment" onSubmit={submit}>
       <h2 className="font-semibold md:col-span-3">New shipment</h2>
       <div>
         <label className="label" htmlFor="ns-v">Supplier</label>
@@ -348,7 +348,7 @@ export function ShipmentPage() {
       {/* ---------- comparison ---------- */}
       <section className="card min-w-0 overflow-hidden" aria-labelledby="cmp-h">
         <div className="flex flex-wrap items-center gap-4 border-b border-line p-5 sm:p-6">
-          <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-primary text-white"><Icon name="receiving" size={26} /></span>
+          <span className="grid size-14 shrink-0 place-items-center rounded-ctl bg-brand-primary text-white"><Icon name="receiving" size={26} /></span>
           <div className="mr-auto min-w-0">
             <h2 id="cmp-h" className="text-[22px] font-semibold tracking-tight">Documents vs. what arrived</h2>
             <p className="text-sm text-ink-muted">Declared on the supplier documents, compared with your count.</p>
@@ -384,7 +384,7 @@ export function ShipmentPage() {
                     <tr key={`${r.product_id}-${r.unit_code}`} className={`align-middle ${r.status === "MATCH" ? "" : "bg-danger/[0.04]"}`}>
                       <td className="td min-w-[14rem]">
                         <div className="flex items-center gap-3">
-                          <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-line bg-subtle text-ink-muted"><Icon name="inventory" size={22} /></span>
+                          <span className="grid size-12 shrink-0 place-items-center rounded-ctl border border-line bg-subtle text-ink-muted"><Icon name="inventory" size={22} /></span>
                           <div className="min-w-0">
                             <div className="text-base font-semibold">{r.product_name}</div>
                             <div className="text-sm text-ink-muted">{r.sku} · {r.unit_code.toLowerCase()}</div>
@@ -505,7 +505,7 @@ export function ShipmentPage() {
           <strong>{saleableSummary(s.comparison)}</strong> will be added to stock as saleable. Damaged goods go to a separate damaged lot; refused goods are not added. Declared quantities are never added.
         </p>
         {differences.length > 0 && (
-          <div className="mt-3 space-y-2 rounded-md border border-warning/40 bg-warning/5 p-3">
+          <div className="mt-3 space-y-2 rounded-ctl border border-warning/40 bg-warning/5 p-3">
             <p className="font-medium">{differences.length} line{differences.length === 1 ? " differs" : "s differ"} from the supplier documents.</p>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-1" />
@@ -1012,7 +1012,7 @@ export function SuppliersPage() {
       {error && <Notice tone="error">{error}</Notice>}
       {ok && <Notice tone="ok">{ok}</Notice>}
       {canManage && (
-        <form className="card grid gap-3 p-4 md:grid-cols-6 md:items-end" aria-label="Add a supplier" onSubmit={create}>
+        <form className="card grid gap-3 p-6 md:grid-cols-6 md:items-end" aria-label="Add a supplier" onSubmit={create}>
           <div>
             <label className="label" htmlFor="v-code">Code</label>
             <input id="v-code" className="input uppercase" value={code} maxLength={32} required pattern="[A-Za-z0-9_\-]+" onChange={(e) => setCode(e.target.value)} />
@@ -1081,7 +1081,7 @@ export function SuppliersPage() {
         <DataGrid rows={rows} columns={columns} rowKey={(v) => v.id} caption="Suppliers" empty={<EmptyState title="No suppliers yet" />} />
       )}
       {editing && (
-        <form className="card grid gap-3 p-4 md:grid-cols-5 md:items-end" aria-label={`Edit ${editing.code}`} onSubmit={save}>
+        <form className="card grid gap-3 p-6 md:grid-cols-5 md:items-end" aria-label={`Edit ${editing.code}`} onSubmit={save}>
           <h2 className="font-semibold md:col-span-5">Edit {editing.code}</h2>
           <div className="md:col-span-2">
             <label className="label" htmlFor="ve-name">Name</label>

@@ -23,6 +23,8 @@ export function LoginPage() {
       setError(
         err instanceof ApiError && err.code === "ACCOUNT_LOCKED"
           ? "Too many failed attempts. Your account is temporarily locked."
+          : err instanceof ApiError && err.code === "TOO_MANY_ATTEMPTS"
+            ? "Too many failed sign-ins from this network. Wait a few minutes and try again."
           : err instanceof ApiError && err.code === "INVALID_CREDENTIALS"
             ? "Email or password is incorrect."
             : "Sign-in failed. Check your connection and try again.",

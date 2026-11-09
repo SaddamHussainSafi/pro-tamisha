@@ -146,7 +146,7 @@ function NewDraft({ onCancel, onCreated }: { onCancel: () => void; onCreated: (v
     }
   }
   return (
-    <form className="card space-y-3 p-4" onSubmit={submit} aria-labelledby="nd-h">
+    <form className="card space-y-3 p-6" onSubmit={submit} aria-labelledby="nd-h">
       <h2 id="nd-h" className="text-base font-semibold">New draft</h2>
       <p className="text-sm text-ink-muted">Starts as a copy of the current price book. Edit rates, then activate.</p>
       {error && <div role="alert" className="alert-danger">{error}</div>}
@@ -214,7 +214,7 @@ function ImportPanel({ onCancel, onCreated }: { onCancel: () => void; onCreated:
   }
 
   return (
-    <form className="card space-y-4 p-4" onSubmit={create} aria-labelledby="imp-h">
+    <form className="card space-y-4 p-6" onSubmit={create} aria-labelledby="imp-h">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="imp-h" className="text-base font-semibold">Import price list (CSV)</h2>
         <a className="text-sm text-brand-primary-hover underline" href={priceCsvUrl()} download>Template</a>
@@ -371,7 +371,7 @@ function PriceLookup() {
     }
   }
   return (
-    <section className="card p-4" aria-labelledby="look-h">
+    <section className="card p-6" aria-labelledby="look-h">
       <h2 id="look-h" className="text-base font-semibold">Price check</h2>
       <p className="mb-3 text-sm text-ink-muted">Customer price beats group price beats standard price.</p>
       <form className="grid items-end gap-3 sm:grid-cols-[2fr_1fr_2fr_auto]" onSubmit={look}>
@@ -590,7 +590,7 @@ export function PriceVersionPage() {
         )}
       </div>
       {diff && diff.against_version_id && (
-        <div className="card p-4">
+        <div className="card p-6">
           <DiffView diff={diff} title={v.state === "CURRENT" ? "Changes from the previous price book" : "Changes compared with the current price book"} />
         </div>
       )}
@@ -674,7 +674,7 @@ function SetPrice({ version, onSave }: { version: PriceVersion; onSave: (b: Para
     if (ok) setRate("");
   }
   return (
-    <form className="card grid items-end gap-3 p-4 lg:grid-cols-[2fr_1fr_1fr_2fr_1fr_auto]" onSubmit={submit} aria-labelledby="sp-h">
+    <form className="card grid items-end gap-3 p-6 lg:grid-cols-[2fr_1fr_1fr_2fr_1fr_auto]" onSubmit={submit} aria-labelledby="sp-h">
       <h2 id="sp-h" className="text-base font-semibold lg:col-span-6">Set a price</h2>
       <div>
         <label className="label" htmlFor="sp-prod">Product</label>

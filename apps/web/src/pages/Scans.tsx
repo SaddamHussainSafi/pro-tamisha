@@ -19,7 +19,7 @@ const JobChip = ({ j }: { j: Pick<ScanJob, "status"> }) => <StatusChip tone={JOB
 
 function Notice({ tone, children }: { tone: "error" | "ok"; children: React.ReactNode }) {
   return (
-    <p role={tone === "error" ? "alert" : "status"} className={`rounded-md border px-3 py-2 text-sm ${tone === "error" ? "border-danger/40 bg-danger/5 text-danger" : "border-success/40 bg-success/5 text-ink"}`}>
+    <p role={tone === "error" ? "alert" : "status"} className={`rounded-ctl border px-3 py-2 text-sm ${tone === "error" ? "border-danger/40 bg-danger/5 text-danger" : "border-success/40 bg-success/5 text-ink"}`}>
       {children}
     </p>
   );
@@ -184,7 +184,7 @@ const STEPS: Record<"scan" | "upload", { title: string; hint: string }[]> = {
 tray and paper drawers. While a scan runs, the light bar sweeps the glass. */
 function ScannerArt({ working = false }: { working?: boolean }) {
   return (
-    <div className="relative grid h-full min-h-[15rem] place-items-center overflow-hidden rounded-[22px] bg-brand-accent/10" aria-hidden>
+    <div className="relative grid h-full min-h-[15rem] place-items-center overflow-hidden rounded-ctl bg-brand-accent/10" aria-hidden>
       <svg viewBox="0 0 240 220" className="w-[80%] max-w-[18rem]">
         <ellipse cx="120" cy="208" rx="90" ry="8" fill="currentColor" className="text-brand-accent/15" />
         {/* paper drawers */}
@@ -325,7 +325,7 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
 
   const status = msg && (
     msg.tone === "error" ? (
-      <p role="alert" className="flex items-start gap-2 rounded-2xl bg-danger/8 px-4 py-3 text-sm text-danger">
+      <p role="alert" className="flex items-start gap-2 rounded-ctl bg-danger/8 px-4 py-3 text-sm text-danger">
         <Icon name="alert" size={18} className="mt-0.5" />
         <span>{msg.text} {msg.jobId && <Link className={link} to={`/scan/${msg.jobId}`}>Open</Link>}</span>
       </p>
@@ -339,11 +339,11 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
   if (phase.kind === "done") return <ScanDone job={phase.job} duplicate={phase.duplicate} status={status} fileRef={fileRef} onFile={(f) => void upload(f)} onNew={() => { setMsg(null); setPhase({ kind: "idle" }); }} />;
 
   return (
-    <section className="card grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
+    <section className="card grid gap-6 p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
       <ScannerArt working={working} />
       <div className="flex min-w-0 flex-col gap-6 lg:border-l lg:border-line lg:pl-8">
         <div className="flex items-start gap-4">
-          <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-brand-accent/12 text-brand-primary"><Icon name="printer" size={30} /></span>
+          <span className="grid size-16 shrink-0 place-items-center rounded-ctl bg-brand-accent/12 text-brand-primary"><Icon name="printer" size={30} /></span>
           <div className="min-w-0">
             <h2 id="new-scan" className="text-[26px] font-semibold leading-tight tracking-tight">
               {phase.kind === "working" ? (phase.mode === "scan" ? "Scanning in progress" : "Uploading the file") : "Start a scan from a network scanner"}
@@ -378,7 +378,7 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
               {STEPS[phase.mode].map((s, i) => {
                 const st = i < phase.step ? "done" : i === phase.step ? "now" : "next";
                 return (
-                  <li key={s.title} className={`flex items-start gap-3 rounded-2xl px-3 py-2.5 ${st === "now" ? "bg-brand-accent/10" : ""}`}>
+                  <li key={s.title} className={`flex items-start gap-3 rounded-ctl px-3 py-2.5 ${st === "now" ? "bg-brand-accent/10" : ""}`}>
                     <span className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-full ${st === "done" ? "bg-brand-accent text-white" : st === "now" ? "border-2 border-brand-accent" : "border-2 border-line"}`}>
                       {st === "done" ? <Icon name="check" size={16} /> : st === "now" ? <span className="size-3 rounded-full bg-brand-accent" /> : null}
                     </span>
@@ -509,14 +509,14 @@ function ScanDone({
 
   return (
     <>
-      <section aria-labelledby="scan-done" className="card grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
-        <div className="flex min-h-[18rem] flex-col gap-3 rounded-[22px] bg-brand-accent/10 p-3">
-          <div className="flex items-center gap-2 rounded-2xl bg-card px-3 py-2.5 text-sm font-medium">
+      <section aria-labelledby="scan-done" className="card grid gap-6 p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
+        <div className="flex min-h-[18rem] flex-col gap-3 rounded-ctl bg-brand-accent/10 p-3">
+          <div className="flex items-center gap-2 rounded-ctl bg-card px-3 py-2.5 text-sm font-medium">
             <Icon name="file" size={18} className="shrink-0 text-ink-muted" />
             <span className="min-w-0 flex-1 truncate">{job.document_filename ?? job.job_no}</span>
-            {url && <a className="grid size-8 place-items-center rounded-lg hover:bg-subtle" href={url} target="_blank" rel="noreferrer" aria-label="Open the original in a new tab"><Icon name="arrowUpRight" size={16} /></a>}
+            {url && <a className="grid size-8 place-items-center rounded-ctl hover:bg-subtle" href={url} target="_blank" rel="noreferrer" aria-label="Open the original in a new tab"><Icon name="arrowUpRight" size={16} /></a>}
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-card">
+          <div className="min-h-0 flex-1 overflow-hidden rounded-ctl bg-card">
             {url && job.document_mime === "application/pdf" ? (
               <iframe title={`Preview of ${job.job_no}`} src={url} className="h-full min-h-[16rem] w-full" />
             ) : url && job.document_mime?.startsWith("image/") && job.document_mime !== "image/tiff" ? (
@@ -529,7 +529,7 @@ function ScanDone({
 
         <div className="flex min-w-0 flex-col gap-6 lg:border-l lg:border-line lg:pl-8">
           <div className="flex flex-wrap items-start gap-4">
-            <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-brand-accent/12 text-brand-primary"><Icon name="check" size={32} /></span>
+            <span className="grid size-16 shrink-0 place-items-center rounded-ctl bg-brand-accent/12 text-brand-primary"><Icon name="check" size={32} /></span>
             <div className="min-w-0 flex-1">
               <h2 id="scan-done" className="text-[26px] font-semibold leading-tight tracking-tight">{duplicate ? "Already on file" : "Scan completed successfully"}</h2>
               <div className="mt-1">{status}</div>
@@ -542,7 +542,7 @@ function ScanDone({
           <div className="grid gap-6 xl:grid-cols-2">
             <div>
               <h3 className="mb-3 text-lg font-semibold">Document details</h3>
-              <dl className="divide-y divide-line rounded-2xl border border-line">
+              <dl className="divide-y divide-line rounded-ctl border border-line">
                 {details.map(([icon, k, v]) => (
                   <div key={k} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                     <Icon name={icon} size={18} className="shrink-0 text-ink-muted" />
@@ -560,20 +560,20 @@ function ScanDone({
                 </div>
               )}
               {!reads ? (
-                <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Picking sheets and “Other” documents are kept but not read automatically.</p>
+                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">Picking sheets and “Other” documents are kept but not read automatically.</p>
               ) : !canRead ? (
-                <p className="rounded-2xl bg-subtle p-4 text-sm text-ink-muted">Someone who reviews scans will check the lines read from this scan.</p>
+                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">Someone who reviews scans will check the lines read from this scan.</p>
               ) : !ex || ex.status === "QUEUED" ? (
-                <div className="flex items-center gap-3 rounded-2xl bg-brand-accent/10 p-4 text-sm">
+                <div className="flex items-center gap-3 rounded-ctl bg-brand-accent/10 p-4 text-sm">
                   <span aria-hidden className="size-5 animate-spin rounded-full border-2 border-brand-accent border-t-transparent" />
                   <span><strong>Reading the lines…</strong> The recognized lines open below as soon as they're ready.</span>
                 </div>
               ) : ex.status === "FAILED" ? (
-                <div className="rounded-2xl bg-danger/8 p-4 text-sm text-danger">
+                <div className="rounded-ctl bg-danger/8 p-4 text-sm text-danger">
                   <strong>This scan couldn't be read{ex.error_code ? ` (${ex.error_code})` : ""}.</strong> Open the scan to read it again, or enter the order by hand.
                 </div>
               ) : (
-                <dl className="divide-y divide-line rounded-2xl bg-brand-accent/10 text-sm">
+                <dl className="divide-y divide-line rounded-ctl bg-brand-accent/10 text-sm">
                   {([
                     ["users", "Customer", ex.customer_name ?? "Not matched — choose below"],
                     ["orders", "Lines read", ex.field_count],
@@ -726,7 +726,7 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
     <div className="space-y-5">
       <AddScanner warehouses={warehouses} onPaired={(p) => { setPairing(p); void load(); }} />
       {pairing && (
-        <section aria-labelledby="pair-code" className="card space-y-2 border-brand-primary p-4">
+        <section aria-labelledby="pair-code" className="card space-y-2 border-brand-primary p-6">
           <h2 id="pair-code" className="text-base font-semibold">Pair “{pairing.name}”</h2>
           <p className="text-sm">On the scanner PC, run:</p>
           <pre className="overflow-x-auto rounded bg-canvas p-3 text-sm" data-testid="pair-command">python -m pro_trading_bridge pair {pairing.code}</pre>
@@ -747,7 +747,7 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
         <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} caption={`Scanners (${rows.length})`} empty={<EmptyState title="No scanners yet" hint="Add the office scanner PC above to scan straight into Pro Trading." />} />
       )}
       {rows?.some((r) => r.detected_scanners) && (
-        <section className="card space-y-3 p-5" aria-labelledby="found-h">
+        <section className="card space-y-3 p-6" aria-labelledby="found-h">
           <h2 id="found-h" className="text-base font-semibold">Scanners found on the office PC</h2>
           {rows
             .filter((r) => r.detected_scanners)
@@ -811,7 +811,7 @@ function AddScanner({ warehouses, onPaired }: { warehouses: Warehouse[]; onPaire
     }
   }
   return (
-    <form onSubmit={(e) => void submit(e)} aria-labelledby="add-scanner" className="card space-y-3 p-4">
+    <form onSubmit={(e) => void submit(e)} aria-labelledby="add-scanner" className="card space-y-3 p-6">
       <h2 id="add-scanner" className="text-base font-semibold">Add a scanner PC</h2>
       <div className="flex flex-wrap items-end gap-3">
         <label className="w-64">
@@ -863,7 +863,7 @@ export function ScanJobPage() {
       {error && <Notice tone="error">{error}</Notice>}
       {AUTO_READ.includes(job.job_type) && <ScanReading jobId={job.id} warehouseId={job.warehouse_id} received={job.status === "UPLOADED"} />}
       <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
-        <dl className="card grid h-fit grid-cols-[auto_1fr] gap-x-4 gap-y-2 p-4 text-sm">
+        <dl className="card grid h-fit grid-cols-[auto_1fr] gap-x-4 gap-y-2 p-6 text-sm">
           <dt className="text-ink-muted">Status</dt>
           <dd><JobChip j={job} /></dd>
           <dt className="text-ink-muted">Source</dt>

@@ -106,7 +106,7 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
         {items.map((it) => {
           const stage: Stage = it.error && !it.job ? "failed" : stageOf(!!it.job, it.ex?.status ?? null);
           return (
-            <li key={it.key} className="rounded-2xl border border-line p-4" data-testid="upload-item">
+            <li key={it.key} className="rounded-ctl border border-line p-4" data-testid="upload-item">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium">
                 <Icon name="file" size={16} className="text-ink-muted" />
                 <span className="min-w-0 flex-1 truncate">{it.file.name}</span>

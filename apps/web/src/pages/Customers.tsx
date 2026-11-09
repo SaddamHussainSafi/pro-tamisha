@@ -353,7 +353,7 @@ export function CustomersPage() {
                       ]
                     : []),
                 ]}
-                chips={<ActiveChip active={c.active} />}
+                chips={c.active ? undefined : <ActiveChip active={false} />}
               />
             );
           }}

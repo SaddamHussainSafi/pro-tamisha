@@ -90,13 +90,13 @@ export function OverviewPage() {
               <KpiCard accent icon="invoices" label="Invoiced this month" value={money(thisMonth)} unit="CAD" note={change !== null ? `${change >= 0 ? "+" : ""}${change}% vs last month` : undefined} />
             )}
             {data.ord && <KpiCard accent={!data.inv} icon="orders" label="Open orders" value={openOrders.length} note={drafts ? `${drafts} draft${drafts === 1 ? "" : "s"}` : undefined} />}
-            {data.shp && <KpiCard icon="receiving" label="Shipments to receive" value={toReceive} note={`${posted} posted`} />}
-            {data.inv && <KpiCard icon="file" label="Invoices issued" value={data.inv.total} note="all time" />}
+            {data.shp && <KpiCard icon="receiving" label="Shipments to receive" value={toReceive} />}
+            {data.inv && <KpiCard icon="file" label="Invoices issued" value={data.inv.total} />}
           </section>
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
             {data.inv && (
-              <section className="card p-6 sm:p-8 xl:col-span-8" aria-labelledby="sales-h">
+              <section className="card p-6 xl:col-span-8" aria-labelledby="sales-h">
                 <CardTitle id="sales-h" title="Invoiced" to="/invoices" />
                 <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="num text-[44px] font-semibold leading-none tracking-tight">{money(thisMonth)}</span>
@@ -131,12 +131,12 @@ export function OverviewPage() {
             )}
 
             {data.inv && (
-              <section className="card p-6 sm:p-8 xl:col-span-8" aria-labelledby="inv-h">
+              <section className="card p-6 xl:col-span-8" aria-labelledby="inv-h">
                 <CardTitle id="inv-h" title="Recent invoices" action={<Link to="/invoices" className="btn-ghost">View all</Link>} />
                 {invoices.length === 0 ? (
                   <EmptyState title="No invoices yet" />
                 ) : (
-                  <div className="relative mt-6 overflow-x-auto rounded-[20px] border border-line">
+                  <div className="relative mt-6 overflow-x-auto rounded-ctl border border-line">
                     <table className="w-full min-w-[640px] border-separate border-spacing-0">
                       <caption className="sr-only">Most recent invoices</caption>
                       <thead>
@@ -176,7 +176,7 @@ export function OverviewPage() {
                   <ul className="mt-7 space-y-1 border-t border-line pt-5">
                     {openOrders.slice(0, 3).map((o) => (
                       <li key={o.id}>
-                        <Link to={`/orders/${o.id}`} className="-mx-3 flex items-center gap-3.5 rounded-2xl px-3 py-2.5 hover:bg-subtle">
+                        <Link to={`/orders/${o.id}`} className="-mx-3 flex items-center gap-3.5 rounded-ctl px-3 py-2.5 hover:bg-subtle">
                           <Avatar name={o.customer_name} />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-base font-semibold">{o.customer_name}</span>
@@ -192,7 +192,7 @@ export function OverviewPage() {
             )}
 
             {!data.inv && !data.ord && !data.shp && (
-              <section className="card p-8 xl:col-span-12">
+              <section className="card p-6 xl:col-span-12">
                 <EmptyState title="Nothing to show for your role" hint="Use the menu to open the areas you work in." />
               </section>
             )}

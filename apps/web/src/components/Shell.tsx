@@ -30,10 +30,10 @@ function initials(name: string | undefined) {
 }
 
 const soon = (item: NavItem) => `${item.label} — available when the ${item.module} module ships`;
-const ROW = "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-[15px] font-medium";
+const ROW = "flex items-center gap-3 rounded-ctl px-3 py-2.5 text-[15px] font-medium";
 const ON = "bg-brand-accent/12 text-brand-primary-hover [&_svg]:text-brand-primary";
 const OFF = "text-ink hover:bg-brand-accent/8";
-const SQUARE = "relative grid size-12 place-items-center rounded-2xl";
+const SQUARE = "relative grid size-12 place-items-center rounded-ctl";
 
 /* ------------------------------- items ------------------------------- */
 
@@ -80,7 +80,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         {item.children && (
           <button
             type="button"
-            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl text-ink-muted hover:bg-subtle"
+            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl text-ink-muted hover:bg-subtle"
             aria-expanded={open}
             aria-label={`${item.label} sections`}
             onClick={() => setOpen((o) => !o)}
@@ -100,7 +100,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
                 <Link
                   to={c.to}
                   aria-current={active ? "page" : undefined}
-                  className={`block rounded-xl px-3 py-2 text-sm ${active ? "bg-brand-accent/12 font-semibold text-brand-primary-hover" : "text-ink-muted hover:bg-subtle hover:text-ink"}`}
+                  className={`block rounded-ctl px-3 py-2 text-sm ${active ? "bg-brand-accent/12 font-semibold text-brand-primary-hover" : "text-ink-muted hover:bg-subtle hover:text-ink"}`}
                 >
                   {c.label}
                 </Link>
@@ -120,7 +120,7 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
   const name = session?.employee.display_name;
   const role = session && has(session, "employee.manage") ? "Administrator" : session?.employee.email;
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-[28px] bg-card shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+    <div className="flex h-full min-h-0 flex-col border-r border-line bg-card">
       <div className={`flex shrink-0 items-center gap-2 p-4 ${collapsed ? "flex-col" : ""}`}>
         <Link to="/" className={`rounded-full ${collapsed ? "" : "mr-auto"}`}>
           <Wordmark compact={collapsed} />
@@ -128,7 +128,7 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
         {onToggle && (
           <button
             type="button"
-            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl bg-subtle text-ink hover:bg-line"
+            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl bg-subtle text-ink hover:bg-line"
             onClick={onToggle}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
@@ -156,7 +156,7 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
 
       <div className={`shrink-0 space-y-1 border-t border-line p-3 ${collapsed ? "flex flex-col items-center" : ""}`}>
         <Item item={SETTINGS} collapsed={collapsed} />
-        <div className={`mt-2 flex items-center gap-3 rounded-2xl ${collapsed ? "flex-col" : "border border-line p-2"}`} title={collapsed ? name : undefined}>
+        <div className={`mt-2 flex items-center gap-3 rounded-ctl ${collapsed ? "flex-col" : "border border-line p-2"}`} title={collapsed ? name : undefined}>
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-accent/15 text-sm font-semibold text-brand-primary-hover">{initials(name)}</span>
           {!collapsed && (
             <div className="min-w-0 flex-1 leading-tight">
@@ -164,7 +164,7 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
               <div className="truncate text-sm text-ink-muted">{role}</div>
             </div>
           )}
-          <button type="button" className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl text-ink hover:bg-subtle" onClick={() => void logout()} aria-label="Sign out" title="Sign out">
+          <button type="button" className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl text-ink hover:bg-subtle" onClick={() => void logout()} aria-label="Sign out" title="Sign out">
             <Icon name="logout" />
           </button>
         </div>
@@ -207,7 +207,7 @@ export function Shell() {
     <div className="flex h-full">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2">Skip to content</a>
 
-      <aside aria-label="Sections" className={`hidden shrink-0 py-5 pl-5 lg:flex ${collapsed ? "w-[108px]" : "w-[296px]"}`}>
+      <aside aria-label="Sections" className={`hidden shrink-0 lg:flex ${collapsed ? "w-[88px]" : "w-[276px]"}`}>
         <div className="w-full">
           <SidebarPanel collapsed={collapsed} onToggle={() => setCollapsed((c) => { remember(!c); return !c; })} />
         </div>
@@ -227,7 +227,6 @@ export function Shell() {
               <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-line bg-subtle px-1.5 text-[10px] text-ink-muted">/</kbd>
             </label>
             <ScannerIndicator warehouseId={active?.id} />
-            <button className="icon-btn size-12 border-transparent" aria-label="Notifications (none)"><Icon name="bell" size={22} /></button>
             <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{initials(name)}</span>
           </div>
         </header>
@@ -237,7 +236,7 @@ export function Shell() {
       {drawer && (
         <>
           <div className="fixed inset-0 z-30 bg-ink/40 lg:hidden" onClick={() => setDrawer(false)} aria-hidden />
-          <aside aria-label="Navigation" className="fixed inset-y-0 left-0 z-40 w-[296px] max-w-[88vw] p-3 lg:hidden">
+          <aside aria-label="Navigation" className="fixed inset-y-0 left-0 z-40 w-[276px] max-w-[88vw] lg:hidden">
             <SidebarPanel collapsed={false} onClose={() => setDrawer(false)} />
           </aside>
         </>
@@ -272,7 +271,7 @@ function ScannerIndicator({ warehouseId }: { warehouseId: string | undefined }) 
   if (!allowed || state === null) return null;
   const text = state === "online" ? "Scanner: ready" : state === "offline" ? "Scanner: offline" : "Scanner: not set up";
   return (
-    <NavLink to="/scan" className="hidden items-center gap-2 rounded-full bg-card px-4 py-3 text-xs font-medium text-ink-muted transition-colors hover:text-ink xl:flex">
+    <NavLink to="/scan" className="hidden items-center gap-2 px-2 py-3 text-sm text-ink-muted transition-colors hover:text-ink xl:flex">
       <span className={`size-2 rounded-full ${state === "online" ? "bg-success" : "bg-brand-gray"}`} aria-hidden />
       {text}
     </NavLink>

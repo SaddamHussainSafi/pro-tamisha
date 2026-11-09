@@ -52,7 +52,7 @@ export function NumericInput({
       </div>
       {invalid && <p id={hintId} className="mt-1 text-xs text-danger">{invalidHint ?? `Up to ${places} decimal places`}</p>}
       {!invalid && low && (
-        <p id={hintId} className="mt-2 flex items-start gap-1.5 rounded-xl bg-warning/12 px-2.5 py-1.5 text-xs font-medium text-ink [&_svg]:text-warning">
+        <p id={hintId} className="mt-2 flex items-start gap-1.5 rounded-ctl bg-warning/12 px-2.5 py-1.5 text-xs font-medium text-ink [&_svg]:text-warning">
           <Icon name="alert" size={14} className="mt-px" />
           <span>OCR {confidence}% — check against original</span>
         </p>

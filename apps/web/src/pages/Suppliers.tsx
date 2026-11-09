@@ -405,7 +405,7 @@ export function SupplierDetailPage() {
         {led.returned.length ? (
           <ul className="grid gap-2 text-sm sm:grid-cols-2">
             {led.returned.map((u) => (
-              <li key={u.unit_code} className="rounded-2xl bg-subtle p-3">
+              <li key={u.unit_code} className="rounded-ctl bg-subtle p-3">
                 <span className="font-semibold">{UNIT[u.unit_code]}</span>: {qty(dec(u.declared))} on their documents, {qty(dec(u.accepted))} accepted, {qty(dec(u.damaged))} damaged, {qty(dec(u.rejected))} rejected
               </li>
             ))}

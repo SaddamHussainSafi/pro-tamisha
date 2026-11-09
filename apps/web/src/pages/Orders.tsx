@@ -179,7 +179,7 @@ export function NewOrderPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="New sales order" subtitle="Saved as a draft. Prices are fixed when you confirm." />
-      <form className="card space-y-4 p-5" onSubmit={(e) => void submit(e)} aria-label="New sales order">
+      <form className="card space-y-4 p-6" onSubmit={(e) => void submit(e)} aria-label="New sales order">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="label" htmlFor="so-cust">Customer</label>
@@ -354,7 +354,7 @@ export function OrderPage() {
         )}
       </section>
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="card space-y-2 p-5" aria-labelledby="src-h">
+        <section className="card space-y-2 p-6" aria-labelledby="src-h">
           <h2 id="src-h" className="font-semibold">Original request</h2>
           <p className="text-xs text-ink-muted">Kept exactly as captured ({o.source === "SCAN" ? "scanned" : "typed"} by {o.created_by_name ?? "system"}, {when(o.created_at)}). It never changes.</p>
           {o.source_text ? <pre className="whitespace-pre-wrap rounded bg-canvas p-3 text-sm">{o.source_text}</pre> : <p className="text-sm text-ink-muted">No free text.</p>}
@@ -362,7 +362,7 @@ export function OrderPage() {
             {o.source_snapshot.map((s) => <li key={s.line_no}><span className="num">{s.line_no}.</span> {s.sku} — {qtyText(s.qty ?? "0")} {s.unit_code}{s.text && <span className="text-ink-muted"> (“{s.text}”)</span>}</li>)}
           </ul>
         </section>
-        <section className="card space-y-3 p-5" aria-labelledby="pk-h">
+        <section className="card space-y-3 p-6" aria-labelledby="pk-h">
           <h2 id="pk-h" className="font-semibold">Picking sheets</h2>
           {o.attempts.length === 0 ? (
             <p className="text-sm text-ink-muted">None yet.</p>

@@ -210,7 +210,7 @@ function StockTab({ tick }: { tick: number }) {
       </div>
       {rows && (
         <div className="flex items-center justify-between text-sm text-ink-muted">
-          <span>Showing {rows.length} of {total}</span>
+          <span>{total > 0 && `Showing ${rows.length} of ${total}`}</span>
           {cursor && <button className="btn-ghost" onClick={() => void load(cursor)}>Load more</button>}
         </div>
       )}
@@ -300,7 +300,7 @@ function MovementsTab({ tick }: { tick: number }) {
       </div>
       {rows && (
         <div className="flex items-center justify-between text-sm text-ink-muted">
-          <span>Showing {rows.length} of {total}</span>
+          <span>{total > 0 && `Showing ${rows.length} of ${total}`}</span>
           {cursor && <button className="btn-ghost" onClick={() => void load(cursor)}>Load more</button>}
         </div>
       )}
@@ -452,7 +452,7 @@ function CountPanel({ warehouses, onDone, onCancel }: { warehouses: Warehouse[];
   }
 
   return (
-    <form className="card space-y-3 p-4" onSubmit={(e) => void submit(e)} aria-label="Record stock count">
+    <form className="card space-y-3 p-6" onSubmit={(e) => void submit(e)} aria-label="Record stock count">
       <h2 className="font-semibold">Record a physical count</h2>
       <p className="text-sm text-ink-muted">Enter what is on the shelf. A manager reviews the variance before stock changes.</p>
       <div className="flex flex-wrap gap-3">
@@ -544,7 +544,7 @@ function OpeningPanel({ warehouses, onDone, onCancel }: { warehouses: Warehouse[
   }
 
   return (
-    <form className="card space-y-3 p-4" onSubmit={(e) => void submit(e)} aria-label="Opening balance">
+    <form className="card space-y-3 p-6" onSubmit={(e) => void submit(e)} aria-label="Opening balance">
       <h2 className="font-semibold">Opening balance</h2>
       <p className="text-sm text-ink-muted">Boxes, pieces and weight are separate stock — they are never converted into each other.</p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -608,7 +608,7 @@ function ReconcileTab() {
   }
   useEffect(() => void check(), []);
   return (
-    <div className="card space-y-3 p-4">
+    <div className="card space-y-3 p-6">
       <p className="text-sm text-ink-muted">
         Compares cached balances with the sum of the stock ledger. The ledger is the source of truth.
       </p>
@@ -735,7 +735,7 @@ export function LotPage() {
       {notice && <div role="status" className="alert-success">{notice}</div>}
       {error && <div role="alert" className="alert-danger">{error}</div>}
       <div className="grid gap-4 lg:grid-cols-3">
-        <dl className="card grid grid-cols-2 gap-x-4 gap-y-2 p-4 text-sm">
+        <dl className="card grid grid-cols-2 gap-x-4 gap-y-2 p-6 text-sm">
           <dt className="text-ink-muted">Status</dt><dd><LotChip status={lot.status} expired={lot.expired} /></dd>
           <dt className="text-ink-muted">Received</dt><dd>{day(lot.received_at)}</dd>
           <dt className="text-ink-muted">Expires</dt><dd>{day(lot.expires_at)}</dd>
@@ -814,7 +814,7 @@ function AdjustForm({ lot, units, onSubmit, onCancel }: {
   const valid = qty !== "" && note.trim().length >= 3;
   return (
     <form
-      className="card space-y-3 p-4"
+      className="card space-y-3 p-6"
       aria-label="Adjust stock"
       onSubmit={(e) => {
         e.preventDefault();
@@ -856,7 +856,7 @@ function DamageForm({ lot, units, onSubmit, onCancel }: {
   const [note, setNote] = useState("");
   const valid = qty !== "" && note.trim().length >= 3;
   return (
-    <form className="card space-y-3 p-4" aria-label="Record damage" onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ lot_id: lot.id, unit_code: unit, qty, note: note.trim() }); }}>
+    <form className="card space-y-3 p-6" aria-label="Record damage" onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ lot_id: lot.id, unit_code: unit, qty, note: note.trim() }); }}>
       <h2 className="font-semibold">Record damage</h2>
       <p className="text-sm text-ink-muted">Damaged stock moves to a separate damage lot and can't be sold.</p>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -881,7 +881,7 @@ function StatusForm({ lot, onSubmit, onCancel }: {
   const [status, setStatus] = useState<(typeof options)[number]>(options[0] ?? "QUARANTINE");
   const [reason, setReason] = useState("");
   return (
-    <form className="card space-y-3 p-4" aria-label="Change lot status" onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 3) onSubmit(status, reason.trim()); }}>
+    <form className="card space-y-3 p-6" aria-label="Change lot status" onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 3) onSubmit(status, reason.trim()); }}>
       <h2 className="font-semibold">Change lot status</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label htmlFor="st-status" className="label">New status</label>

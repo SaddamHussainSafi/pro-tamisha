@@ -217,7 +217,7 @@ export function InvoicePage() {
           </div>
         </section>
         <aside className="space-y-5">
-          <section className="card space-y-2 p-5 text-sm" aria-labelledby="inv-facts">
+          <section className="card space-y-2 p-6 text-sm" aria-labelledby="inv-facts">
             <h2 id="inv-facts" className="font-semibold">Details</h2>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
               <dt className="text-ink-muted">Issued</dt>
@@ -236,7 +236,7 @@ export function InvoicePage() {
               <dd className="num break-all text-xs" title="Fingerprint of the stored PDF; it never changes">{inv.pdf_sha256.slice(0, 16)}…</dd>
             </dl>
           </section>
-          <section className="card space-y-2 p-5 text-sm" aria-labelledby="inv-email">
+          <section className="card space-y-2 p-6 text-sm" aria-labelledby="inv-email">
             <h2 id="inv-email" className="font-semibold">Email</h2>
             <EmailChip status={inv.email_status} />
             {inv.email_to && <p>To {inv.email_to}</p>}
@@ -245,7 +245,7 @@ export function InvoicePage() {
             <p className="text-xs text-ink-muted">Development mailbox only — no real email leaves the system yet (D-15).</p>
           </section>
           <InvoiceFiles invoiceId={inv.id} warehouseId={inv.warehouse_id} />
-          <section className="card space-y-2 p-5 text-sm" aria-labelledby="inv-stock">
+          <section className="card space-y-2 p-6 text-sm" aria-labelledby="inv-stock">
             <h2 id="inv-stock" className="font-semibold">Stock deducted</h2>
             <ul className="space-y-1">
               {inv.movements.map((m) => (
@@ -367,7 +367,7 @@ export function IssueInvoicePage() {
       {error && <p className="alert-danger" role="alert">{error}</p>}
 
       {weighable.length > 0 && (
-        <section className="card space-y-4 p-5" aria-labelledby="cw-h">
+        <section className="card space-y-4 p-6" aria-labelledby="cw-h">
           <div>
             <h2 id="cw-h" className="font-semibold">Bill by weight (optional)</h2>
             <p className="text-sm text-ink-muted">For boxes sold by the pound, enter the scale weight of each case. Same weights can share a row.</p>
@@ -433,7 +433,7 @@ export function IssueInvoicePage() {
         </div>
       </section>
 
-      <section className="card space-y-3 p-5" aria-labelledby="st-h">
+      <section className="card space-y-3 p-6" aria-labelledby="st-h">
         <h2 id="st-h" className="font-semibold">Stock check</h2>
         <ul className="space-y-1 text-sm">
           {pv.stock.map((s) => (
@@ -446,7 +446,7 @@ export function IssueInvoicePage() {
       </section>
 
       {canIssue ? (
-        <section className="card space-y-3 p-5" aria-labelledby="is-h">
+        <section className="card space-y-3 p-6" aria-labelledby="is-h">
           <h2 id="is-h" className="font-semibold">Issue</h2>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={dispatched} onChange={(e) => setDispatched(e.target.checked)} />

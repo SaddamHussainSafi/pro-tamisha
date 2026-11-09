@@ -359,7 +359,7 @@ function Users() {
           </div>
         )}
         {adding && (
-          <form className="grid gap-4 rounded-2xl border border-line p-4 md:grid-cols-2" aria-label="Add user" onSubmit={add} noValidate>
+          <form className="grid gap-4 rounded-ctl border border-line p-4 md:grid-cols-2" aria-label="Add user" onSubmit={add} noValidate>
             <Field id="nu-name" label="Name">
               <input id="nu-name" className="input" maxLength={200} value={f.name} onChange={(ev) => setF({ ...f, name: ev.target.value })} />
             </Field>
@@ -394,7 +394,7 @@ function Users() {
           </form>
         )}
         {editing && (
-          <form className="grid gap-4 rounded-2xl border border-line p-4 md:grid-cols-2" aria-label={`Edit ${editing.who.display_name}`} onSubmit={saveEdit}>
+          <form className="grid gap-4 rounded-ctl border border-line p-4 md:grid-cols-2" aria-label={`Edit ${editing.who.display_name}`} onSubmit={saveEdit}>
             <Field id="eu-name" label="Name">
               <input id="eu-name" className="input" maxLength={200} value={editing.name} onChange={(ev) => setEditing({ ...editing, name: ev.target.value })} />
             </Field>

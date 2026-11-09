@@ -52,7 +52,7 @@ export function OverviewPanels({ orders }: { orders: OrderSummary[] }) {
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
       {sales && bars && (
-        <section className="card p-6 sm:p-8 xl:col-span-8" aria-labelledby="ov-trend">
+        <section className="card p-6 xl:col-span-8" aria-labelledby="ov-trend">
           <CardTitle id="ov-trend" title={`${CHART_TITLE[bars.unit]} · last 30 days`} to="/reports" />
           <p className="mt-1 text-sm text-ink-muted">
             {cad(dec(sales.net_sales))} before tax · {sales.invoice_count} invoices · {sales.customer_count} customers

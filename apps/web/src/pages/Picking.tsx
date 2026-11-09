@@ -260,7 +260,7 @@ export function PickSheetPage() {
             </div>
           )}
         </section>
-        <aside className="card flex flex-col items-center gap-2 p-5" aria-label="Sheet code">
+        <aside className="card flex flex-col items-center gap-2 p-6" aria-label="Sheet code">
           <QRCodeSVG value={p.pick_code} size={128} role="img" aria-label={`QR code ${p.pick_code}`} />
           <span className="num text-sm font-semibold">{p.pick_code}</span>
           <ul className="w-full space-y-1 text-xs text-ink-muted">

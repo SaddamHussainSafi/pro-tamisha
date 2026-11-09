@@ -20,7 +20,7 @@ export function Tile({ text, muted = false }: { text: string; muted?: boolean })
   const parts = text.replace(/[^\p{L}\p{N}\s-]/gu, "").trim().split(/[\s-]+/);
   const ini = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
   return (
-    <span aria-hidden className={`grid size-12 shrink-0 place-items-center rounded-2xl text-base font-semibold ${muted ? "bg-subtle text-ink-muted" : "bg-brand-accent/12 text-brand-primary"}`}>
+    <span aria-hidden className={`grid size-12 shrink-0 place-items-center rounded-ctl text-base font-semibold ${muted ? "bg-subtle text-ink-muted" : "bg-brand-accent/12 text-brand-primary"}`}>
       {ini}
     </span>
   );
@@ -50,7 +50,7 @@ export function EntityCard({
   dim?: boolean;
 }) {
   return (
-    <article className={`card relative flex w-full flex-col gap-4 p-5 transition-shadow hover:shadow-[0_10px_30px_rgb(24_24_27/0.08)] ${dim ? "opacity-75" : ""}`}>
+    <article className={`card relative flex w-full flex-col gap-4 p-6 outline outline-1 outline-transparent transition-colors hover:outline-line ${dim ? "opacity-75" : ""}`}>
       <header className="flex items-start gap-3">
         {media}
         <div className="min-w-0 flex-1">

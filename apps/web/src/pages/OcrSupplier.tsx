@@ -30,7 +30,7 @@ export function DocViewer({ documentId, title, highlight }: { documentId: string
     if (highlight && highlight.page !== page) setPage(highlight.page);
   }, [highlight]); // eslint-disable-line react-hooks/exhaustive-deps
   const box = highlight && highlight.page === page ? highlight : null;
-  const btn = "grid size-9 place-items-center rounded-xl border border-line bg-card hover:bg-subtle disabled:opacity-40";
+  const btn = "grid size-9 place-items-center rounded-ctl border border-line bg-card hover:bg-subtle disabled:opacity-40";
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-line p-2" role="toolbar" aria-label="Document view">
@@ -51,7 +51,7 @@ export function DocViewer({ documentId, title, highlight }: { documentId: string
         <button type="button" className={btn} aria-label="Zoom in" disabled={zoom >= 3} onClick={() => setZoom((z) => Math.min(3, z + 0.25))}>
           +
         </button>
-        <button type="button" className="rounded-xl border border-line px-3 py-1.5 text-sm hover:bg-subtle" onClick={() => setZoom(1)}>
+        <button type="button" className="rounded-ctl border border-line px-3 py-1.5 text-sm hover:bg-subtle" onClick={() => setZoom(1)}>
           Fit
         </button>
         <button type="button" className={btn} aria-label="Rotate view" onClick={() => setTurn((t) => (t + 90) % 360)}>
@@ -63,7 +63,7 @@ export function DocViewer({ documentId, title, highlight }: { documentId: string
           <p className="p-6 text-sm text-ink-muted">This file can't be shown here. Download it from the scan page.</p>
         ) : (
           <div className="relative mx-auto origin-top transition-transform duration-300" style={{ width: `${zoom * 100}%`, transform: `rotate(${turn}deg)` }}>
-            <img alt={`${title}, page ${page}`} src={api.documentPageUrl(documentId, page)} className="block w-full rounded-lg bg-card shadow-sm" />
+            <img alt={`${title}, page ${page}`} src={api.documentPageUrl(documentId, page)} className="block w-full rounded-ctl border border-line bg-card" />
             {box && (
               <span
                 aria-hidden
@@ -122,12 +122,12 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
     }
   }
   return (
-    <section aria-labelledby="hdr-h" className="card space-y-3 p-5">
+    <section aria-labelledby="hdr-h" className="card space-y-3 p-6">
       <h2 id="hdr-h" className="text-lg font-semibold">Document details</h2>
       {(ex.warnings ?? []).length > 0 && (
         <ul className="space-y-1">
           {ex.warnings.map((w) => (
-            <li key={w} className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2 text-sm">
+            <li key={w} className="flex items-start gap-2 rounded-ctl bg-warning/10 px-3 py-2 text-sm">
               <Icon name="alert" size={16} className="mt-0.5 shrink-0 text-warning" />
               {warnText(w)}
             </li>
@@ -139,7 +139,7 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
           {error}
         </p>
       )}
-      <dl className="divide-y divide-line rounded-2xl border border-line">
+      <dl className="divide-y divide-line rounded-ctl border border-line">
         {Object.keys(LABEL).map((k) => {
           const c = h[k];
           const shown = c?.corrected !== undefined ? c.corrected : c?.value;
@@ -245,7 +245,7 @@ export function ToReceiving({ ex, ready, canReceive, onDone }: { ex: OcrExtracti
       </p>
     );
   return (
-    <section aria-labelledby="rcv-h" className="card space-y-3 p-4">
+    <section aria-labelledby="rcv-h" className="card space-y-3 p-6">
       <h2 id="rcv-h" className="font-semibold">Send to Receiving</h2>
       <p className="text-sm text-ink-muted">The document is attached to a new shipment and the kept lines become what the supplier declared. Nothing is added to stock and nothing is owed until the goods are counted and posted.</p>
       {error && (

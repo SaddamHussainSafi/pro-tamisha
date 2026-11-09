@@ -36,7 +36,7 @@ function Notice({ tone, children }: { tone: "error" | "ok" | "warn"; children: R
   const cls =
     tone === "error" ? "border-danger/40 bg-danger/5 text-danger" : tone === "warn" ? "border-warning/50 bg-warning/10 text-ink" : "border-success/40 bg-success/5 text-ink";
   return (
-    <p role={tone === "error" ? "alert" : "status"} className={`rounded-md border px-3 py-2 text-sm ${cls}`}>
+    <p role={tone === "error" ? "alert" : "status"} className={`rounded-ctl border px-3 py-2 text-sm ${cls}`}>
       {children}
     </p>
   );
@@ -44,7 +44,7 @@ function Notice({ tone, children }: { tone: "error" | "ok" | "warn"; children: R
 
 function QuietNotice({ tone, children }: { tone: "error" | "ok" | "warn"; children: React.ReactNode }) {
   const cls = tone === "error" ? "bg-danger/8 text-danger" : tone === "warn" ? "bg-warning/10 text-ink" : "bg-success/8 text-ink";
-  return <p className={`rounded-2xl px-4 py-3 text-sm ${cls}`}>{children}</p>;
+  return <p className={`rounded-ctl px-4 py-3 text-sm ${cls}`}>{children}</p>;
 }
 
 /* ============================ Review queue (Scan Center tab) ============================ */
@@ -150,7 +150,7 @@ function OrderSheetCard({ warehouses }: { warehouses: Warehouse[] }) {
     api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active)), () => setCustomers([]));
   }, []);
   return (
-    <div className="card space-y-2 p-4">
+    <div className="card space-y-2 p-6">
       <div className="kicker">Printable order sheet</div>
       <div className="flex gap-2">
         <label className="min-w-0 flex-1">
@@ -207,7 +207,7 @@ export function ScanReading({ jobId, warehouseId, received }: { jobId: string; w
     }
   };
   return (
-    <section aria-label="Reading" className="card flex flex-wrap items-center gap-3 p-4 text-sm">
+    <section aria-label="Reading" className="card flex flex-wrap items-center gap-3 p-6 text-sm">
       <span className="font-medium">Reading:</span>
       {cur ? (
         <>
@@ -418,7 +418,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
           {supplierDoc && <SupplierHeader ex={ex} threshold={0.9} editable={reviewing} onFixed={setEx} />}
           <section aria-labelledby="lines-h" className="card overflow-hidden">
             <div className="flex flex-wrap items-center gap-4 p-5 sm:p-6">
-              <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-primary text-white"><Icon name="scan" size={26} /></span>
+              <span className="grid size-14 shrink-0 place-items-center rounded-ctl bg-brand-primary text-white"><Icon name="scan" size={26} /></span>
               <div className="min-w-0 flex-1">
                 <h2 id="lines-h" className="text-[22px] font-semibold tracking-tight">Recognized lines</h2>
                 <p className="text-sm text-ink-muted">
@@ -484,14 +484,14 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
                 )}
               </div>
             )}
-            <div className="m-4 mt-0 grid gap-4 rounded-[20px] bg-brand-accent/8 p-5 sm:grid-cols-3">
+            <div className="m-4 mt-0 grid gap-4 rounded-ctl bg-brand-accent/8 p-5 sm:grid-cols-3">
               {([
                 ["check", "Lines kept", kept.length],
                 ["alert", "Still to check", open.length],
                 ["users", "Customer", custName ?? "Not chosen yet"],
               ] as const).map(([icon, k, v], i) => (
                 <div key={k} className={`flex items-center gap-4 ${i > 0 ? "sm:border-l sm:border-line sm:pl-4" : ""}`}>
-                  <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-card text-brand-primary"><Icon name={icon} size={22} /></span>
+                  <span className="grid size-12 shrink-0 place-items-center rounded-ctl bg-card text-brand-primary"><Icon name={icon} size={22} /></span>
                   <span className="min-w-0">
                     <span className="block text-sm text-ink-muted">{k}</span>
                     <span className="num block truncate text-[22px] font-semibold leading-tight">{v}</span>
@@ -503,14 +503,14 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
 
           {supplierDoc && (reviewing || ex.shipment_id) && (
             <>
-              <section aria-label="Prices as read" className="card p-4">
+              <section aria-label="Prices as read" className="card p-6">
                 <PriceList fields={ex.fields} />
               </section>
               <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} />
             </>
           )}
           {reviewing && !supplierDoc && (
-            <section aria-labelledby="accept-h" className="card space-y-3 p-4">
+            <section aria-labelledby="accept-h" className="card space-y-3 p-6">
               <h2 id="accept-h" className="font-semibold">Create the draft order</h2>
               <p className="text-sm text-ink-muted">
                 This only creates a <strong>draft</strong> sales order with {kept.length} line{kept.length === 1 ? "" : "s"}. Nothing is reserved, picked or invoiced until someone confirms it.
@@ -632,9 +632,9 @@ function FieldRow({
   return (
     <li className={`space-y-3 px-5 py-4 sm:px-6 ${tint} ${f.resolution === "REMOVED" ? "opacity-70" : ""}`} data-testid={`ocr-line-${f.seq}`}>
       <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 md:grid-cols-[3.25rem_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)] md:items-center">
-        <span className="relative grid size-[3.25rem] place-items-center rounded-2xl border border-line bg-subtle text-ink-muted">
+        <span className="relative grid size-[3.25rem] place-items-center rounded-ctl border border-line bg-subtle text-ink-muted">
           <Icon name="inventory" size={22} />
-          <span className="num absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-card text-xs font-semibold text-ink shadow-[0_1px_3px_rgb(24_24_27/0.15)]">{f.seq}</span>
+          <span className="num absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-card text-xs font-semibold text-ink ring-1 ring-line">{f.seq}</span>
         </span>
         <div className="min-w-0 space-y-0.5">
           <p className="truncate text-base font-semibold">{title}</p>
@@ -659,11 +659,11 @@ function FieldRow({
             <>
               <p className="text-sm">
                 <span className="text-ink-muted md:hidden">Read as: </span>
-                <span className="num rounded-xl border border-line bg-card px-3 py-1.5 font-semibold">{f.read_sku ?? "?"} · {f.read_qty ? trimQty(f.read_qty) : "?"} {f.read_unit_code ?? ""}</span>
+                <span className="num rounded-ctl border border-line bg-card px-3 py-1.5 font-semibold">{f.read_sku ?? "?"} · {f.read_qty ? trimQty(f.read_qty) : "?"} {f.read_unit_code ?? ""}</span>
               </p>
               {pct !== undefined && (
                 doubtful ? (
-                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-warning/12 px-2.5 py-1 text-xs font-medium text-ink [&_svg]:text-warning">
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-ctl bg-warning/12 px-2.5 py-1 text-xs font-medium text-ink [&_svg]:text-warning">
                     <Icon name="alert" size={14} />OCR {pct}% · check against original
                   </p>
                 ) : (
@@ -720,7 +720,7 @@ function LineEditor({
   const set = (v: Partial<Editing>) => setEdit((e) => e && { ...e, ...v });
   return (
     <form
-      className="grid items-end gap-3 rounded-2xl border border-line bg-subtle p-4 md:grid-cols-[2fr_1fr_1fr]"
+      className="grid items-end gap-3 rounded-ctl border border-line bg-subtle p-4 md:grid-cols-[2fr_1fr_1fr]"
       aria-label={edit.fieldId === "new" ? "Add a missed line" : "Correct line"}
       onSubmit={(e) => {
         e.preventDefault();

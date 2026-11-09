@@ -141,9 +141,9 @@ export function DocumentsPage() {
         subtitle="Every issued invoice, proof of delivery, supplier document and scan, filed by customer or supplier and month. Files are kept exactly as issued and are never overwritten."
       />
       <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard label="Pending sync" value={counts.PENDING ?? 0} icon="documents" tone="info" note="Waiting for Google Drive" />
-        <KpiCard label="Sync failed" value={counts.FAILED ?? 0} icon="documents" tone={counts.FAILED ? "danger" : "neutral"} note="Needs a retry" />
-        <KpiCard label="In Drive" value={counts.SYNCED ?? 0} icon="documents" tone="success" note={driveOff ? "Drive copying is off" : "Copied to the archive"} />
+        <KpiCard label="Pending sync" value={counts.PENDING ?? 0} tone="info" note="Waiting for Google Drive" />
+        <KpiCard label="Sync failed" value={counts.FAILED ?? 0} tone={counts.FAILED ? "danger" : "neutral"} note="Needs a retry" />
+        <KpiCard label="In Drive" value={counts.SYNCED ?? 0} tone="success" note={driveOff ? "Drive copying is off" : "Copied to the archive"} />
       </div>
       {driveOff && <p className="alert-warning" role="status">Copying to Google Drive is turned off. Files are stored here only.</p>}
       {msg && (
@@ -242,7 +242,7 @@ export function InvoiceFiles({ invoiceId, warehouseId }: { invoiceId: string; wa
   };
 
   return (
-    <section className="card space-y-3 p-5 text-sm" aria-labelledby="inv-files">
+    <section className="card space-y-3 p-6 text-sm" aria-labelledby="inv-files">
       <h2 id="inv-files" className="font-semibold">Archive</h2>
       {files === null ? (
         <p className="text-ink-muted">Loading…</p>

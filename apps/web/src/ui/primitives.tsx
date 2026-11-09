@@ -25,7 +25,7 @@ export function StatusChip({ tone, children }: { tone: Tone; children: ReactNode
 /* ---------- SampleBanner: every mock screen must say so ---------- */
 export function SampleBanner({ children }: { children?: ReactNode }) {
   return (
-    <div role="note" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-brand-accent/10 px-4 py-2.5 text-sm text-ink">
+    <div role="note" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-ctl bg-brand-accent/10 px-4 py-2.5 text-sm text-ink">
       <Icon name="eye" size={18} className="text-brand-primary" />
       <strong>Design preview · sample data.</strong>
       <span>Nothing here is saved.</span>
@@ -64,17 +64,25 @@ export function CardTitle({ id, title, to, action }: { id?: string; title: React
   );
 }
 
-/* ---------- Trend pill: arrow + text, coloured by direction ---------- */
+/* ---------- Trend: arrow + text, coloured by direction ---------- */
 export function Trend({ dir, children }: { dir: "up" | "down"; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${dir === "up" ? "bg-success/8 text-success" : "bg-danger/8 text-danger"}`}>
+    <span className={`inline-flex items-center gap-1 text-sm font-semibold ${dir === "up" ? "text-success" : "text-danger"}`}>
       <Icon name={dir === "up" ? "trendUp" : "trendDown"} size={14} />
       {children}
     </span>
   );
 }
 
-/* ---------- KPI card: big icon, big number, one short label ---------- */
+/* ---------- KPI card: big number, one short label, optional icon and plain-text note ---------- */
+// Notes are text, not chips: only problems get a colour.
+const NOTE_TEXT: Record<Tone, string> = {
+  success: "text-ink-muted",
+  info: "text-ink-muted",
+  neutral: "text-ink-muted",
+  warning: "font-medium text-warning",
+  danger: "font-medium text-danger",
+};
 export function KpiCard({
   label,
   value,
@@ -89,39 +97,45 @@ export function KpiCard({
   unit?: string;
   note?: ReactNode;
   tone?: Tone;
-  icon: IconName;
+  /** Omit when every card in the row would show the same icon. */
+  icon?: IconName;
   accent?: boolean;
 }) {
   if (accent)
     return (
-      <div className="relative isolate flex min-h-[200px] flex-col justify-between gap-6 overflow-hidden rounded-[var(--radius-card)] bg-[linear-gradient(140deg,var(--color-brand-primary),var(--color-brand-primary-hover))] p-6 text-white">
-        <span aria-hidden className="absolute -right-12 -top-12 -z-10 size-44 rounded-full bg-white/10" />
-        <span aria-hidden className="absolute -bottom-16 right-10 -z-10 size-36 rounded-full bg-white/[0.07]" />
-        <div className="flex items-start justify-between gap-3">
-          <span className="grid size-14 place-items-center rounded-2xl bg-white/15"><Icon name={icon} size={28} /></span>
-          {note && <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">{note}</span>}
-        </div>
+      <div className={`flex flex-col justify-between gap-6 rounded-card bg-brand-primary p-6 text-white ${icon ? "min-h-[200px]" : ""}`}>
+        {icon && (
+          <div className="flex items-start justify-between gap-3">
+            <span className="grid size-14 place-items-center rounded-ctl bg-white/15"><Icon name={icon} size={28} /></span>
+            {note && <span className="pt-1 text-sm font-medium text-white">{note}</span>}
+          </div>
+        )}
         <div className="min-w-0">
           <div className="text-base font-medium">{label}</div>
           <div className="num mt-1.5 flex items-baseline gap-1.5 whitespace-nowrap text-[clamp(1.75rem,2.2vw,2.5rem)] font-semibold leading-none tracking-tight">
             {value}
             {unit && <span className="text-lg font-medium">{unit}</span>}
           </div>
+          {!icon && note && <div className="mt-2 text-sm font-medium text-white">{note}</div>}
         </div>
       </div>
     );
+  const noteEl = note && <span className={`text-sm ${NOTE_TEXT[tone ?? "neutral"]}`}>{note}</span>;
   return (
-    <div className="card flex min-h-[200px] flex-col justify-between gap-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <span className="grid size-14 place-items-center rounded-2xl bg-brand-accent/10 text-brand-primary"><Icon name={icon} size={28} /></span>
-        {note && (tone ? <StatusChip tone={tone}>{note}</StatusChip> : <span className="rounded-full bg-subtle px-3 py-1 text-xs font-medium text-ink-muted">{note}</span>)}
-      </div>
+    <div className={`card flex flex-col justify-between gap-6 p-6 ${icon ? "min-h-[200px]" : ""}`}>
+      {icon && (
+        <div className="flex items-start justify-between gap-3">
+          <span className="grid size-14 place-items-center rounded-ctl bg-brand-accent/10 text-brand-primary"><Icon name={icon} size={28} /></span>
+          {noteEl && <span className="pt-1 text-right">{noteEl}</span>}
+        </div>
+      )}
       <div className="min-w-0">
         <div className="text-base font-medium text-ink-muted">{label}</div>
         <div className="num mt-1.5 flex items-baseline gap-1.5 whitespace-nowrap text-[clamp(1.75rem,2.2vw,2.5rem)] font-semibold leading-none tracking-tight">
           {value}
           {unit && <span className="text-lg font-medium text-ink-muted">{unit}</span>}
         </div>
+        {!icon && noteEl && <div className="mt-2">{noteEl}</div>}
       </div>
     </div>
   );
@@ -131,7 +145,7 @@ export function KpiCard({
 export function Stat({ icon, label, value, note }: { icon: IconName; label: string; value: ReactNode; note?: ReactNode }) {
   return (
     <div className="flex min-w-0 items-center gap-4">
-      <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-card text-brand-primary shadow-[0_1px_2px_rgb(24_24_27/0.04)]"><Icon name={icon} size={28} /></span>
+      <span className="grid size-16 shrink-0 place-items-center rounded-ctl bg-card text-brand-primary"><Icon name={icon} size={28} /></span>
       <div className="min-w-0">
         <div className="text-sm text-ink-muted">{label}</div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -147,9 +161,11 @@ export function Stat({ icon, label, value, note }: { icon: IconName; label: stri
 export type Bar = { label: string; value: number; display: string };
 export function BarChart({ bars, highlight, ariaLabel, axis }: { bars: Bar[]; highlight: number; ariaLabel: string; axis: (v: number) => string }) {
   const max = Math.max(1, ...bars.map((b) => b.value));
-  const step = niceStep(max / 4);
-  const top = Math.max(step, Math.ceil(max / step) * step);
-  const ticks = [4, 3, 2, 1, 0].map((i) => (top * i) / 4);
+  // Four whole, "nice" steps. Quarter steps of the max printed "$1 $1 $1 $0" with no data
+  // and ticks like 11.25 for odd maxima.
+  const step = Math.max(1, niceStep(max / 4));
+  const top = step * 4;
+  const ticks = [4, 3, 2, 1, 0].map((i) => step * i);
   const avg = bars.length ? bars.reduce((s, b) => s + b.value, 0) / bars.length : 0;
   return (
     <figure className="m-0">
@@ -167,12 +183,12 @@ export function BarChart({ bars, highlight, ariaLabel, axis }: { bars: Bar[]; hi
               <div key={b.label} className="flex h-full min-w-0 flex-1 flex-col items-center gap-2.5">
                 <div className="relative flex min-h-0 w-full flex-1 items-end justify-center">
                   {on && (
-                    <div aria-hidden className="absolute z-10 -translate-y-3 whitespace-nowrap rounded-2xl border border-line bg-card px-4 py-2 text-center shadow-[0_10px_30px_rgb(24_24_27/0.10)]" style={{ bottom: `${(b.value / top) * 100}%` }}>
+                    <div aria-hidden className="absolute z-10 -translate-y-3 whitespace-nowrap rounded-ctl border border-line bg-card px-4 py-2 text-center" style={{ bottom: `${(b.value / top) * 100}%` }}>
                       <div className="text-xs text-ink-muted">{b.label}</div>
                       <div className="num text-base font-semibold">{b.display}</div>
                     </div>
                   )}
-                  <div className={`w-full max-w-16 rounded-[18px] ${on ? "hatch-accent" : "hatch"}`} style={{ height: `${Math.max(2, (b.value / top) * 100)}%` }} title={`${b.label}: ${b.display}`} />
+                  <div className={`w-full max-w-16 rounded-ctl ${on ? "hatch-accent" : "hatch"}`} style={{ height: `${Math.max(2, (b.value / top) * 100)}%` }} title={`${b.label}: ${b.display}`} />
                 </div>
                 <span className={`h-[26px] rounded-full px-2.5 text-sm leading-[26px] ${on ? "bg-brand-accent/15 font-semibold text-brand-primary-hover" : "text-ink-muted"}`}>{b.label}</span>
               </div>
@@ -250,7 +266,7 @@ export function DonutChart({ slices, centerLabel, ariaLabel }: { slices: Slice[]
         {slices.map((s, i) => (
           <li
             key={s.label}
-            className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 ${hover === i ? "bg-subtle" : ""}`}
+            className={`flex items-center gap-3 rounded-ctl px-3 py-2.5 ${hover === i ? "bg-subtle" : ""}`}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
           >
@@ -346,7 +362,6 @@ export function FilterBar<T extends string>({
 export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
   return (
     <div className="grid place-items-center gap-2 px-6 py-12 text-center">
-      <span className="grid size-14 place-items-center rounded-full bg-subtle"><Icon name="file" size={24} className="text-ink-muted" /></span>
       <div className="font-medium">{title}</div>
       {hint && <p className="max-w-sm text-sm text-ink-muted">{hint}</p>}
       {action}
@@ -408,7 +423,7 @@ export function ConfirmDialog({
       ref={ref}
       onClose={onClose}
       aria-labelledby={titleId}
-      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-[24px] border-0 bg-card p-0 text-ink shadow-[0_24px_60px_rgb(24_24_27/0.18)] backdrop:bg-ink/40"
+      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-card border-0 bg-card p-0 text-ink shadow-[0_8px_24px_rgb(24_24_27/0.12)] backdrop:bg-ink/40"
     >
       <div className="space-y-3 p-6">
         <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
