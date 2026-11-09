@@ -7,8 +7,9 @@ import json
 import threading
 import time
 import uuid
+import weakref
 from collections import Counter
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -75,7 +76,7 @@ def readable_warehouses(db: Session, p: Principal, perm: str = "inventory.read")
 
 
 def get_lot(db: Session, p: Principal, lot_id: uuid.UUID, lock: bool = False) -> InventoryLot:
-    lot = db.get(InventoryLot, lot_id, with_for_update=lock)
+    lot = db.get(InventoryLot, lot_id, with_for_update=lock, populate_existing=lock)
     if lot is None or lot.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Lot not found")
     return lot
@@ -929,7 +930,9 @@ def submit_count(
         keys = [(ln.lot_id, ln.unit_code) for ln in body.lines]
         if len(set(keys)) != len(keys):
             raise ApiError(422, "DUPLICATE_LINE", "Each lot/unit may be counted once per count")
-        db.get(Company, p.company_id, with_for_update=True)  # serialize count numbering
+        db.get(
+            Company, p.company_id, with_for_update={"key_share": True}
+        )  # serialize count numbering
         n = db.scalar(select(func.count()).where(StockCount.company_id == p.company_id)) or 0
         c = StockCount(
             company_id=p.company_id,
@@ -1145,7 +1148,7 @@ def rebuild_balances(
     body = ReverseIn.model_construct(reason="rebuild")
 
     def fn() -> tuple[dict[str, Any], str, dict[str, Any]]:
-        db.get(Company, p.company_id, with_for_update=True)
+        db.get(Company, p.company_id, with_for_update={"key_share": True})
         checked, rows, found = inv.reconcile(db, p.company_id)
         inv.rebuild(db, p.company_id, found)
         out = _recon_out(db, checked, rows, found, True)
@@ -1213,10 +1216,11 @@ def stock_events(
         if _streams[emp_id] >= MAX_STREAMS_PER_EMPLOYEE:
             raise ApiError(429, "TOO_MANY_STREAMS", "Too many live stock views open; close a tab")
         _streams[emp_id] += 1
+    release = _once(emp_id)
     try:
         first = change_cursor(db, company_id)
     except Exception:
-        _release(emp_id)
+        release()
         raise
     db.close()
 
@@ -1236,11 +1240,27 @@ def stock_events(
                 else:
                     yield ": keep-alive\n\n"
         finally:
+            release()
+
+    stream = gen()
+    # If the client is gone before the stream ever starts, the generator's `finally` never
+    # runs; releasing when the generator object is collected keeps the slot from leaking.
+    weakref.finalize(stream, release)
+    return StreamingResponse(
+        stream, media_type="text/event-stream", headers={"Cache-Control": "no-store"}
+    )
+
+
+def _once(emp_id: uuid.UUID) -> Callable[[], None]:
+    """A release for one stream slot that is safe to call more than once."""
+    done = threading.Event()
+
+    def release() -> None:
+        if not done.is_set():
+            done.set()
             _release(emp_id)
 
-    return StreamingResponse(
-        gen(), media_type="text/event-stream", headers={"Cache-Control": "no-store"}
-    )
+    return release
 
 
 def _release(emp_id: uuid.UUID) -> None:

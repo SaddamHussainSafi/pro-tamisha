@@ -63,14 +63,19 @@ API_CSP = (
 )
 
 
-def _security_headers(resp: Response, rid: str, https: bool) -> None:
+# Interactive API docs (development only) load Swagger/ReDoc from a CDN with inline script.
+DOCS_PATHS = ("/docs", "/docs/oauth2-redirect", "/redoc")
+
+
+def _security_headers(resp: Response, rid: str, https: bool, path: str = "") -> None:
     h = resp.headers
     h["X-Request-Id"] = rid
     h["X-Content-Type-Options"] = "nosniff"
     h["Referrer-Policy"] = "same-origin"
     h["X-Frame-Options"] = "SAMEORIGIN"
     h["Cross-Origin-Opener-Policy"] = "same-origin"
-    h.setdefault("Content-Security-Policy", API_CSP)
+    if path not in DOCS_PATHS:  # those routes don't exist in staging/production
+        h.setdefault("Content-Security-Policy", API_CSP)
     # Signed-in data must not land in shared/browser caches unless a route opted in.
     h.setdefault("Cache-Control", "no-store")
     if https:
@@ -139,7 +144,7 @@ def create_app() -> FastAPI:
                     }
                 },
             )
-        _security_headers(resp, rid, s.cookie_secure)
+        _security_headers(resp, rid, s.cookie_secure, request.url.path)
         return resp
 
     # Outermost, so oversized bodies are refused before anything reads them.

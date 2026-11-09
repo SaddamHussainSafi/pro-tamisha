@@ -63,7 +63,7 @@ def _read(request: Request, p: Principal) -> None:
 
 
 def _product(db: Session, p: Principal, product_id: uuid.UUID, lock: bool = False) -> Product:
-    prod = db.get(Product, product_id, with_for_update=lock)
+    prod = db.get(Product, product_id, with_for_update=lock, populate_existing=lock)
     if prod is None or prod.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Product not found")
     return prod

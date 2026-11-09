@@ -94,7 +94,7 @@ def record_supplier_payment(
         ref = (body.reference or "").strip() or None
         # Serialize per company before the duplicate check, so two concurrent requests with the
         # same reference can't both pass it (next_no takes the same lock again).
-        db.get(Company, p.company_id, with_for_update=True)
+        db.get(Company, p.company_id, with_for_update={"key_share": True})
         if ref is not None:
             dup = db.scalar(
                 select(SupplierPayment.payment_no).where(
@@ -144,7 +144,7 @@ def void_supplier_payment(
     p: Principal = Record,
 ) -> JSONResponse:
     def fn() -> Result:
-        sp = db.get(SupplierPayment, payment_id, with_for_update=True)
+        sp = db.get(SupplierPayment, payment_id, with_for_update=True, populate_existing=True)
         if sp is None or sp.company_id != p.company_id:
             raise ApiError(404, "NOT_FOUND", "Supplier payment not found")
         if sp.voided_at is not None:

@@ -84,7 +84,7 @@ def test_settings_refuse_to_load_in_production_like_env(env):
 
 def test_settings_refuse_dev_login_with_a_real_frontend_origin():
     # APP_ENV left at its "development" default on a deployed server must not enable it.
-    with pytest.raises(ValidationError, match="DEV_AUTO_LOGIN_EMAIL"):
+    with pytest.raises(ValidationError, match="APP_ENV|DEV_AUTO_LOGIN_EMAIL"):
         Settings(
             app_env="development",
             frontend_origin="https://erp.tamishatrading.com",
@@ -94,3 +94,17 @@ def test_settings_refuse_dev_login_with_a_real_frontend_origin():
 
 def test_not_in_public_contract(app):
     assert "/api/v1/auth/dev-login" not in app.openapi()["paths"]
+
+
+def test_refused_when_a_proxy_forwards_a_remote_client(local, world, monkeypatch):
+    # Vite's proxy reaches the API from 127.0.0.1; with `vite --host` the real caller is a LAN
+    # address, passed on in X-Forwarded-For.
+    monkeypatch.setattr(get_settings(), "dev_auto_login_email", world.emails["owner"])
+    r = local.post(URL, headers={"X-Forwarded-For": "192.168.1.20, 127.0.0.1"})
+    assert r.status_code == 404
+
+
+def test_ipv4_mapped_loopback_counts_as_local(app, world, monkeypatch):
+    monkeypatch.setattr(get_settings(), "dev_auto_login_email", world.emails["owner"])
+    c = TestClient(app, base_url="http://localhost:8000", client=("::ffff:127.0.0.1", 1))
+    assert c.post(URL, headers={"X-Forwarded-For": "::1"}).status_code == 200

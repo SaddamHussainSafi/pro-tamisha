@@ -239,3 +239,54 @@ def test_invoice_skips_a_lot_quarantined_meanwhile(owner, world, setup, monkeypa
     assert flipped
     # used to issue the invoice and take the box out of the quarantined lot
     assert r.status_code == 409, r.text
+
+
+# ------------------------------------------------------------------ stale rows under lock
+
+
+def test_lot_status_change_sees_a_concurrent_edit(owner, world, setup, monkeypatch):
+    from pro_trading.models import InventoryLot
+    from pro_trading.routes import inventory as routes_inv
+
+    from .test_inventory import lot_of, opening
+
+    lot_id = lot_of(opening(owner, world, setup["p"][sku(setup, "CAS")], [("BOX", "5")]))
+    v = owner.get(f"{P}/inventory/lots/{lot_id}").json()["version"]
+    real = routes_inv.authorize
+
+    def racing(*a, **k):  # another edit commits after the route first read the lot
+        real(*a, **k)
+        with get_sessionmaker()() as other, other.begin():
+            other.execute(
+                update(InventoryLot)
+                .where(InventoryLot.id == lot_id)
+                .values(version=InventoryLot.version + 1)
+            )
+
+    monkeypatch.setattr(routes_inv, "authorize", racing)
+    r = owner.post(
+        f"{P}/inventory/lots/{lot_id}/status",
+        json={"version": v, "status": "QUARANTINE", "reason": "check"},
+        headers=idem(),
+    )
+    # the locked re-read used to return the stale copy, so the old version passed (lost update)
+    assert r.status_code == 409 and code(r) == "VERSION_CONFLICT", r.text
+
+
+def test_stock_stream_slot_is_returned_if_the_stream_never_starts(world):
+    # A client that disconnects before the first chunk cancels the response before the
+    # generator runs, so its `finally` never released the slot (4 leaks = permanent 429).
+    import gc
+    import uuid
+    from types import SimpleNamespace
+
+    from pro_trading.deps import Grant, Principal
+
+    emp = SimpleNamespace(id=uuid.uuid4(), company_id=world.company_id)
+    p = Principal(emp, SimpleNamespace(id=uuid.uuid4()), [Grant("inventory.read", None, False)])  # type: ignore[arg-type]
+    with get_sessionmaker()() as db:
+        resp = inventory_routes.stock_events(SimpleNamespace(), db, p, timeout=1)  # type: ignore[arg-type]
+    assert inventory_routes._streams[emp.id] == 1
+    del resp
+    gc.collect()
+    assert emp.id not in inventory_routes._streams

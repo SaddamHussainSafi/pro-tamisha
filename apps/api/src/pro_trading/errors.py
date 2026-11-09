@@ -53,8 +53,14 @@ def install(app: FastAPI) -> None:
         resp = JSONResponse(
             _body(request, "INTERNAL", "Something went wrong. Try again or contact support."), 500
         )
+        # This handler runs outside the request middleware, so add its headers here too.
+        rid = getattr(request.state, "request_id", None)
+        if rid:
+            resp.headers["X-Request-Id"] = rid
         resp.headers["Cache-Control"] = "no-store"
         resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+        resp.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'self'"
         return resp
 
     @app.exception_handler(StarletteHTTPException)

@@ -78,7 +78,7 @@ def readable(db: Session, p: Principal) -> set[uuid.UUID]:
 
 
 def get_shipment(db: Session, p: Principal, sid: uuid.UUID, lock: bool = False) -> Shipment:
-    s = db.get(Shipment, sid, with_for_update=lock)
+    s = db.get(Shipment, sid, with_for_update=lock, populate_existing=lock)
     if s is None or s.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Shipment not found")
     if lock:
@@ -87,7 +87,7 @@ def get_shipment(db: Session, p: Principal, sid: uuid.UUID, lock: bool = False) 
 
 
 def get_vendor(db: Session, p: Principal, vid: uuid.UUID, lock: bool = False) -> Vendor:
-    v = db.get(Vendor, vid, with_for_update=lock)
+    v = db.get(Vendor, vid, with_for_update=lock, populate_existing=lock)
     if v is None or v.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Vendor not found")
     return v
@@ -947,7 +947,7 @@ def edit_count(
 ) -> JSONResponse:
     def fn() -> Result:
         s = lock_for(db, request, p, shipment_id, "grn.record", body.version, "OPEN")
-        ln = db.get(GrnLine, line_id, with_for_update=True)
+        ln = db.get(GrnLine, line_id, with_for_update=True, populate_existing=True)
         if ln is None or ln.shipment_id != s.id:
             raise ApiError(404, "NOT_FOUND", "Count line not found")
         if ln.version != body.line_version:

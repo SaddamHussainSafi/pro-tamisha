@@ -32,14 +32,30 @@ def failures(bucket: str, ident: str) -> int:
     return int(v) if v else 0
 
 
-def record_failure(bucket: str, ident: str, window_seconds: int) -> None:
+def attempt(bucket: str, ident: str, window_seconds: int) -> int:
+    """Count this attempt *before* doing the work and return the new total (0 if Redis is
+    down). Counting first means parallel requests can't all slip under the limit together;
+    call `undo` when the attempt turns out fine (a correct password, a known scanner)."""
     try:
         pipe = _client().pipeline()
         pipe.incr(_key(bucket, ident))
         pipe.expire(_key(bucket, ident), window_seconds, nx=True)
-        pipe.execute()
+        n, _ = pipe.execute()
+        return int(n)
     except redis.RedisError as exc:
         log.warning("ratelimit write failed", extra={"ctx": {"error": type(exc).__name__}})
+        return 0
+
+
+# Decrement only while the window's key still exists (never below the window's start).
+_UNDO = "if redis.call('exists', KEYS[1]) == 1 then return redis.call('decr', KEYS[1]) end return 0"
+
+
+def undo(bucket: str, ident: str) -> None:
+    try:
+        _client().eval(_UNDO, 1, _key(bucket, ident))
+    except redis.RedisError as exc:
+        log.warning("ratelimit undo failed", extra={"ctx": {"error": type(exc).__name__}})
 
 
 def clear(bucket: str, ident: str) -> None:

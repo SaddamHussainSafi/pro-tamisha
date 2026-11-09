@@ -95,11 +95,12 @@ def test_ocr_refuses_huge_images_before_decoding(tmp_path: Path):
     assert e.value.code == "TOO_LARGE"
 
 
-def _pdf_with_page(w: int, h: int) -> bytes:
+def _pdf_with_page(w: int, h: int, crop: int | None = None) -> bytes:
+    box = b" /CropBox [0 0 %d %d]" % (crop, crop) if crop else b""
     objs = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] >>" % (w, h),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d]%s >>" % (w, h, box),
     ]
     out, offs = bytearray(b"%PDF-1.4\n"), []
     for i, o in enumerate(objs, start=1):
@@ -197,3 +198,24 @@ def test_negative_line_numbers_are_left_for_a_person(db):
     # before: qty -4 was proposed and, once confirmed, hit the DB check as a "DUPLICATE" 409
     assert line["qty"] is None and line["unit_price"] == Decimal("12.50")
     assert any(w.startswith("LINE_NEGATIVE") for w in got.warnings)
+
+
+@pytest.mark.skipif(not Path("/opt/homebrew/bin/pdfinfo").exists() and not Path(
+    "/usr/bin/pdfinfo").exists(), reason="no poppler")  # fmt: skip
+def test_pdf_guard_cannot_be_dodged():
+    # pdfinfo reports the CropBox but pdftoppm drew the MediaBox: a 100 pt crop over a
+    # 5000 pt page passed the check and then rendered 7639 x 7639 pixels.
+    png, _ = scanning.render_page(_pdf_with_page(5000, 5000, crop=100), "application/pdf", 1)
+    with Image.open(io.BytesIO(png)) as im:
+        assert max(im.size) < 400
+    # pdfinfo prints 1e+06 for huge pages; that line used to be skipped, so nothing was checked
+    with pytest.raises(ApiError) as e:
+        scanning.render_page(_pdf_with_page(1_000_000, 1_000_000), "application/pdf", 1)
+    assert e.value.code == "IMAGE_TOO_LARGE"
+    # pdfinfo can't read it: refuse instead of rendering blind
+    with pytest.raises(ApiError) as e:
+        scanning.render_page(b"%PDF-1.4 not really", "application/pdf", 1)
+    assert e.value.code == "UNREADABLE"
+    with pytest.raises(ocr.ProviderError) as pe:
+        ocr.tesseract_provider(b"%PDF-1.4 not really", "application/pdf")
+    assert pe.value.code == "UNREADABLE"

@@ -38,13 +38,13 @@ def now() -> datetime:
 
 
 def next_shipment_no(db: Session, company_id: uuid.UUID) -> str:
-    db.get(Company, company_id, with_for_update=True)  # serialize numbering
+    db.get(Company, company_id, with_for_update={"key_share": True})  # serialize numbering
     n = db.scalar(select(func.count()).where(Shipment.company_id == company_id)) or 0
     return f"SHP-{now():%Y%m%d}-{n + 1:04d}"
 
 
 def next_grn_no(db: Session, company_id: uuid.UUID) -> str:
-    db.get(Company, company_id, with_for_update=True)
+    db.get(Company, company_id, with_for_update={"key_share": True})
     n = (
         db.scalar(
             select(func.count()).where(

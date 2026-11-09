@@ -76,7 +76,7 @@ def _out(db: Session, e: Employee) -> dict[str, Any]:
 
 
 def _target(db: Session, p: Principal, emp_id: uuid.UUID, lock: bool = False) -> Employee:
-    e = db.get(Employee, emp_id, with_for_update=lock)
+    e = db.get(Employee, emp_id, with_for_update=lock, populate_existing=lock)
     if e is None or e.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "User not found")
     return e
@@ -186,7 +186,7 @@ def patch_staff(
         if body.role_code is not None or body.active is not None:
             # Serialize Owner changes per company. Lock order company -> employee, so two
             # Owners editing each other queue instead of deadlocking.
-            db.get(Company, p.company_id, with_for_update=True)
+            db.get(Company, p.company_id, with_for_update={"key_share": True})
         e = _target(db, p, employee_id, lock=True)
         before = _out(db, e)
         if body.display_name is not None:

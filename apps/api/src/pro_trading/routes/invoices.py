@@ -265,7 +265,7 @@ def resend_email(
         authorize(request, p, "invoice.issue", inv0.warehouse_id)
 
     def fn() -> Result:
-        inv = db.get(Invoice, invoice_id, with_for_update=True)
+        inv = db.get(Invoice, invoice_id, with_for_update=True, populate_existing=True)
         assert inv is not None
         db.refresh(inv)
         svc.resend(db, inv)

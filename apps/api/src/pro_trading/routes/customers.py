@@ -30,7 +30,7 @@ def read_check(request: Request, p: Principal) -> None:
 
 
 def get_customer(db: Session, p: Principal, cid: uuid.UUID, lock: bool = False) -> Customer:
-    c = db.get(Customer, cid, with_for_update=lock)
+    c = db.get(Customer, cid, with_for_update=lock, populate_existing=lock)
     if c is None or c.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Customer not found")
     return c

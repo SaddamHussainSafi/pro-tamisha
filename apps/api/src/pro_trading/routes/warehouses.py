@@ -75,7 +75,7 @@ def update_warehouse(
     if (replay := idempotency.begin(db, scope, key, body.model_dump())) is not None:
         db.commit()
         return JSONResponse(replay[1], replay[0], headers={"Idempotent-Replay": "true"})
-    wh = db.get(Warehouse, warehouse_id, with_for_update=True)
+    wh = db.get(Warehouse, warehouse_id, with_for_update=True, populate_existing=True)
     if wh is None or wh.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Warehouse not found")
     if wh.version != body.version:

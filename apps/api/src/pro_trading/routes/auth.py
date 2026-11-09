@@ -1,5 +1,6 @@
 """Login/logout/session, MFA enrollment & verification, session revocation."""
 
+import ipaddress
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -9,7 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from .. import audit, ratelimit
-from ..config import LOCAL_HOSTS, Settings, get_settings
+from ..config import LOCAL_HOSTS, get_settings
 from ..deps import DbDep, Principal, PrincipalDep, load_grants, require_permission
 from ..errors import ApiError
 from ..models import AuditEvent, AuthSession, Employee
@@ -40,12 +41,18 @@ def _rid(request: Request) -> str | None:
     return getattr(request.state, "request_id", None)
 
 
+def _loopback(host: str) -> bool:
+    """127.0.0.0/8, ::1 and IPv4-mapped loopback (::ffff:127.0.0.1, how Node reports v4)."""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return ip.is_loopback or (mapped is not None and mapped.is_loopback)
+
+
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
-
-
-def _login_failed(request: Request, s: Settings) -> None:
-    ratelimit.record_failure("login_ip", _client_ip(request), s.login_ip_window_minutes * 60)
 
 
 def _session_out(p: Principal) -> SessionOut:
@@ -65,13 +72,17 @@ def _session_out(p: Principal) -> SessionOut:
 def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> LoginOut:
     s = get_settings()
     now = datetime.now(UTC)
-    if ratelimit.failures("login_ip", _client_ip(request)) >= s.login_ip_max_failures:
-        audit.record_independent(
-            action="auth.login",
-            success=False,
-            request_id=_rid(request),
-            detail={"reason": "ip_throttled"},
-        )
+    ip = _client_ip(request)
+    # Counted as a failure up front; a successful sign-in takes it back (see below).
+    tries = ratelimit.attempt("login_ip", ip, s.login_ip_window_minutes * 60)
+    if tries > s.login_ip_max_failures:
+        if tries == s.login_ip_max_failures + 1:  # audit once per window, not per request
+            audit.record_independent(
+                action="auth.login",
+                success=False,
+                request_id=_rid(request),
+                detail={"reason": "ip_throttled"},
+            )
         raise ApiError(
             429, "TOO_MANY_ATTEMPTS", "Too many failed sign-ins. Wait a few minutes and try again."
         )
@@ -80,7 +91,6 @@ def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> Log
     )
     if emp is None:
         verify_password(None, body.password)  # equalize timing
-        _login_failed(request, s)
         audit.record_independent(
             action="auth.login",
             success=False,
@@ -95,7 +105,6 @@ def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> Log
     }
     if emp.locked_until and emp.locked_until > now:
         db.rollback()
-        _login_failed(request, s)
         audit.record_independent(
             action="auth.login", success=False, detail={"reason": "locked"}, **base
         )
@@ -109,10 +118,10 @@ def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> Log
             reason = "locked_now"
         audit.record(db, action="auth.login", success=False, detail={"reason": reason}, **base)
         db.commit()
-        _login_failed(request, s)
         raise BAD_LOGIN
 
     emp.failed_login_count, emp.locked_until = 0, None
+    ratelimit.undo("login_ip", ip)
     return _start_session(db, emp, request, response, action="auth.login", base=base)
 
 
@@ -125,11 +134,13 @@ def dev_login(request: Request, response: Response, db: DbDep) -> LoginOut:
     localhost Host header (so a LAN client or a DNS-rebinding page cannot use it)."""
     s = get_settings()
     client = request.client.host if request.client else ""
+    forwarded = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h]
     if (
         not s.dev_auto_login_email
         or s.is_production_like
         or not s.frontend_is_local
-        or client not in LOCAL_HOSTS
+        or not _loopback(client)
+        or not all(_loopback(h) for h in forwarded)  # a proxy passing a remote client on
         or request.url.hostname not in LOCAL_HOSTS
     ):
         raise ApiError(404, "NOT_FOUND", "Not found")
@@ -249,7 +260,7 @@ def mfa_enroll(request: Request, p: PrincipalDep, db: DbDep) -> MfaEnrollOut:
 
 @router.post("/mfa/verify", response_model=SessionOut)
 def mfa_verify(body: MfaVerifyIn, request: Request, p: PrincipalDep, db: DbDep) -> SessionOut:
-    emp = db.get(Employee, p.employee.id, with_for_update=True)
+    emp = db.get(Employee, p.employee.id, with_for_update=True, populate_existing=True)
     assert emp is not None
     base: dict[str, Any] = {
         "company_id": p.company_id,

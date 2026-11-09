@@ -158,7 +158,7 @@ def job_out(db: Session, j: ScanJob) -> dict[str, Any]:
 
 
 def get_device(db: Session, request: Request, p: Principal, did: uuid.UUID) -> ScanDevice:
-    d = db.get(ScanDevice, did, with_for_update=True)
+    d = db.get(ScanDevice, did, with_for_update=True, populate_existing=True)
     if d is None or d.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Scanner not found")
     authorize(request, p, "scan.device.manage", d.warehouse_id)
@@ -195,7 +195,11 @@ RawBody = Annotated[bytes, Depends(raw_body)]
 
 
 def _bridge_device(request: Request, db: DbDep) -> ScanDevice:
-    return svc.device_auth(db, request)
+    d = svc.device_auth(db, request)
+    # End the read transaction: the upload that follows can take minutes at the client's pace,
+    # and must not hold a pooled connection idle in a transaction meanwhile.
+    db.commit()
+    return d
 
 
 BridgeDevice = Annotated[ScanDevice, Depends(_bridge_device)]
@@ -478,7 +482,7 @@ def cancel_job(
     def fn() -> Result:
         j = get_job(db, request, p, job_id)
         authorize(request, p, "scan.create", j.warehouse_id)
-        j = db.get(ScanJob, job_id, with_for_update=True) or j
+        j = db.get(ScanJob, job_id, with_for_update=True, populate_existing=True) or j
         _check_version(j.version, body.version)
         if j.status not in ("REQUESTED", "SCANNING"):
             raise ApiError(
@@ -736,7 +740,7 @@ def bridge_heartbeat(body: BridgeHeartbeatIn, request: Request, db: DbDep) -> di
 
 
 def _bridge_job(db: Session, d: ScanDevice, job_id: uuid.UUID) -> ScanJob:
-    j = db.get(ScanJob, job_id, with_for_update=True)
+    j = db.get(ScanJob, job_id, with_for_update=True, populate_existing=True)
     if j is None or j.device_id != d.id or j.company_id != d.company_id:
         raise ApiError(404, "NOT_FOUND", "Scan not found")
     return j

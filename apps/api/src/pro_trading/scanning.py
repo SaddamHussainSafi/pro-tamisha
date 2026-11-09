@@ -150,7 +150,7 @@ def store_document(
 
 
 def next_job_no(db: Session, company_id: uuid.UUID) -> str:
-    db.get(Company, company_id, with_for_update=True)  # serialize numbering
+    db.get(Company, company_id, with_for_update={"key_share": True})  # serialize numbering
     n = db.scalar(select(func.count()).where(ScanJob.company_id == company_id)) or 0
     return f"SCN-{now():%Y%m%d}-{n + 1:04d}"
 
@@ -296,14 +296,18 @@ def device_auth(
     log or guess secrets."""
     s = get_settings()
     ip = request.client.host if request.client else "unknown"
-    if ratelimit.failures("bridge_ip", ip) >= s.login_ip_max_failures:
+    if ratelimit.attempt("bridge_ip", ip, s.login_ip_window_minutes * 60) > s.login_ip_max_failures:
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "Too many failed scanner sign-ins; wait a while")
     try:
-        return _device_auth(db, request, allow_pending=allow_pending, lock=lock)
+        d = _device_auth(db, request, allow_pending=allow_pending, lock=lock)
     except ApiError as e:
-        if e.status == 401:
-            ratelimit.record_failure("bridge_ip", ip, s.login_ip_window_minutes * 60)
+        # Only guesses count: a revoked or not-yet-approved scanner proved its secret (it keeps
+        # heartbeating and must not lock out the other scanners behind the same address).
+        if e.code != "DEVICE_AUTH_FAILED":
+            ratelimit.undo("bridge_ip", ip)
         raise
+    ratelimit.undo("bridge_ip", ip)
+    return d
 
 
 def _device_auth(db: Session, request: Request, *, allow_pending: bool, lock: bool) -> ScanDevice:
@@ -318,7 +322,7 @@ def _device_auth(db: Session, request: Request, *, allow_pending: bool, lock: bo
     except ValueError:
         _security_event(request, "scan.bridge.auth_failed", {"reason": "malformed"})
         raise fail from None
-    d = db.get(ScanDevice, dev_id, with_for_update=lock)
+    d = db.get(ScanDevice, dev_id, with_for_update=lock, populate_existing=lock)
     ok = (
         d is not None
         and d.secret_hash is not None
@@ -364,21 +368,49 @@ def image_too_large(width: float, height: float) -> bool:
 
 
 def pdf_info(src: Any, first: int, last: int) -> tuple[int, list[tuple[float, float]]]:
-    """(page count, [(width, height) in points] of pages first..last) from poppler's pdfinfo."""
+    """(page count, [(width, height) in points] of pages first..min(last, count)) from
+    poppler's pdfinfo. (0, []) when pdfinfo fails, times out or is missing: callers must then
+    refuse the file. Sizes are the CropBox; renderers run with -cropbox so they draw exactly
+    that."""
+    count = _pdfinfo_pages(src)
+    if count == 0 or first > count:
+        return count, []
+    out = _pdfinfo(src, "-f", str(first), "-l", str(min(last, count)))
+    if out is None:
+        return 0, []
+    # pdfinfo prints big sizes in exponent form ("1e+06"), so accept that too
+    sizes = re.findall(rb"Page\s+\d+\s+size:\s+([\d.eE+]+) x ([\d.eE+]+)", out)
+    try:
+        return count, [(float(w), float(h)) for w, h in sizes]
+    except ValueError:
+        return 0, []
+
+
+def _pdfinfo_pages(src: Any) -> int:
+    out = _pdfinfo(src)
+    m = re.search(rb"Pages:\s+(\d+)", out or b"")
+    return int(m.group(1)) if m else 0
+
+
+def _pdfinfo(src: Any, *args: str) -> bytes | None:
     import subprocess
 
-    r = subprocess.run(  # noqa: S603 - fixed poppler tool, list args
-        ["pdfinfo", "-f", str(first), "-l", str(last), str(src)],  # noqa: S607
-        capture_output=True,
-        timeout=30,
-        check=False,
-    )
-    m = re.search(rb"Pages:\s+(\d+)", r.stdout)
-    sizes = re.findall(rb"Page\s+\d+\s+size:\s+([\d.]+) x ([\d.]+)", r.stdout)
-    return (int(m.group(1)) if m else 1), [(float(w), float(h)) for w, h in sizes]
+    try:
+        r = subprocess.run(  # noqa: S603 - fixed poppler tool, list args
+            ["pdfinfo", *args, str(src)],  # noqa: S607
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout if r.returncode == 0 else None
 
 
-def pdf_page_too_large(sizes: list[tuple[float, float]], dpi: int) -> bool:
+def pdf_page_too_large(sizes: list[tuple[float, float]], dpi: int, expected: int) -> bool:
+    """True when any page is too large, or when not every expected page size could be read."""
+    if len(sizes) != expected:
+        return True
     return any(image_too_large(w / 72 * dpi, h / 72 * dpi) for w, h in sizes)
 
 
@@ -407,12 +439,14 @@ def render_page(content: bytes, mime: str, page: int) -> tuple[bytes, int]:
         src = Path(tmp) / "d.pdf"
         src.write_bytes(content)
         count, sizes = pdf_info(src, page, page)
+        if count == 0:
+            raise ApiError(422, "UNREADABLE", "The PDF could not be opened")
         if page > count:
             raise ApiError(404, "NOT_FOUND", "No such page")
-        if pdf_page_too_large(sizes, 110):
+        if pdf_page_too_large(sizes, 110, 1):
             raise ApiError(422, "IMAGE_TOO_LARGE", "This page is too large to show")
         subprocess.run(  # noqa: S603
-            ["pdftoppm", "-f", str(page), "-l", str(page), "-r", "110", "-png",  # noqa: S607
+            ["pdftoppm", "-cropbox", "-f", str(page), "-l", str(page), "-r", "110", "-png",  # noqa: S607
              "-singlefile", str(src), str(Path(tmp) / "p")],
             capture_output=True, timeout=60, check=False,
         )  # fmt: skip

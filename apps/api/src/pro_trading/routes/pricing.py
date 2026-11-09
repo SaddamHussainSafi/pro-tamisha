@@ -68,7 +68,7 @@ def _now() -> datetime:
 
 
 def _version(db: Session, p: Principal, vid: uuid.UUID, lock: bool = False) -> PriceBookVersion:
-    v = db.get(PriceBookVersion, vid, with_for_update=lock)
+    v = db.get(PriceBookVersion, vid, with_for_update=lock, populate_existing=lock)
     if v is None or v.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Price book version not found")
     return v
@@ -349,7 +349,7 @@ def activate(
 
     def fn() -> tuple[dict[str, Any], str, dict[str, Any]]:
         # serialise activations per company so effective timestamps/NO_CHANGES checks are stable
-        db.get(Company, p.company_id, with_for_update=True)
+        db.get(Company, p.company_id, with_for_update={"key_share": True})
         v = _version(db, p, version_id, lock=True)
         _check(v, body.version)
         now = _now()

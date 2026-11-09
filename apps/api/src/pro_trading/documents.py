@@ -481,7 +481,12 @@ def run_sync(db: Session, f: DocumentFile, attempt: int, final_attempt: int) -> 
 def handle_sync(ev: OutboxEvent) -> None:
     db = object_session(ev)
     assert db is not None
-    f = db.get(DocumentFile, uuid.UUID(ev.payload["document_file_id"]), with_for_update=True)
+    f = db.get(
+        DocumentFile,
+        uuid.UUID(ev.payload["document_file_id"]),
+        with_for_update=True,
+        populate_existing=True,
+    )
     if f is None:
         raise LookupError("document file not found")
     run_sync(db, f, ev.attempts, outbox.MAX_ATTEMPTS)

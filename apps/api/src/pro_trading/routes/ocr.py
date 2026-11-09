@@ -186,7 +186,7 @@ def field_out(db: Session, f: OcrField) -> dict[str, Any]:
 def get_extraction(
     db: Session, request: Request, p: Principal, eid: uuid.UUID, lock: bool = False
 ) -> OcrExtraction:
-    ex = db.get(OcrExtraction, eid, with_for_update=lock)
+    ex = db.get(OcrExtraction, eid, with_for_update=lock, populate_existing=lock)
     if ex is None or ex.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Extraction not found")
     authorize(request, p, PERM, ex.warehouse_id)
@@ -362,7 +362,7 @@ def queue_extraction(
     authorize(request, p, PERM, job.warehouse_id)
 
     def fn() -> Result:
-        j = db.get(ScanJob, body.scan_job_id, with_for_update=True)
+        j = db.get(ScanJob, body.scan_job_id, with_for_update=True, populate_existing=True)
         assert j is not None
         ex = ocr.queue(db, j, p.employee.id)
         return extraction_out(db, ex, True), str(ex.id), {"scan_job": j.job_no, "run": ex.run_no}
@@ -388,7 +388,7 @@ def resolve_field(
     def fn() -> Result:
         ex = get_extraction(db, request, p, extraction_id, lock=True)
         _reviewable(ex, body.version)
-        f = db.get(OcrField, field_id, with_for_update=True)
+        f = db.get(OcrField, field_id, with_for_update=True, populate_existing=True)
         if f is None or f.extraction_id != ex.id:
             raise ApiError(404, "NOT_FOUND", "Line not found")
         before = _final(f)
@@ -680,7 +680,7 @@ def to_receiving(
             raise ApiError(422, "INVALID_VENDOR", "Supplier not found")
         doc_no = (body.document_no or "").strip() or None
         if body.shipment_id is not None:
-            s = db.get(Shipment, body.shipment_id, with_for_update=True)
+            s = db.get(Shipment, body.shipment_id, with_for_update=True, populate_existing=True)
             if s is None or s.company_id != p.company_id or s.vendor_id != v.id:
                 raise ApiError(422, "INVALID_SHIPMENT", "That shipment is not from this supplier")
             # grn.record was checked for the scan's warehouse only: never write into another

@@ -56,7 +56,7 @@ def readable(db: Session, p: Principal) -> set[uuid.UUID]:
 
 
 def get_order(db: Session, p: Principal, oid: uuid.UUID, lock: bool = False) -> SalesOrder:
-    o = db.get(SalesOrder, oid, with_for_update=lock)
+    o = db.get(SalesOrder, oid, with_for_update=lock, populate_existing=lock)
     if o is None or o.company_id != p.company_id:
         raise ApiError(404, "NOT_FOUND", "Order not found")
     if lock:
@@ -211,7 +211,7 @@ def insert_order(
     wh = warehouse(db, p, body.warehouse_id)
     svc.get_customer(db, p.company_id, body.customer_id)
     prods = svc.validate_lines(db, p.company_id, body.lines)
-    db.get(Company, p.company_id, with_for_update=True)  # serialize numbering
+    db.get(Company, p.company_id, with_for_update={"key_share": True})  # serialize numbering
     n = db.scalar(select(func.count()).where(SalesOrder.company_id == p.company_id)) or 0
     o = SalesOrder(
         company_id=p.company_id,
@@ -571,7 +571,7 @@ def _locked(db: Session, p: Principal, pick_id: uuid.UUID) -> tuple[SalesOrder, 
     """Lock order then attempt (same order everywhere -> no deadlocks)."""
     a0 = get_attempt(db, p, pick_id)
     o = get_order(db, p, a0.order_id, lock=True)
-    a = db.get(PickingAttempt, pick_id, with_for_update=True)
+    a = db.get(PickingAttempt, pick_id, with_for_update=True, populate_existing=True)
     assert a is not None
     db.refresh(a)
     return o, a

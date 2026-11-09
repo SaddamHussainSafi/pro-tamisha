@@ -294,10 +294,12 @@ def tesseract_provider(content: bytes, mime: str) -> OcrResult:
             src = Path(tmp) / "in.pdf"
             src.write_bytes(content)
             last = scanning.MAX_OCR_PAGES  # later pages are not read
-            _, sizes = scanning.pdf_info(src, 1, last)
-            if scanning.pdf_page_too_large(sizes, 300):
+            count, sizes = scanning.pdf_info(src, 1, last)
+            if count == 0:
+                raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
+            if scanning.pdf_page_too_large(sizes, 300, min(count, last)):
                 raise ProviderError("TOO_LARGE", "A page is too large to read", False)
-            args = ["pdftoppm", "-l", str(last), "-r", "300", "-gray", "-png"]
+            args = ["pdftoppm", "-cropbox", "-l", str(last), "-r", "300", "-gray", "-png"]
             r = _run([*args, str(src), str(Path(tmp) / "p")], t)
             if r.returncode != 0:
                 raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
@@ -731,7 +733,12 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
 def handle_extract(ev: OutboxEvent) -> None:
     db = object_session(ev)
     assert db is not None
-    ex = db.get(OcrExtraction, uuid.UUID(ev.payload["extraction_id"]), with_for_update=True)
+    ex = db.get(
+        OcrExtraction,
+        uuid.UUID(ev.payload["extraction_id"]),
+        with_for_update=True,
+        populate_existing=True,
+    )
     if ex is None:
         raise LookupError("extraction not found")
     run_extraction(db, ex, ev.attempts, outbox.MAX_ATTEMPTS)

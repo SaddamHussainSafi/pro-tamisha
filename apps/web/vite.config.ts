@@ -9,7 +9,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    proxy: { "/api": api, "/health": api },
+    // xfwd: the API sees the browser's real address (X-Forwarded-For; uvicorn trusts it from
+    // 127.0.0.1), so dev sign-in and per-IP limits still work if Vite is opened to the LAN.
+    proxy: {
+      "/api": { target: api, changeOrigin: true, xfwd: true },
+      "/health": { target: api, changeOrigin: true, xfwd: true },
+    },
   },
   test: { include: ["src/**/*.test.ts"] },
 });

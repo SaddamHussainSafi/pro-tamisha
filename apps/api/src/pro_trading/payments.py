@@ -70,7 +70,9 @@ def reminder_offsets() -> list[int]:
 
 
 def next_payment_no(db: Session, company_id: uuid.UUID, year: int) -> str:
-    db.get(Company, company_id, with_for_update=True)  # serialize numbering per company
+    db.get(
+        Company, company_id, with_for_update={"key_share": True}
+    )  # serialize numbering per company
     n = db.scalar(select(func.count()).where(Payment.company_id == company_id)) or 0
     return f"PAY-{year}-{n + 1:06d}"
 

@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlsplit
 
+from cryptography.fernet import Fernet
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -86,6 +87,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _no_dev_login_in_production(self) -> "Settings":
+        if self.app_env == "development" and not self.frontend_is_local:
+            # A deployed server that forgot APP_ENV would otherwise skip every production check.
+            raise ValueError(
+                "APP_ENV is development but FRONTEND_ORIGIN is not localhost: set APP_ENV to "
+                "staging or production on a deployed server"
+            )
         if self.dev_auto_login_email and (self.is_production_like or not self.frontend_is_local):
             raise ValueError(
                 "DEV_AUTO_LOGIN_EMAIL only works in development with a localhost FRONTEND_ORIGIN"
@@ -101,6 +108,11 @@ class Settings(BaseSettings):
         problems = []
         if self.mfa_encryption_key == DEV_MFA_KEY:
             problems.append("MFA_ENCRYPTION_KEY is the dev placeholder")
+        else:
+            try:
+                Fernet(self.mfa_encryption_key)
+            except ValueError:
+                problems.append("MFA_ENCRYPTION_KEY is not a valid Fernet key")
         if self.scan_capability_key == DEV_SCAN_KEY or len(self.scan_capability_key) < 32:
             problems.append("SCAN_CAPABILITY_KEY is the dev placeholder or shorter than 32 chars")
         if not self.cookie_secure:

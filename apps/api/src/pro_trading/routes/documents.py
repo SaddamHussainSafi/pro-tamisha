@@ -146,7 +146,7 @@ def retry_sync(
     authorize(request, p, "document.manage", f0.warehouse_id)
 
     def fn() -> Result:
-        f = db.get(DocumentFile, document_file_id, with_for_update=True)
+        f = db.get(DocumentFile, document_file_id, with_for_update=True, populate_existing=True)
         assert f is not None
         db.refresh(f)
         check_version(f.version, body.version, "This document")
@@ -201,7 +201,7 @@ def upload_pod(
     state: dict[str, bool] = {}
 
     def fn() -> Result:
-        inv = db.get(Invoice, invoice_id, with_for_update=True)
+        inv = db.get(Invoice, invoice_id, with_for_update=True, populate_existing=True)
         assert inv is not None
         name = scanning.safe_filename(filename, mime)
         doc, _ = scanning.store_document(

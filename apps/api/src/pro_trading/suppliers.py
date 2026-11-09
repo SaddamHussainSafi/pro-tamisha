@@ -37,7 +37,9 @@ UNIT_ORDER = {"BOX": 0, "PIECE": 1, "LB": 2, "KG": 3}
 
 
 def next_no(db: Session, company_id: uuid.UUID, year: int) -> str:
-    db.get(Company, company_id, with_for_update=True)  # serialize numbering per company
+    db.get(
+        Company, company_id, with_for_update={"key_share": True}
+    )  # serialize numbering per company
     n = db.scalar(select(func.count()).where(SupplierPayment.company_id == company_id)) or 0
     return f"SPAY-{year}-{n + 1:06d}"
 

@@ -5,10 +5,11 @@ import threading
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import select, text, update
@@ -277,7 +278,7 @@ def _waiting_on_company_lock() -> int:
             db.scalar(
                 text(
                     "select count(*) from pg_stat_activity where datname = current_database()"
-                    " and wait_event_type = 'Lock' and query ilike '%FROM companies%FOR UPDATE%'"
+                    " and wait_event_type = 'Lock' and query ilike '%FROM companies%FOR %UPDATE%'"
                 )
             )
             or 0
@@ -289,7 +290,9 @@ def race(company_id: uuid.UUID, calls: list[Any], waiting: int | None = None) ->
     given number does), release, and return the responses in call order."""
     results: list[Any] = [None] * len(calls)
     with get_sessionmaker()() as holder:
-        holder.execute(select(Company).where(Company.id == company_id).with_for_update())
+        holder.execute(
+            select(Company).where(Company.id == company_id).with_for_update(key_share=True)
+        )
 
         def run(i: int, fn: Any) -> None:
             results[i] = fn()
@@ -456,3 +459,156 @@ def test_caller_request_ids_are_cleaned_before_echoing(api):
     assert rid.startswith("abcscript") and len(rid) == 64
     r = api.c.get(f"{P}/auth/session", headers={"X-Request-Id": '"}{'})
     assert r.json()["error"]["request_id"] != '"}{'  # nothing usable left: a fresh uuid
+
+
+def test_password_guess_counter_is_read_under_the_lock(api, world, monkeypatch):
+    # Parallel wrong guesses each read the counter from the copy loaded before the row lock,
+    # so they all wrote the same value and a stolen session got many more guesses.
+    from pro_trading.routes import employees as routes_emp
+
+    real = routes_emp.get_settings
+
+    def racing():  # 4 failures commit after this request loaded the employee
+        with get_sessionmaker()() as other, other.begin():
+            other.execute(
+                update(Employee)
+                .where(Employee.id == world.ids["sales"])
+                .values(failed_login_count=4)
+            )
+        return real()
+
+    api.login(world.emails["sales"])
+    monkeypatch.setattr(routes_emp, "get_settings", racing)
+    r = api.post(
+        f"{P}/auth/password",
+        json={"current_password": "Wrong-guess-123!", "new_password": "Whatever-pass-9!"},
+    )
+    assert r.status_code == 422
+    with get_sessionmaker()() as db:
+        emp = db.get(Employee, world.ids["sales"])
+        assert emp is not None and emp.locked_until is not None  # 4 + 1 reached the limit
+
+
+def test_throttle_counts_attempts_in_flight_and_returns_successes(from_ip, world, monkeypatch):
+    monkeypatch.setattr(get_settings(), "login_ip_max_failures", 3)
+    ip, c = from_ip
+    good = {"email": world.emails["sales"], "password": PASSWORD}
+    for _ in range(5):  # successful sign-ins never use up the allowance
+        assert c.post(f"{P}/auth/login", json=good).status_code == 200
+    assert ratelimit.failures("login_ip", ip) == 0
+    # three guesses still running in parallel (counted before their password check finished):
+    # a fourth request is refused instead of slipping in beside them
+    for _ in range(3):
+        ratelimit.attempt("login_ip", ip, 900)
+    r = c.post(f"{P}/auth/login", json=good)
+    assert r.status_code == 429 and code(r) == "TOO_MANY_ATTEMPTS"
+
+
+def test_revoked_scanners_do_not_use_up_the_scanner_limit(from_ip, monkeypatch):
+    from pro_trading import scanning
+    from pro_trading.errors import ApiError
+
+    monkeypatch.setattr(get_settings(), "login_ip_max_failures", 2)
+
+    def revoked(*_a, **_k):
+        raise ApiError(401, "DEVICE_REVOKED", "Scanner bridge was revoked")
+
+    monkeypatch.setattr(scanning, "_device_auth", revoked)
+    ip, c = from_ip
+    url = f"{P}/scan-bridge/jobs/{uuid.uuid4()}/upload"
+    h = {"Authorization": f"Device {uuid.uuid4()}.secret", "Content-Type": "application/pdf"}
+    for _ in range(5):  # a revoked bridge keeps heartbeating; other scanners must keep working
+        r = c.post(url, content=b"%PDF-1.4", headers=h)
+        assert r.status_code == 401 and code(r) == "DEVICE_REVOKED"
+    assert ratelimit.failures("bridge_ip", ip) == 0
+
+
+def test_company_locks_do_not_block_rows_that_reference_the_company(world):
+    # FOR UPDATE on the company row conflicted with the key-share lock every insert of a row
+    # pointing at the company takes (audit events, orders...), so e.g. a sign-in holding an
+    # employee row and patch_staff holding the company row deadlocked into a 500.
+    from pro_trading import audit, suppliers
+
+    with get_sessionmaker()() as a:
+        suppliers.next_no(a, world.company_id, 2026)  # holds the numbering lock
+        with get_sessionmaker()() as b:
+            b.execute(text("SET LOCAL lock_timeout = '2s'"))
+            audit.record(b, action="test.fk_insert", success=True, company_id=world.company_id)
+            b.commit()  # used to wait on the company lock and time out
+        a.rollback()
+
+
+def test_no_full_row_locks_on_the_company_table():
+    import pathlib
+    import re as _re
+
+    src = pathlib.Path(__file__).parents[1] / "src" / "pro_trading"
+    bad = [
+        f"{p.name}:{i}"
+        for p in src.rglob("*.py")
+        for i, line in enumerate(p.read_text().splitlines(), start=1)
+        if _re.search(r"get\(Company,[^)]*with_for_update=True", line)
+    ]
+    assert bad == [], "use with_for_update={'key_share': True} (FOR NO KEY UPDATE): " + str(bad)
+
+
+def test_a_deployed_server_cannot_run_as_development():
+    # APP_ENV defaults to development; on a real server that silently skipped every
+    # production check (dev keys, insecure cookies...).
+    with pytest.raises(ValidationError, match="APP_ENV"):
+        Settings(app_env="development", frontend_origin="https://erp.example.test")
+
+
+def test_production_needs_a_valid_mfa_key():
+    with pytest.raises(ValidationError, match="Fernet"):
+        _prod(mfa_encryption_key="")  # .env.example ships it empty: failed only at first MFA use
+
+
+def test_500s_carry_the_request_id_and_headers():
+    app = create_app()
+    boom = APIRouter()
+
+    @boom.get("/api/v1/_boom2")
+    def _boom() -> None:
+        raise RuntimeError("x")
+
+    app.include_router(boom)
+    r = TestClient(app, raise_server_exceptions=False).get(
+        "/api/v1/_boom2", headers={"X-Request-Id": "trace-123"}
+    )
+    assert r.status_code == 500 and r.headers["x-request-id"] == "trace-123"
+    assert r.headers["x-frame-options"] == "SAMEORIGIN" and r.headers["cache-control"] == "no-store"
+
+
+def test_dev_api_docs_are_not_blanked_by_the_csp(api):
+    r = api.get("/docs")
+    assert r.status_code == 200 and "content-security-policy" not in r.headers
+    assert "default-src 'none'" in api.get("/health/live").headers["content-security-policy"]
+
+
+def test_scanner_upload_holds_no_transaction_while_reading(app, monkeypatch):
+    from pro_trading import scanning
+    from pro_trading.db import get_db
+    from pro_trading.routes import scans
+
+    seen = []
+
+    def fake_auth(db, request, **_k):
+        db.execute(text("select 1"))  # the real lookup opens a transaction like this
+        return SimpleNamespace(company_id=uuid.uuid4(), id=uuid.uuid4())
+
+    def body_reader(db=Depends(get_db)):  # noqa: B008 - same per-request session
+        seen.append(db.in_transaction())
+        raise scans.ApiError(499, "STOP", "stop here")
+
+    monkeypatch.setattr(scanning, "device_auth", fake_auth)
+    app.dependency_overrides[scans.raw_body] = body_reader
+    try:
+        TestClient(app).post(
+            f"{P}/scan-bridge/jobs/{uuid.uuid4()}/upload",
+            content=b"%PDF-1.4",
+            headers={"Authorization": "Device x.y", "Content-Type": "application/pdf"},
+        )
+    finally:
+        app.dependency_overrides.pop(scans.raw_body, None)
+    assert seen == [False]  # the device lookup's transaction ended before the body is read
