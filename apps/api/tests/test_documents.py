@@ -37,8 +37,8 @@ def _sync():
 
 
 def _invoice(owner, sales, wh, world, setup, qty="1"):
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", qty)])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", qty)])
     pk = picked(sales, wh, o, [(0, qty, None)], verifier=owner)
     r = issue(owner, pk)
     assert r.status_code == 201, r.text

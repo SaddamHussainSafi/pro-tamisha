@@ -53,9 +53,9 @@ def user(make_api, world):
 def setup(owner):
     prods = {}
     for sku, name, unit, profiles, aliases in [
-        ("CAS-01", "Cassava", "BOX", [("CASE40", "BOX", "40")], []),
-        ("PLN-01", "Plantain", "PIECE", [("PC", "PIECE", None)], []),
-        ("YAM-01", "Yellow yam", "LB", [], [{"alias": "white yam", "source_label": "sheet"}]),
+        ("CAS", "Cassava", "BOX", [("CASE40", "BOX", "40")], []),
+        ("PLN", "Plantain", "PIECE", [("PC", "PIECE", None)], []),
+        ("YAM", "Yellow yam", "LB", [], [{"alias": "white yam", "source_label": "sheet"}]),
     ]:
         body = {
             "sku": sku,
@@ -149,7 +149,7 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
     job = upload(
         sales,
         world,
-        sheet(world, {"CAS-01": "15", "PLN-01": "20?"}, ["white yam 12.5 LB", "mango 3"]),
+        sheet(world, {"CAS": "15", "PLN": "20?"}, ["white yam 12.5 LB", "mango 3"]),
     )
     assert drain(world) == 1
     ex = only(sales)
@@ -158,13 +158,13 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
     by = {f["raw_text"]: f for f in ex["fields"]}
     cas, pln, yam, mango = by["15"], by["20"], by["white yam 12.5 LB"], by["mango 3"]
     assert (cas["read_sku"], cas["read_unit_code"], cas["read_qty"], cas["status"]) == (
-        "CAS-01",
+        "CAS",
         "BOX",
         "15.0000",
         "OK",
     )
     assert pln["status"] == "LOW_CONFIDENCE" and pln["confidence"] == "0.620"
-    assert (yam["read_sku"], yam["read_qty"], yam["status"]) == ("YAM-01", "12.5000", "OK")
+    assert (yam["read_sku"], yam["read_qty"], yam["status"]) == ("YAM", "12.5000", "OK")
     assert mango["status"] == "UNMAPPED" and mango["read_product_id"] is None
     assert ex["open_count"] == 4
 
@@ -177,12 +177,12 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
     assert r.status_code == 422 and code(r) == "NEEDS_CORRECTION"
     # correcting a clear reading needs a reason
     r = resolve(
-        sales, ex, cas, "CORRECT", product_id=setup["p"]["CAS-01"], unit_code="BOX", qty="16"
+        sales, ex, cas, "CORRECT", product_id=setup["p"]["CAS"], unit_code="BOX", qty="16"
     )
     assert r.status_code == 422 and code(r) == "REASON_REQUIRED"
     # whole units only
     r = resolve(
-        sales, ex, pln, "CORRECT", product_id=setup["p"]["PLN-01"], unit_code="PIECE", qty="2.5"
+        sales, ex, pln, "CORRECT", product_id=setup["p"]["PLN"], unit_code="PIECE", qty="2.5"
     )
     assert r.status_code == 422 and code(r) == "UNIT_NOT_DIVISIBLE"
 
@@ -190,7 +190,7 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
     stale = {**ex, "version": ex["version"] - 1}
     assert code(resolve(sales, stale, yam, "CONFIRM")) == "VERSION_CONFLICT"
     ex = resolve(
-        sales, ex, pln, "CORRECT", product_id=setup["p"]["PLN-01"], unit_code="PIECE", qty="20"
+        sales, ex, pln, "CORRECT", product_id=setup["p"]["PLN"], unit_code="PIECE", qty="20"
     ).json()
     ex = resolve(sales, ex, yam, "CONFIRM").json()
     ex = resolve(sales, ex, mango, "REMOVE").json()
@@ -206,9 +206,9 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
     assert so["status"] == "DRAFT" and so["source"] == "SCAN"
     got = sorted((ln["sku"], ln["unit_code"], ln["ordered_qty"]) for ln in so["lines"])
     assert got == [
-        ("CAS-01", "BOX", "15.0000"),
-        ("PLN-01", "PIECE", "20.0000"),
-        ("YAM-01", "LB", "12.5000"),
+        ("CAS", "BOX", "15.0000"),
+        ("PLN", "PIECE", "20.0000"),
+        ("YAM", "LB", "12.5000"),
     ]
     # OCR never invoices, reserves or moves stock
     assert counts(world) == before
@@ -225,7 +225,7 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
 
 def test_db_keeps_reading_and_history_immutable(user, world, setup):
     sales = user("sales")
-    upload(sales, world, sheet(world, {"CAS-01": "4"}))
+    upload(sales, world, sheet(world, {"CAS": "4"}))
     drain(world)
     ex = only(sales)
     f = ex["fields"][0]
@@ -250,7 +250,7 @@ def test_image_without_text_and_missed_lines(user, world, setup):
     assert ex["warnings"] == ["NO_TEXT"] and ex["fields"] == []
     body = {
         "version": ex["version"],
-        "product_id": setup["p"]["CAS-01"],
+        "product_id": setup["p"]["CAS"],
         "unit_code": "BOX",
         "qty": "3",
         "reason": "Photo too dark; read by eye",
@@ -269,7 +269,7 @@ def test_image_without_text_and_missed_lines(user, world, setup):
 
 def test_accuracy_counts_confirmed_lines(user, world, setup):
     sales = user("sales")
-    upload(sales, world, sheet(world, {"CAS-01": "2", "PLN-01": "6", "YAM-01": "10?"}))
+    upload(sales, world, sheet(world, {"CAS": "2", "PLN": "6", "YAM": "10?"}))
     drain(world)
     ex = only(sales)
     for f in ex["fields"]:
@@ -290,7 +290,7 @@ def test_accuracy_counts_confirmed_lines(user, world, setup):
 
 def test_reject_and_reread(user, world, setup):
     sales = user("sales")
-    job = upload(sales, world, sheet(world, {"CAS-01": "1"}))
+    job = upload(sales, world, sheet(world, {"CAS": "1"}))
     drain(world)
     ex = only(sales)
     # re-reading supersedes the unfinished run
@@ -319,7 +319,7 @@ def test_provider_outage_retries_then_fails(user, world, setup, monkeypatch):
 
     monkeypatch.setattr(ocr, "provider", lambda: down)
     sales = user("sales")
-    job = upload(sales, world, sheet(world, {"CAS-01": "1"}))
+    job = upload(sales, world, sheet(world, {"CAS": "1"}))
     drain(world, final=3)
     assert only(sales, "QUEUED")["run_no"] == 1  # transient: still queued, will retry
     drain(world, final=3)
@@ -338,7 +338,7 @@ def test_provider_outage_retries_then_fails(user, world, setup, monkeypatch):
 def test_disabled_engine_means_manual_review(user, world, setup, monkeypatch):
     monkeypatch.setattr(get_settings(), "ocr_provider", "disabled")
     sales = user("sales")
-    job = upload(sales, world, sheet(world, {"CAS-01": "1"}))
+    job = upload(sales, world, sheet(world, {"CAS": "1"}))
     assert sales.get(f"{P}/ocr/extractions").json()["total"] == 0  # not auto-read
     r = sales.post(f"{P}/ocr/extractions", json={"scan_job_id": job["id"]}, headers=idem())
     assert r.status_code == 201, r.text
@@ -347,13 +347,13 @@ def test_disabled_engine_means_manual_review(user, world, setup, monkeypatch):
 
 def test_other_document_types_are_not_auto_read(user, world, setup):  # picking sheets / other
     sales = user("sales")
-    upload(sales, world, sheet(world, {"CAS-01": "1"}), job_type="OTHER")
+    upload(sales, world, sheet(world, {"CAS": "1"}), job_type="OTHER")
     assert sales.get(f"{P}/ocr/extractions").json()["total"] == 0
 
 
 def test_permissions(user, world, setup):
     sales = user("sales")
-    upload(sales, world, sheet(world, {"CAS-01": "1"}))
+    upload(sales, world, sheet(world, {"CAS": "1"}))
     drain(world)
     ex = only(sales)
     wh = user("wh_a")
@@ -386,7 +386,7 @@ def test_order_sheet_pdf(user, world, setup):
     sales = user("sales")
     r = sales.get(f"{P}/ocr/order-sheet?customer_id={setup['cust']}&warehouse_id={world.wh_a}")
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
-    assert r.content.startswith(b"%PDF") and b"PT-OS-1" in r.content and b"CAS-01" in r.content
+    assert r.content.startswith(b"%PDF") and b"PT-OS-1" in r.content and b"CAS" in r.content
     # the blank sheet reads back as a template with no lines
     res = ocr.fake_provider(r.content, "application/pdf")
     with get_sessionmaker()() as db:

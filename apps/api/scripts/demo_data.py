@@ -124,18 +124,18 @@ def paper(title: str, lines: list[str]) -> bytes:
 
 # sku, name, category, stock unit, tracks expiry, box profile (code, lb per box or None)
 PRODUCTS: list[tuple[str, str, str, str, bool, tuple[str, str | None]]] = [
-    ("YAM-YL", "Yellow yam", "PRODUCE", "BOX", False, ("CASE40", "40")),
-    ("EDDO", "Eddoes", "PRODUCE", "BOX", False, ("CASE30", "30")),
-    ("SCOT-PEP", "Scotch bonnet peppers", "PRODUCE", "BOX", False, ("CASE10", "10")),
-    ("ACKEE-540", "Ackee in brine 540 ml (24)", "DRY", "BOX", True, ("CASE24", None)),
-    ("CALL-540", "Callaloo canned 540 ml (24)", "DRY", "BOX", True, ("CASE24", None)),
-    ("COCO-400", "Coconut milk 400 ml (24)", "DRY", "BOX", True, ("CASE24", None)),
-    ("GARI-4KG", "Gari white 4 kg (6)", "DRY", "BOX", False, ("CASE6", None)),
-    ("PALM-1L", "Red palm oil 1 L (12)", "DRY", "BOX", False, ("CASE12", None)),
-    ("FUFU-18", "Fufu flour 1.8 kg (10)", "DRY", "BOX", False, ("CASE10", None)),
-    ("MANGO-850", "Mango pulp 850 g (12)", "DRY", "BOX", True, ("CASE12", None)),
-    ("TILA-FZ", "Tilapia whole frozen", "FROZEN", "BOX", True, ("CASE10", "10")),
-    ("GOAT-FZ", "Goat meat cubed frozen", "FROZEN", "BOX", True, ("CASE20", "20")),
+    ("YYL", "Yellow yam", "PRODUCE", "BOX", False, ("CASE40", "40")),
+    ("EDO", "Eddoes", "PRODUCE", "BOX", False, ("CASE30", "30")),
+    ("SCP", "Scotch bonnet peppers", "PRODUCE", "BOX", False, ("CASE10", "10")),
+    ("ACK", "Ackee in brine 540 ml (24)", "DRY", "BOX", True, ("CASE24", None)),
+    ("CLC", "Callaloo canned 540 ml (24)", "DRY", "BOX", True, ("CASE24", None)),
+    ("CCM", "Coconut milk 400 ml (24)", "DRY", "BOX", True, ("CASE24", None)),
+    ("GAR", "Gari white 4 kg (6)", "DRY", "BOX", False, ("CASE6", None)),
+    ("PLM", "Red palm oil 1 L (12)", "DRY", "BOX", False, ("CASE12", None)),
+    ("FUF", "Fufu flour 1.8 kg (10)", "DRY", "BOX", False, ("CASE10", None)),
+    ("MGP", "Mango pulp 850 g (12)", "DRY", "BOX", True, ("CASE12", None)),
+    ("TLP", "Tilapia whole frozen", "FROZEN", "BOX", True, ("CASE10", "10")),
+    ("GTM", "Goat meat cubed frozen", "FROZEN", "BOX", True, ("CASE20", "20")),
 ]
 
 # ref, name, group, terms, email
@@ -173,24 +173,24 @@ CUSTOMERS = [
 ]
 
 STANDARD_BOX = {
-    "YAM-YL": "48.00", "EDDO": "39.00", "SCOT-PEP": "32.00", "ACKEE-540": "96.00",
-    "CALL-540": "44.00", "COCO-400": "36.00", "GARI-4KG": "54.00", "PALM-1L": "62.00",
-    "FUFU-18": "41.00", "MANGO-850": "38.50", "TILA-FZ": "52.00", "GOAT-FZ": "118.00",
+    "YYL": "48.00", "EDO": "39.00", "SCP": "32.00", "ACK": "96.00",
+    "CLC": "44.00", "CCM": "36.00", "GAR": "54.00", "PLM": "62.00",
+    "FUF": "41.00", "MGP": "38.50", "TLP": "52.00", "GTM": "118.00",
 }  # fmt: skip
 PRICE_CSV_HEAD = "sku,product_name,unit,rate,currency,customer_ref,group_code\r\n"
 # the opening book (seed PB-2026-01) is carried forward unchanged, plus new products
 CARRIED = [
-    ("CAS-FZ", "LB", "1.50", "", ""), ("CAS-FZ", "BOX", "29.00", "", ""),
-    ("CAS-FZ", "LB", "1.40", "", "WHOLESALE"), ("CAS-FZ", "LB", "1.35", "C-1001", ""),
-    ("PLN-GR", "LB", "0.95", "", ""), ("PLN-GR", "PIECE", "0.40", "", ""),
-    ("PLN-GR", "BOX", "45.00", "", "RESTAURANT"), ("RICE-JAS", "KG", "2.10", "", ""),
-    ("RICE-JAS", "BOX", "39.50", "", ""),
+    ("CFZ", "LB", "1.50", "", ""), ("CFZ", "BOX", "29.00", "", ""),
+    ("CFZ", "LB", "1.40", "", "WHOLESALE"), ("CFZ", "LB", "1.35", "C-1001", ""),
+    ("PLG", "LB", "0.95", "", ""), ("PLG", "PIECE", "0.40", "", ""),
+    ("PLG", "BOX", "45.00", "", "RESTAURANT"), ("RJS", "KG", "2.10", "", ""),
+    ("RJS", "BOX", "39.50", "", ""),
 ]  # fmt: skip
 SPECIAL = [
-    ("ACKEE-540", "BOX", "92.00", "", "WHOLESALE"),
-    ("GARI-4KG", "BOX", "51.00", "", "WHOLESALE"),
-    ("GOAT-FZ", "BOX", "112.00", "C-1007", ""),
-    ("COCO-400", "BOX", "34.50", "C-1004", ""),
+    ("ACK", "BOX", "92.00", "", "WHOLESALE"),
+    ("GAR", "BOX", "51.00", "", "WHOLESALE"),
+    ("GTM", "BOX", "112.00", "C-1007", ""),
+    ("CCM", "BOX", "34.50", "C-1004", ""),
 ]
 
 
@@ -219,9 +219,9 @@ def master_data(owner: Actor, ids: dict[str, Any]) -> None:
         ids["c"][ref] = owner.post("/customers", body)["id"]
     rows = CARRIED + [(s, "BOX", r, "", "") for s, r in STANDARD_BOX.items()] + SPECIAL
     names = {sku: name for sku, name, *_ in PRODUCTS} | {
-        "CAS-FZ": "Cassava frozen",
-        "PLN-GR": "Plantain green",
-        "RICE-JAS": "Jasmine rice",
+        "CFZ": "Cassava frozen",
+        "PLG": "Plantain green",
+        "RJS": "Jasmine rice",
     }
     csv = PRICE_CSV_HEAD + "".join(
         f"{s},{names[s]},{u},{r},CAD,{c},{g}\r\n" for s, u, r, c, g in rows
@@ -240,9 +240,9 @@ def master_data(owner: Actor, ids: dict[str, Any]) -> None:
             + "".join(
                 f"{s},{names[s]},{u},{r},CAD,{c},{g}\r\n"
                 for s, u, r, c, g in rows
-                if not (s == "YAM-YL" and u == "BOX")
+                if not (s == "YYL" and u == "BOX")
             )
-            + "YAM-YL,Yellow yam,BOX,51.00,CAD,,\r\n",
+            + "YYL,Yellow yam,BOX,51.00,CAD,,\r\n",
             "notes": "Draft: yam up 3.00 after freight increase",
         },
     )
@@ -346,35 +346,35 @@ def shipment(
 def receiving(wh: Actor, mgr: Actor, ids: dict[str, Any]) -> None:
     shipment(
         wh, mgr, ids, "V-ACC", "MAIN", "ACC-24-5521", "AWB-176-0042-1180",
-        [("GARI-4KG", "40", "40", "0", "28.5000"), ("PALM-1L", "30", "28", "2", "31.0000"),
-         ("FUFU-18", "50", "50", "0", "19.2500"), ("COCO-400", "60", "60", "0", "17.8000")],
+        [("GAR", "40", "40", "0", "28.5000"), ("PLM", "30", "28", "2", "31.0000"),
+         ("FUF", "50", "50", "0", "19.2500"), ("CCM", "60", "60", "0", "17.8000")],
         [("FREIGHT", "420.00"), ("DUTY", "85.40"), ("BROKERAGE", "65.00")],
         "POSTED", "Weekly Accra consolidation",
     )  # fmt: skip
     shipment(
         wh, mgr, ids, "V-KIN", "MAIN", "KPC-88213", "AWB-001-7745-2231",
-        [("YAM-YL", "30", "30", "0", "24.0000"), ("EDDO", "20", "20", "0", "18.5000"),
-         ("SCOT-PEP", "12", "12", "0", "15.0000"), ("ACKEE-540", "40", "40", "0", "55.0000"),
-         ("CALL-540", "30", "30", "0", "22.0000"), ("MANGO-850", "25", "25", "0", "19.0000")],
+        [("YYL", "30", "30", "0", "24.0000"), ("EDO", "20", "20", "0", "18.5000"),
+         ("SCP", "12", "12", "0", "15.0000"), ("ACK", "40", "40", "0", "55.0000"),
+         ("CLC", "30", "30", "0", "22.0000"), ("MGP", "25", "25", "0", "19.0000")],
         [("FREIGHT", "610.00"), ("DUTY", "120.00")],
         "POSTED", "Kingston air freight",
     )  # fmt: skip
     shipment(
         mgr, mgr, ids, "V-LIM", "MAIN", "LDG-3307", "AWB-145-2290-6612",
-        [("MANGO-850", "20", "20", "0", "19.0000"), ("COCO-400", "30", "30", "0", "17.8000"),
-         ("GARI-4KG", "15", "15", "0", "28.5000")],
+        [("MGP", "20", "20", "0", "19.0000"), ("CCM", "30", "30", "0", "17.8000"),
+         ("GAR", "15", "15", "0", "28.5000")],
         [("FREIGHT", "260.00")],
         "POSTED", "Restock",
     )  # fmt: skip
     shipment(
         wh, None, ids, "V-ACC", "MAIN", "ACC-24-5534", "AWB-176-0042-1324",
-        [("TILA-FZ", "40", "40", "0", "26.0000"), ("GOAT-FZ", "30", "28", "0", "64.0000")],
+        [("TLP", "40", "40", "0", "26.0000"), ("GTM", "30", "28", "0", "64.0000")],
         [("FREIGHT", "540.00"), ("DUTY", "96.00")],
         "COUNTED", "Frozen container - 2 goat cases short on count",
     )  # fmt: skip
     shipment(
         wh, None, ids, "V-KIN", "MAIN", "KPC-88240", "AWB-001-7745-2399",
-        [("YAM-YL", "25", "", "", "24.0000"), ("SCOT-PEP", "10", "", "", "15.0000")],
+        [("YYL", "25", "", "", "24.0000"), ("SCP", "10", "", "", "15.0000")],
         [("FREIGHT", "380.00")],
         "OPEN", "Arriving Friday",
     )  # fmt: skip
@@ -385,7 +385,7 @@ def receiving(wh: Actor, mgr: Actor, ids: dict[str, Any]) -> None:
 
 def inventory(owner: Actor, wh: Actor, ids: dict[str, Any]) -> None:
     exp = (datetime.now(UTC) + timedelta(days=150)).isoformat()
-    for sku, qty in [("TILA-FZ", "18"), ("GOAT-FZ", "9")]:
+    for sku, qty in [("TLP", "18"), ("GTM", "9")]:
         owner.post(
             "/inventory/opening-balances",
             {
@@ -402,7 +402,7 @@ def inventory(owner: Actor, wh: Actor, ids: dict[str, Any]) -> None:
         for b in owner.get("/inventory/stock", warehouse_id=ids["wh"]["MAIN"], limit=200)["items"]
         if b["unit_code"] == "BOX"
     }
-    coco = lots["COCO-400"]
+    coco = lots["CCM"]
     owner.post(
         "/inventory/damage",
         {"lot_id": coco["lot_id"], "unit_code": "BOX", "qty": "2", "note": "Dented cans, forklift"},
@@ -414,8 +414,8 @@ def inventory(owner: Actor, wh: Actor, ids: dict[str, Any]) -> None:
             "warehouse_id": ids["wh"]["MAIN"],
             "note": "Friday dry-goods cycle count",
             "lines": [
-                {"lot_id": lots["FUFU-18"]["lot_id"], "unit_code": "BOX", "counted_qty": "49"},
-                {"lot_id": lots["GARI-4KG"]["lot_id"], "unit_code": "BOX", "counted_qty": "40"},
+                {"lot_id": lots["FUF"]["lot_id"], "unit_code": "BOX", "counted_qty": "49"},
+                {"lot_id": lots["GAR"]["lot_id"], "unit_code": "BOX", "counted_qty": "40"},
             ],
         },
     )
@@ -425,20 +425,20 @@ def inventory(owner: Actor, wh: Actor, ids: dict[str, Any]) -> None:
 
 # customer, [(sku, qty)], target stage, shortages {line index: picked qty}
 ORDERS: list[tuple[str, list[tuple[str, str]], str, dict[int, str]]] = [
-    ("C-1004", [("GARI-4KG", "8"), ("FUFU-18", "10"), ("PALM-1L", "4")], "INVOICED", {}),
-    ("C-1005", [("SCOT-PEP", "2"), ("YAM-YL", "3"), ("COCO-400", "6")], "INVOICED", {}),
-    ("C-1006", [("ACKEE-540", "5"), ("CALL-540", "4"), ("MANGO-850", "3")], "INVOICED", {}),
-    ("C-1007", [("GOAT-FZ", "4"), ("TILA-FZ", "3"), ("PALM-1L", "2")], "INVOICED", {}),
-    ("C-1008", [("GARI-4KG", "6"), ("COCO-400", "10"), ("FUFU-18", "6")], "INVOICED", {2: "4"}),
-    ("C-1009", [("YAM-YL", "4"), ("EDDO", "3"), ("SCOT-PEP", "1")], "INVOICED", {}),
-    ("C-1004", [("ACKEE-540", "6"), ("MANGO-850", "4")], "INVOICED", {}),
-    ("C-1005", [("TILA-FZ", "2"), ("CALL-540", "3")], "VERIFIED", {}),
-    ("C-1006", [("EDDO", "4"), ("YAM-YL", "2")], "VERIFIED", {}),
-    ("C-1008", [("FUFU-18", "5"), ("GARI-4KG", "3")], "SUBMITTED", {}),
-    ("C-1009", [("GOAT-FZ", "2"), ("SCOT-PEP", "1")], "PICKING", {}),
-    ("C-1007", [("COCO-400", "8"), ("MANGO-850", "2")], "CONFIRMED", {}),
-    ("C-1004", [("PALM-1L", "6"), ("GARI-4KG", "4")], "CONFIRMED", {}),
-    ("C-1006", [("ACKEE-540", "3")], "DRAFT", {}),
+    ("C-1004", [("GAR", "8"), ("FUF", "10"), ("PLM", "4")], "INVOICED", {}),
+    ("C-1005", [("SCP", "2"), ("YYL", "3"), ("CCM", "6")], "INVOICED", {}),
+    ("C-1006", [("ACK", "5"), ("CLC", "4"), ("MGP", "3")], "INVOICED", {}),
+    ("C-1007", [("GTM", "4"), ("TLP", "3"), ("PLM", "2")], "INVOICED", {}),
+    ("C-1008", [("GAR", "6"), ("CCM", "10"), ("FUF", "6")], "INVOICED", {2: "4"}),
+    ("C-1009", [("YYL", "4"), ("EDO", "3"), ("SCP", "1")], "INVOICED", {}),
+    ("C-1004", [("ACK", "6"), ("MGP", "4")], "INVOICED", {}),
+    ("C-1005", [("TLP", "2"), ("CLC", "3")], "VERIFIED", {}),
+    ("C-1006", [("EDO", "4"), ("YYL", "2")], "VERIFIED", {}),
+    ("C-1008", [("FUF", "5"), ("GAR", "3")], "SUBMITTED", {}),
+    ("C-1009", [("GTM", "2"), ("SCP", "1")], "PICKING", {}),
+    ("C-1007", [("CCM", "8"), ("MGP", "2")], "CONFIRMED", {}),
+    ("C-1004", [("PLM", "6"), ("GAR", "4")], "CONFIRMED", {}),
+    ("C-1006", [("ACK", "3")], "DRAFT", {}),
 ]
 STAGES = ["DRAFT", "CONFIRMED", "PICKING", "SUBMITTED", "VERIFIED", "INVOICED"]
 
@@ -523,8 +523,8 @@ def scans(sales: Actor, ids: dict[str, Any]) -> None:
         assert co is not None and wh is not None
         sheets = []
         for ref, fills, extra in [
-            ("C-1001", {"CAS-FZ": "12", "PLN-GR": "3?"}, ["Mango pulp 4 box"]),
-            ("C-1002", {"RICE-JAS": "6", "CAS-FZ": "2"}, []),
+            ("C-1001", {"CFZ": "12", "PLG": "3?"}, ["Mango pulp 4 box"]),
+            ("C-1002", {"RJS": "6", "CFZ": "2"}, []),
         ]:
             cust = db.scalar(
                 select(Customer).where(Customer.company_id == co.id, Customer.external_ref == ref)

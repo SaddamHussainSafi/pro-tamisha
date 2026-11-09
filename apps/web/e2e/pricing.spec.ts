@@ -54,17 +54,17 @@ async function check(page: Page, sku: string, unit: string, customer?: string) {
 
 const BASE = [
   "sku,unit,rate,customer_ref,group_code",
-  "CAS-FZ,BOX,29.00,,",
-  "CAS-FZ,LB,1.40,,WHOLESALE",
-  "CAS-FZ,LB,1.35,C-1001,",
-  "PLN-GR,LB,0.95,,",
-  "PLN-GR,PIECE,0.40,,",
-  "PLN-GR,BOX,45.00,,RESTAURANT",
-  "RICE-JAS,KG,2.10,,",
-  "RICE-JAS,BOX,39.50,,",
+  "CFZ,BOX,29.00,,",
+  "CFZ,LB,1.40,,WHOLESALE",
+  "CFZ,LB,1.35,C-1001,",
+  "PLG,LB,0.95,,",
+  "PLG,PIECE,0.40,,",
+  "PLG,BOX,45.00,,RESTAURANT",
+  "RJS,KG,2.10,,",
+  "RJS,BOX,39.50,,",
 ];
-const NEW_BOOK = [...BASE, "CAS-FZ,LB,1.60,,"].join("\n");
-const BAD_UNIT = [...BASE, "CAS-FZ,LB,1.60,,", "RICE-JAS,PIECE,0.75,,", "CAS-FZ,TON,9,,"].join("\n");
+const NEW_BOOK = [...BASE, "CFZ,LB,1.60,,"].join("\n");
+const BAD_UNIT = [...BASE, "CFZ,LB,1.60,,", "RJS,PIECE,0.75,,", "CFZ,TON,9,,"].join("\n");
 
 test.describe.configure({ mode: "serial" });
 
@@ -77,11 +77,11 @@ test("owner imports a new price book; old rate stays on the old version; duplica
   await expect(page.getByRole("link", { name: "PB-2026-01" })).toBeVisible();
 
   // Precedence: customer beats group beats standard.
-  await check(page, "CAS-FZ", "LB");
+  await check(page, "CFZ", "LB");
   await expect(page.getByTestId("quote")).toContainText("CAD 1.50");
-  await check(page, "CAS-FZ", "LB", "Island Grocers");
+  await check(page, "CFZ", "LB", "Island Grocers");
   await expect(page.getByTestId("quote")).toContainText("CAD 1.35");
-  await check(page, "CAS-FZ", "LB", "Kingston Kitchen");
+  await check(page, "CFZ", "LB", "Kingston Kitchen");
   await expect(page.getByTestId("quote")).toContainText("CAD 1.50");
   await axe(page);
 
@@ -92,7 +92,7 @@ test("owner imports a new price book; old rate stays on the old version; duplica
   await imp.getByLabel("CSV text").fill(BAD_UNIT);
   await imp.getByRole("button", { name: "Check file" }).click();
   const errs = page.getByRole("region", { name: "Row errors" });
-  await expect(errs).toContainText("RICE-JAS has no active PIECE unit profile");
+  await expect(errs).toContainText("RJS has no active PIECE unit profile");
   await expect(errs).toContainText("INVALID_UNIT");
   await expect(imp.getByRole("button", { name: "Create draft" })).toBeDisabled();
   await axe(page);
@@ -121,12 +121,12 @@ test("owner imports a new price book; old rate stays on the old version; duplica
 
   // New price applies now; the previous version still holds 1.50 (immutable, INV-005).
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Prices" }).click();
-  await check(page, "CAS-FZ", "LB");
+  await check(page, "CFZ", "LB");
   await expect(page.getByTestId("quote")).toContainText("CAD 1.60");
   await expect(page.getByTestId("quote")).toContainText("PB-E2E-02");
   await page.getByRole("link", { name: "PB-2026-01" }).click();
   await expect(page.getByText("Superseded", { exact: true }).first()).toBeVisible();
-  const oldRow = page.getByRole("row").filter({ hasText: "CAS-FZ" }).filter({ hasText: "per lb" }).filter({ hasText: "Standard" });
+  const oldRow = page.getByRole("row").filter({ hasText: "CFZ" }).filter({ hasText: "per lb" }).filter({ hasText: "Standard" });
   await expect(oldRow).toContainText("CAD 1.50");
 
   // Uploading the same file again is caught before any version is created.
@@ -149,7 +149,7 @@ test("sales can check prices but cannot draft or activate", async ({ page }) => 
   await expect(page.getByRole("link", { name: "PB-E2E-02" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import CSV" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "New draft" })).toHaveCount(0);
-  await check(page, "CAS-FZ", "LB", "Island Grocers");
+  await check(page, "CFZ", "LB", "Island Grocers");
   await expect(page.getByTestId("quote")).toContainText("CAD 1.35");
   await page.getByRole("link", { name: "PB-E2E-02" }).click();
   await expect(page.getByRole("button", { name: "Activate…" })).toHaveCount(0);

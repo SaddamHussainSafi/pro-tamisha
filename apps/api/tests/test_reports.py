@@ -25,12 +25,12 @@ R = f"{P}/reports"
 
 
 def sell(owner, sales, wh, world, s, boxes, pieces="0", cust=None):
-    stock(owner, world, s, "CAS-01", "BOX", boxes)
-    lines = [("CAS-01", "BOX", boxes)]
+    stock(owner, world, s, "CAS", "BOX", boxes)
+    lines = [("CAS", "BOX", boxes)]
     rows = [(0, boxes, None)]
     if pieces != "0":
-        stock(owner, world, s, "PLN-01", "PIECE", pieces)
-        lines.append(("PLN-01", "PIECE", pieces))
+        stock(owner, world, s, "PLN", "PIECE", pieces)
+        lines.append(("PLN", "PIECE", pieces))
         rows.append((1, pieces, None))
     o = confirmed(sales, world, s, lines, cust=cust)
     pk = picked(sales, wh, o, rows, verifier=owner)
@@ -92,14 +92,14 @@ def test_sales_reconcile_to_issued_invoices(owner, world, setup, sold):
     assert sum(Decimal(r["net_sales"]) for r in by_p["rows"]) == subtotal
     cas = by_p["rows"][0]
     assert (cas["sku"], cas["unit_code"], cas["qty"], cas["net_sales"]) == (
-        "CAS-01",
+        "CAS",
         "BOX",
         "14.0000",
         "377.00",
     )
     assert cas["avg_rate"] == "26.9286" and cas["customer_count"] == 2
     least = get(owner, "sales-by-product", sort="least", limit=1)
-    assert least["total_rows"] == 2 and [r["sku"] for r in least["rows"]] == ["PLN-01"]
+    assert least["total_rows"] == 2 and [r["sku"] for r in least["rows"]] == ["PLN"]
     # nothing about cost or margin is exposed (D-04)
     assert not any(k for k in cas if "cost" in k or "margin" in k or "profit" in k)
 
@@ -109,9 +109,9 @@ def test_filters_are_reproducible(owner, world, setup, sold):
     assert get(owner, "sales-by-product", customer_id=setup["walkin"]) == one
     # per-customer rate and volume
     assert [(r["sku"], r["qty"], r["avg_rate"]) for r in one["rows"]] == [
-        ("CAS-01", "4.0000", "28.0000")
+        ("CAS", "4.0000", "28.0000")
     ]
-    pln = get(owner, "sales", product_id=setup["p"]["PLN-01"])
+    pln = get(owner, "sales", product_id=setup["p"]["PLN"])
     assert (pln["net_sales"], pln["invoice_count"]) == ("9.00", 1)
     assert get(owner, "sales", customer_id=setup["cust"])["net_sales"] == "274.00"
     # filtered parts add up to the whole
@@ -142,7 +142,7 @@ def test_range_validation(owner, world, setup):
 def test_stock_flow_reconciles_to_ledger_and_balances(owner, world, setup, sold):
     rep = get(owner, "stock-flow")
     rows = {(r["sku"], r["unit_code"]): r for r in rep["rows"]}
-    cas = rows[("CAS-01", "BOX")]
+    cas = rows[("CAS", "BOX")]
     assert (cas["opening"], cas["received"], cas["dispatched"], cas["other"], cas["closing"]) == (
         "0.0000",
         "0.0000",
@@ -166,8 +166,8 @@ def test_stock_flow_reconciles_to_ledger_and_balances(owner, world, setup, sold)
     tomorrow = (TODAY + timedelta(days=1)).isoformat()
     later = get(owner, "stock-flow", date_from=tomorrow, date_to=tomorrow)
     assert later["rows"] == []  # nothing on hand and nothing moved
-    one = get(owner, "stock-flow", product_id=setup["p"]["PLN-01"])
-    assert [r["sku"] for r in one["rows"]] == ["PLN-01"]
+    one = get(owner, "stock-flow", product_id=setup["p"]["PLN"])
+    assert [r["sku"] for r in one["rows"]] == ["PLN"]
 
 
 def test_receiving_by_vendor(owner, user, world, setup):
@@ -177,7 +177,7 @@ def test_receiving_by_vendor(owner, user, world, setup):
         headers=idem(),
     )
     assert v.status_code == 201, v.text
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     s = new_shipment(owner, world, {"vendor": v.json()["id"]})
     s = upload(owner, s).json()
     s = declare(owner, s, s["documents"][0]["id"], cas, "25").json()
@@ -206,7 +206,7 @@ def test_receiving_by_vendor(owner, user, world, setup):
         }
     ]
     flow = {r["sku"]: r for r in get(owner, "stock-flow")["rows"]}
-    assert flow["CAS-01"]["received"] == "25.0000"  # 23 saleable + 2 into the damaged lot
+    assert flow["CAS"]["received"] == "25.0000"  # 23 saleable + 2 into the damaged lot
     other = get(owner, "receiving", vendor_id=str(world.company_id))
     assert other["rows"] == [] and other["shipments"] == 0
 

@@ -6,7 +6,7 @@ import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh company: Kingston Kitchen has a VERIFIED sheet; CAS-FZ is 29.00 a box (standard) with stock.
+// Fresh company: Kingston Kitchen has a VERIFIED sheet; CFZ is 29.00 a box (standard) with stock.
 const fx: Fixture = JSON.parse(
   execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),
@@ -31,7 +31,7 @@ async function axe(page: Page) {
 
 async function fillDirect(page: Page) {
   await page.getByLabel("Customer").selectOption({ label: "Island Grocers (synthetic) (C-1001)" });
-  await page.getByLabel("Product, line 1").selectOption({ label: "Cassava frozen (CAS-FZ)" });
+  await page.getByLabel("Product, line 1").selectOption({ label: "Cassava frozen (CFZ)" });
   await page.getByLabel("Unit, line 1").selectOption({ label: "boxes" });
   await page.getByLabel("Quantity, line 1").fill("2");
   await page.getByRole("button", { name: "Check prices and stock" }).click();

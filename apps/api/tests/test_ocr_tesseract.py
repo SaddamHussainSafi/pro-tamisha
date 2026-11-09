@@ -16,8 +16,8 @@ pytestmark = pytest.mark.skipif(
     not (shutil.which("tesseract") and shutil.which("pdftoppm")),
     reason="tesseract / pdftoppm not installed",
 )
-FILLS = {"CAS-01": "15", "PLN-01": "20", "YAM-01": "12"}
-EXPECT = {("CAS-01", "BOX", "15.0000"), ("PLN-01", "PIECE", "20.0000"), ("YAM-01", "LB", "12.0000")}
+FILLS = {"CAS": "15", "PLN": "20", "YAM": "12"}
+EXPECT = {("CAS", "BOX", "15.0000"), ("PLN", "PIECE", "20.0000"), ("YAM", "LB", "12.0000")}
 
 
 def as_scan(pdf: bytes, tmp: Path, rotate: int = 0) -> bytes:
@@ -64,8 +64,8 @@ def test_scanned_image_is_read(user, world, setup, monkeypatch, tmp_path, rotate
     assert ex["provider"] == "tesseract"
     assert ex["customer_name"] == "Island Grocers"  # header read from pixels
     assert hits == len(EXPECT)
-    pln = next(f for f in ex["fields"] if f["read_sku"] == "PLN-01")
-    if "PLN-01" not in [b["text"].split()[0] for b in ex["text_blocks"] if b["text"]]:
+    pln = next(f for f in ex["fields"] if f["read_sku"] == "PLN")
+    if "PLN" not in [b["text"].split()[0] for b in ex["text_blocks"] if b["text"]]:
         assert pln["status"] == "LOW_CONFIDENCE"  # code was corrected from a misread: review it
     for f in ex["fields"]:
         assert f["confidence"] is None or 0 <= float(f["confidence"]) <= 1

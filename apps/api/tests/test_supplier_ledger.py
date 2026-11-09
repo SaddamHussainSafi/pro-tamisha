@@ -22,7 +22,7 @@ TODAY = date.today().isoformat()
 @pytest.fixture
 def posted(owner, world, setup):
     """V-GH1: 25 BOX cassava at 12.50 (=312.50) + 4 LB yam with no price; 23 + 2 damaged."""
-    cas, yam = setup["p"]["CAS-01"], setup["p"]["YAM-01"]
+    cas, yam = setup["p"]["CAS"], setup["p"]["YAM"]
     s = new_shipment(owner, world, setup, vendor_invoice_no="ARX-1")
     s = upload(owner, s).json()
     doc = s["documents"][0]["id"]

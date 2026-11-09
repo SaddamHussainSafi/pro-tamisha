@@ -33,9 +33,9 @@ def setup(owner):
     """Products, a group and two customers (one in the group, one with no group)."""
     prods = {}
     for sku, name, profiles in [
-        ("CAS-01", "Cassava (frozen)", [("CASE20", "BOX", "20"), ("CASE40", "BOX", "40")]),
-        ("PLN-01", "Plantain", [("PC", "PIECE", None)]),
-        ("ACK-01", "=Ackee tins", [("CASE24", "BOX", None)]),
+        ("CAS", "Cassava (frozen)", [("CASE20", "BOX", "20"), ("CASE40", "BOX", "40")]),
+        ("PLN", "Plantain", [("PC", "PIECE", None)]),
+        ("ACK", "=Ackee tins", [("CASE24", "BOX", None)]),
     ]:
         body = {
             "sku": sku,
@@ -78,12 +78,12 @@ def setup(owner):
 
 V1_CSV = (
     "sku,product_name,unit,rate,currency,customer_ref,group_code\r\n"
-    "CAS-01,Cassava (frozen),LB,1.50,CAD,,\r\n"
-    "CAS-01,Cassava (frozen),BOX,28.00,CAD,,\r\n"
-    "CAS-01,Cassava (frozen),LB,1.35,CAD,,WHOLESALE\r\n"
-    "CAS-01,Cassava (frozen),LB,1.25,CAD,C-100,\r\n"
-    "PLN-01,Plantain,PIECE,0.45,CAD,,\r\n"
-    "ACK-01,'=Ackee tins,BOX,54.00,CAD,,\r\n"
+    "CAS,Cassava (frozen),LB,1.50,CAD,,\r\n"
+    "CAS,Cassava (frozen),BOX,28.00,CAD,,\r\n"
+    "CAS,Cassava (frozen),LB,1.35,CAD,,WHOLESALE\r\n"
+    "CAS,Cassava (frozen),LB,1.25,CAD,C-100,\r\n"
+    "PLN,Plantain,PIECE,0.45,CAD,,\r\n"
+    "ACK,'=Ackee tins,BOX,54.00,CAD,,\r\n"
 )
 
 
@@ -131,13 +131,13 @@ def test_import_activate_and_precedence(owner, setup):
     assert len(v["source_hash"]) == 64
 
     # drafts are never used for pricing
-    assert resolve(owner, setup["p"]["CAS-01"]).json()["error"]["code"] == "NO_PRICE"
+    assert resolve(owner, setup["p"]["CAS"]).json()["error"]["code"] == "NO_PRICE"
 
     a = activate(owner, v["id"], v["version"])
     assert a.status_code == 200, a.text
     assert a.json()["state"] == "CURRENT" and a.json()["approved_by"]
 
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     std = resolve(owner, cas).json()
     assert (std["rate"], std["scope"], std["currency"]) == ("1.5000", "STANDARD", "CAD")
     grp = resolve(owner, cas, customer_id=setup["c_group"]).json()
@@ -167,11 +167,11 @@ def test_import_activate_and_precedence(owner, setup):
 def test_two_versions_differ_and_old_rate_unchanged(owner, setup):
     """INV-005 style: a rate resolved (and snapshotted) under v1 stays v1's after v2 goes live."""
     v1 = publish(owner, V1_CSV, "PB-1")
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     q1 = resolve(owner, cas).json()
     assert q1["rate"] == "1.5000" and q1["version_code"] == "PB-1"
 
-    v2_csv = V1_CSV.replace("CAS-01,Cassava (frozen),LB,1.50", "CAS-01,Cassava (frozen),LB,1.65")
+    v2_csv = V1_CSV.replace("CAS,Cassava (frozen),LB,1.50", "CAS,Cassava (frozen),LB,1.65")
     pv = owner.post(f"{P}/price-books/imports/preview", json={"csv": v2_csv}, headers=idem())
     d = pv.json()["diff"]
     assert pv.json()["valid"] and d["changed"] == 1 and d["unchanged"] == 5
@@ -263,17 +263,17 @@ def test_idempotent_import_replay(owner, setup):
 def test_invalid_unit_and_row_errors(owner, setup):
     bad = (
         "sku,unit,rate,currency,customer_ref,group_code\n"
-        "CAS-01,PIECE,1.00,,,\n"  # cassava has no PIECE profile
-        "PLN-01,TONNE,1.00,,,\n"  # not a unit at all
+        "CAS,PIECE,1.00,,,\n"  # cassava has no PIECE profile
+        "PLN,TONNE,1.00,,,\n"  # not a unit at all
         "NOPE-1,LB,1.00,,,\n"
-        "CAS-01,LB,1.123456,,,\n"
-        "CAS-01,LB,-1,,,\n"
-        "CAS-01,KG,2.00,USD,,\n"
-        "CAS-01,LB,1.00,,C-404,\n"
-        "CAS-01,LB,1.00,,C-100,WHOLESALE\n"
-        "CAS-01,BOX,28,,,\n"
-        "CAS-01,box,29,,,\n"
-        "CAS-01,LB,1,,,,extra\n"
+        "CAS,LB,1.123456,,,\n"
+        "CAS,LB,-1,,,\n"
+        "CAS,KG,2.00,USD,,\n"
+        "CAS,LB,1.00,,C-404,\n"
+        "CAS,LB,1.00,,C-100,WHOLESALE\n"
+        "CAS,BOX,28,,,\n"
+        "CAS,box,29,,,\n"
+        "CAS,LB,1,,,,extra\n"
     )
     r = import_csv(owner, bad, "PB-bad")
     assert r.status_code == 422
@@ -305,14 +305,14 @@ def test_invalid_unit_and_row_errors(owner, setup):
     ).json()
     put = owner.put(
         f"{P}/price-books/versions/{d['id']}/entries",
-        json={"product_id": setup["p"]["CAS-01"], "unit_code": "PIECE", "rate": "1", "version": 1},
+        json={"product_id": setup["p"]["CAS"], "unit_code": "PIECE", "rate": "1", "version": 1},
         headers=idem(),
     )
     assert put.status_code == 422 and put.json()["error"]["code"] == "INVALID_UNIT"
     put = owner.put(
         f"{P}/price-books/versions/{d['id']}/entries",
         json={
-            "product_id": setup["p"]["CAS-01"],
+            "product_id": setup["p"]["CAS"],
             "unit_code": "LB",
             "scope": "GROUP",
             "rate": "1",
@@ -331,7 +331,7 @@ def test_draft_editing_versioning_and_stale_flag(owner, setup):
         f"{P}/price-books/versions", json={"version_code": "PB-2"}, headers=idem()
     ).json()
     assert d["based_on_id"] == v1["id"] and d["stale"] is False
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     body = {"product_id": cas, "unit_code": "LB", "rate": "1.6", "version": d["version"]}
     r = owner.put(f"{P}/price-books/versions/{d['id']}/entries", json=body, headers=idem())
     assert r.status_code == 200 and r.json()["version"] == d["version"] + 1
@@ -381,10 +381,10 @@ def test_schedule_and_cancel(owner, setup):
     future = (datetime.now(UTC) + timedelta(days=7)).isoformat()
     s = activate(owner, r["id"], r["version"], future)
     assert s.status_code == 200 and s.json()["state"] == "SCHEDULED"
-    box = resolve(owner, setup["p"]["CAS-01"], unit="BOX")
+    box = resolve(owner, setup["p"]["CAS"], unit="BOX")
     assert box.json()["rate"] == "28.0000"  # not yet effective
     later = (datetime.now(UTC) + timedelta(days=8)).isoformat()
-    assert resolve(owner, setup["p"]["CAS-01"], unit="BOX", at=later).json()["rate"] == "30.0000"
+    assert resolve(owner, setup["p"]["CAS"], unit="BOX", at=later).json()["rate"] == "30.0000"
 
     no = owner.post(
         f"{P}/price-books/versions/{v1['id']}/archive",
@@ -398,7 +398,7 @@ def test_schedule_and_cancel(owner, setup):
         headers=idem(),
     )
     assert ok.status_code == 200 and ok.json()["state"] == "ARCHIVED"
-    assert resolve(owner, setup["p"]["CAS-01"], unit="BOX", at=later).json()["rate"] == "28.0000"
+    assert resolve(owner, setup["p"]["CAS"], unit="BOX", at=later).json()["rate"] == "28.0000"
 
 
 # ---------------------------------------------------------------- authz
@@ -409,7 +409,7 @@ def test_permissions(owner, setup, make_api, world):
     sales = make_api()
     sales.login(world.emails["sales"])
     assert sales.get(f"{P}/price-books/versions").status_code == 200
-    assert resolve(sales, setup["p"]["CAS-01"]).status_code == 200
+    assert resolve(sales, setup["p"]["CAS"]).status_code == 200
     assert sales.get(f"{P}/customers").status_code == 200
     assert import_csv(sales, V1_CSV, "PB-s").status_code == 403
     assert sales.post(f"{P}/customers", json={"name": "x"}, headers=idem()).status_code == 403
@@ -417,7 +417,7 @@ def test_permissions(owner, setup, make_api, world):
     wh = make_api()
     wh.login(world.emails["wh_a"])
     assert wh.get(f"{P}/price-books/versions").status_code == 403
-    assert resolve(wh, setup["p"]["CAS-01"]).status_code == 403
+    assert resolve(wh, setup["p"]["CAS"]).status_code == 403
 
     # warehouse-scoped manager can't change the company price book
     mgr = make_api()
@@ -438,7 +438,7 @@ def test_permissions(owner, setup, make_api, world):
     x.enroll_and_verify()
     assert x.get(f"{P}/price-books/versions/{v['id']}").status_code == 404
     assert x.get(f"{P}/price-books/versions").json() == []
-    assert resolve(x, setup["p"]["CAS-01"]).status_code == 404
+    assert resolve(x, setup["p"]["CAS"]).status_code == 404
     assert x.get(f"{P}/customers/{setup['c_plain']}").status_code == 404
 
 
@@ -489,5 +489,5 @@ def test_template_csv(owner, setup):
     assert t.status_code == 200
     lines = t.text.lstrip("﻿").strip().split("\r\n")
     assert lines[0] == "sku,product_name,unit,rate,currency,customer_ref,group_code"
-    assert "CAS-01,Cassava (frozen),LB,1.5000,CAD,," in lines
-    assert any(line.startswith("ACK-01,'=Ackee tins,BOX,54.0000") for line in lines)
+    assert "CAS,Cassava (frozen),LB,1.5000,CAD,," in lines
+    assert any(line.startswith("ACK,'=Ackee tins,BOX,54.0000") for line in lines)

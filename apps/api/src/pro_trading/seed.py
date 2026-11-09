@@ -95,7 +95,7 @@ _Profile = tuple[str, str, str | None, str | None, bool]  # decimal strings
 _Item = tuple[str, str, str, str, bool, list[_Profile], list[str]]
 CATALOG: list[_Item] = [
     (
-        "CAS-FZ",
+        "CFZ",
         "Cassava frozen",
         "FROZEN",
         "LB",
@@ -110,7 +110,7 @@ CATALOG: list[_Item] = [
         ["Yuca congelada", "Cassava FZ"],
     ),
     (
-        "PLN-GR",
+        "PLG",
         "Plantain green",
         "PRODUCE",
         "LB",
@@ -118,7 +118,7 @@ CATALOG: list[_Item] = [
         [("CASE50", "BOX", None, "50", True), ("HAND", "PIECE", "6", None, False)],
         ["Platano verde"],
     ),
-    ("RICE-JAS", "Jasmine rice", "DRY", "KG", False, [("BAG20", "BOX", None, "44.0925", True)], []),
+    ("RJS", "Jasmine rice", "DRY", "KG", False, [("BAG20", "BOX", None, "44.0925", True)], []),
 ]
 
 
@@ -172,15 +172,15 @@ CUSTOMERS = [
 ]
 # (sku, unit, rate, customer_ref, group_code) — decimal strings
 PRICES = [
-    ("CAS-FZ", "LB", "1.50", None, None),
-    ("CAS-FZ", "BOX", "29.00", None, None),
-    ("CAS-FZ", "LB", "1.40", None, "WHOLESALE"),
-    ("CAS-FZ", "LB", "1.35", "C-1001", None),
-    ("PLN-GR", "LB", "0.95", None, None),
-    ("PLN-GR", "PIECE", "0.40", None, None),
-    ("PLN-GR", "BOX", "45.00", None, "RESTAURANT"),
-    ("RICE-JAS", "KG", "2.10", None, None),
-    ("RICE-JAS", "BOX", "39.50", None, None),
+    ("CFZ", "LB", "1.50", None, None),
+    ("CFZ", "BOX", "29.00", None, None),
+    ("CFZ", "LB", "1.40", None, "WHOLESALE"),
+    ("CFZ", "LB", "1.35", "C-1001", None),
+    ("PLG", "LB", "0.95", None, None),
+    ("PLG", "PIECE", "0.40", None, None),
+    ("PLG", "BOX", "45.00", None, "RESTAURANT"),
+    ("RJS", "KG", "2.10", None, None),
+    ("RJS", "BOX", "39.50", None, None),
 ]
 
 
@@ -247,10 +247,10 @@ def seed_pricing(db: Session, co: Company, approver: Employee | None = None) -> 
 
 # (lot_code, sku, expires_in_days, [(unit, qty)]) -- synthetic opening stock in MAIN
 LOTS: list[tuple[str, str, int | None, list[tuple[str, str]]]] = [
-    ("CAS-FZ-SEED-1", "CAS-FZ", 180, [("BOX", "40"), ("LB", "120.5")]),
-    ("CAS-FZ-SEED-2", "CAS-FZ", 20, [("BOX", "8")]),
-    ("PLN-GR-SEED-1", "PLN-GR", None, [("BOX", "25"), ("PIECE", "60")]),
-    ("RICE-JAS-SEED-1", "RICE-JAS", None, [("BOX", "100"), ("KG", "250")]),
+    ("CAS-FZ-SEED-1", "CFZ", 180, [("BOX", "40"), ("LB", "120.5")]),
+    ("CAS-FZ-SEED-2", "CFZ", 20, [("BOX", "8")]),
+    ("PLN-GR-SEED-1", "PLG", None, [("BOX", "25"), ("PIECE", "60")]),
+    ("RICE-JAS-SEED-1", "RJS", None, [("BOX", "100"), ("KG", "250")]),
 ]
 
 
@@ -310,11 +310,11 @@ ORDERS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
     (
         "C-1001",
         "CONFIRMED",
-        [("CAS-FZ", "BOX", "15", "15 bx yuca"), ("PLN-GR", "PIECE", "24", "2 dz plantain")],
+        [("CFZ", "BOX", "15", "15 bx yuca"), ("PLG", "PIECE", "24", "2 dz plantain")],
     ),
-    ("C-1002", "DRAFT", [("RICE-JAS", "BOX", "4", "4 bags jasmine")]),
+    ("C-1002", "DRAFT", [("RJS", "BOX", "4", "4 bags jasmine")]),
     # packed + verified, waiting for its invoice (Module 05 demo: catch-weight billing)
-    ("C-1002", "VERIFIED", [("CAS-FZ", "BOX", "7", "7 cases yuca, bill by weight")]),
+    ("C-1002", "VERIFIED", [("CFZ", "BOX", "7", "7 cases yuca, bill by weight")]),
 ]
 
 
@@ -426,7 +426,7 @@ def seed_vendors(db: Session, co: Company) -> None:
                 Vendor(company_id=co.id, code=code, name=name, country_code=country, currency=cur)
             )
     db.flush()
-    cas = db.scalar(select(Product).where(Product.company_id == co.id, Product.sku == "CAS-FZ"))
+    cas = db.scalar(select(Product).where(Product.company_id == co.id, Product.sku == "CFZ"))
     label = "MANIOC FROZEN 40LB CTN"
     if cas is not None and not db.scalar(
         select(ProductAlias.id).where(

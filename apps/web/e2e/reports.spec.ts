@@ -7,7 +7,7 @@ import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh company: Kingston Kitchen (C-1002) has a VERIFIED sheet for 7 boxes of CAS-FZ.
+// Fresh company: Kingston Kitchen (C-1002) has a VERIFIED sheet for 7 boxes of CFZ.
 const fx: Fixture = JSON.parse(
   execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),
@@ -44,7 +44,7 @@ test("reports reconcile with an issued invoice, filter, and export CSV", async (
   await expect(page.getByText("No invoices in this period")).toBeVisible();
   // Seeded opening balances show up in the stock movement table.
   const stock = page.getByRole("table", { name: /^Stock movement/ });
-  await expect(stock.getByRole("row", { name: /CAS-FZ/ }).first()).toBeVisible();
+  await expect(stock.getByRole("row", { name: /CFZ/ }).first()).toBeVisible();
   await axe(page);
 
   // Issue Kingston Kitchen's invoice.
@@ -66,8 +66,8 @@ test("reports reconcile with an issued invoice, filter, and export CSV", async (
   await expect(row).toBeVisible();
   await expect(row.getByRole("cell").nth(4)).toHaveText(total);
   await expect(row.getByRole("cell").nth(1)).toContainText("7.00 boxes");
-  await expect(page.getByRole("table", { name: /^Products/ }).getByRole("row", { name: /CAS-FZ/ })).toBeVisible();
-  await expect(stock.getByRole("row", { name: /CAS-FZ/ }).first()).toContainText("−7.00");
+  await expect(page.getByRole("table", { name: /^Products/ }).getByRole("row", { name: /CFZ/ })).toBeVisible();
+  await expect(stock.getByRole("row", { name: /CFZ/ }).first()).toContainText("−7.00");
   await axe(page);
 
   // CSV export of the rows on screen.
@@ -80,7 +80,7 @@ test("reports reconcile with an issued invoice, filter, and export CSV", async (
   // A customer filter with no sales empties the sales tables but keeps stock.
   await page.getByLabel("Customer (sales only)").selectOption({ label: "Island Grocers (synthetic) (C-1001)" });
   await expect(page.getByText("No invoices in this period")).toBeVisible();
-  await expect(stock.getByRole("row", { name: /CAS-FZ/ }).first()).toBeVisible();
+  await expect(stock.getByRole("row", { name: /CFZ/ }).first()).toBeVisible();
   await page.getByLabel("Customer (sales only)").selectOption({ label: "All customers" });
   await expect(row).toBeVisible();
 

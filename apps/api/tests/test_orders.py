@@ -20,10 +20,10 @@ P = "/api/v1"
 
 CSV = (
     "sku,product_name,unit,rate,currency,customer_ref,group_code\r\n"
-    "CAS-01,Cassava,BOX,28.00,CAD,,\r\n"
-    "CAS-01,Cassava,LB,1.50,CAD,,\r\n"
-    "CAS-01,Cassava,BOX,26.50,CAD,C-100,\r\n"
-    "PLN-01,Plantain,PIECE,0.45,CAD,,\r\n"
+    "CAS,Cassava,BOX,28.00,CAD,,\r\n"
+    "CAS,Cassava,LB,1.50,CAD,,\r\n"
+    "CAS,Cassava,BOX,26.50,CAD,C-100,\r\n"
+    "PLN,Plantain,PIECE,0.45,CAD,,\r\n"
 )
 
 
@@ -55,9 +55,9 @@ def user(make_api, world):
 def setup(owner):
     prods = {}
     for sku, name, stock_unit, profiles in [
-        ("CAS-01", "Cassava", "BOX", [("CASE40", "BOX", "40")]),
-        ("PLN-01", "Plantain", "PIECE", [("PC", "PIECE", None)]),
-        ("NOP-01", "Unpriced", "BOX", [("CASE", "BOX", None)]),
+        ("CAS", "Cassava", "BOX", [("CASE40", "BOX", "40")]),
+        ("PLN", "Plantain", "PIECE", [("PC", "PIECE", None)]),
+        ("NOP", "Unpriced", "BOX", [("CASE", "BOX", None)]),
     ]:
         body = {
             "sku": sku,
@@ -173,9 +173,9 @@ def line(order, sku):
 
 def test_fifteen_requested_ten_supplied_leaves_five_pending(owner, user, world, setup):
     sales, wh = user("sales"), user("wh_a")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "15"), ("PLN-01", "PIECE", "20")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "15"), ("PLN", "PIECE", "20")])
     assert o["status"] == "CONFIRMED" and o["order_no"].startswith("SO-")
-    cas = line(o, "CAS-01")
+    cas = line(o, "CAS")
     assert cas["rate"] == "26.5000" and cas["price_scope"] == "CUSTOMER"
     assert cas["price_version_code"] == "PB-1"
 
@@ -191,7 +191,7 @@ def test_fifteen_requested_ten_supplied_leaves_five_pending(owner, user, world, 
     assert [x["disposition"] for x in pk["lines"]] == ["BACKORDER", "BACKORDER"]
 
     o = owner.get(f"{P}/sales-orders/{o['id']}").json()
-    cas, pln = line(o, "CAS-01"), line(o, "PLN-01")
+    cas, pln = line(o, "CAS"), line(o, "PLN")
     assert (cas["ordered_qty"], cas["awaiting_invoice_qty"], cas["pending_qty"]) == (
         "15.0000",
         "10.0000",
@@ -218,8 +218,8 @@ def test_fifteen_requested_ten_supplied_leaves_five_pending(owner, user, world, 
 
 def test_price_frozen_at_confirmation(owner, user, world, setup):
     sales = user("sales")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "3")], cust=setup["walkin"])
-    assert line(o, "CAS-01")["rate"] == "28.0000"
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "3")], cust=setup["walkin"])
+    assert line(o, "CAS")["rate"] == "28.0000"
     # new price book later: the confirmed order keeps 28
     csv2 = CSV.replace("BOX,28.00", "BOX,31.00")
     r = owner.post(
@@ -235,9 +235,9 @@ def test_price_frozen_at_confirmation(owner, user, world, setup):
     )
     assert a.status_code == 200, a.text
     again = owner.get(f"{P}/sales-orders/{o['id']}").json()
-    assert line(again, "CAS-01")["rate"] == "28.0000"
-    o2 = confirmed(sales, world, setup, [("CAS-01", "BOX", "3")], cust=setup["walkin"])
-    assert line(o2, "CAS-01")["rate"] == "31.0000"
+    assert line(again, "CAS")["rate"] == "28.0000"
+    o2 = confirmed(sales, world, setup, [("CAS", "BOX", "3")], cust=setup["walkin"])
+    assert line(o2, "CAS")["rate"] == "31.0000"
 
     # the database refuses to change a frozen rate or a confirmed line, even bypassing the API
     with get_sessionmaker()() as db:
@@ -255,22 +255,22 @@ def test_price_frozen_at_confirmation(owner, user, world, setup):
 
 def test_worker_cannot_change_price_confirm_or_close(owner, user, world, setup):
     sales, wh = user("sales"), user("wh_a")
-    r = new_order(wh, world, setup, [("CAS-01", "BOX", "2")])
+    r = new_order(wh, world, setup, [("CAS", "BOX", "2")])
     assert r.status_code == 403
-    d = new_order(sales, world, setup, [("CAS-01", "BOX", "2")]).json()
+    d = new_order(sales, world, setup, [("CAS", "BOX", "2")]).json()
     assert (
         wh.post(
             f"{P}/sales-orders/{d['id']}/confirm", json={"version": d["version"]}, headers=idem()
         ).status_code
         == 403
     )
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "2")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "2")])
     # no route edits a confirmed order (price, qty); warehouse cannot close or open sheets
     body = {
         "version": o["version"],
         "customer_id": setup["cust"],
         "warehouse_id": str(world.wh_a),
-        "lines": [{"product_id": setup["p"]["CAS-01"], "unit_code": "BOX", "qty": "2"}],
+        "lines": [{"product_id": setup["p"]["CAS"], "unit_code": "BOX", "qty": "2"}],
     }
     assert sales.put(f"{P}/sales-orders/{o['id']}", json=body, headers=idem()).status_code == 409
     assert wh.put(f"{P}/sales-orders/{o['id']}", json=body, headers=idem()).status_code == 403
@@ -295,21 +295,21 @@ def test_worker_cannot_change_price_confirm_or_close(owner, user, world, setup):
     # finance reads but cannot manage
     fin = user("finance")
     assert fin.get(f"{P}/sales-orders/{o['id']}").status_code == 200
-    assert new_order(fin, world, setup, [("CAS-01", "BOX", "1")]).status_code == 403
+    assert new_order(fin, world, setup, [("CAS", "BOX", "1")]).status_code == 403
 
 
 def test_validation_and_draft_editing(owner, user, world, setup):
     sales = user("sales")
-    r = new_order(sales, world, setup, [("CAS-01", "KG", "2")])
+    r = new_order(sales, world, setup, [("CAS", "KG", "2")])
     assert r.status_code == 422 and code(r) == "INVALID_UNIT"
-    r = new_order(sales, world, setup, [("CAS-01", "BOX", "1.5")])
+    r = new_order(sales, world, setup, [("CAS", "BOX", "1.5")])
     assert r.status_code == 422 and code(r) == "UNIT_NOT_DIVISIBLE"
-    r = new_order(sales, world, setup, [("CAS-01", "BOX", "1"), ("CAS-01", "BOX", "2")])
+    r = new_order(sales, world, setup, [("CAS", "BOX", "1"), ("CAS", "BOX", "2")])
     assert r.status_code == 422 and code(r) == "DUPLICATE_LINE"
-    r = new_order(sales, world, setup, [("CAS-01", "BOX", "1")], cust=str(world.wh_a))
+    r = new_order(sales, world, setup, [("CAS", "BOX", "1")], cust=str(world.wh_a))
     assert r.status_code == 422 and code(r) == "INVALID_CUSTOMER"
 
-    d = new_order(sales, world, setup, [("NOP-01", "BOX", "1")]).json()
+    d = new_order(sales, world, setup, [("NOP", "BOX", "1")]).json()
     assert d["status"] == "DRAFT" and d["lines"][0]["rate"] is None
     c = sales.post(
         f"{P}/sales-orders/{d['id']}/confirm", json={"version": d["version"]}, headers=idem()
@@ -320,13 +320,13 @@ def test_validation_and_draft_editing(owner, user, world, setup):
         "version": d["version"],
         "customer_id": setup["cust"],
         "warehouse_id": str(world.wh_a),
-        "lines": [{"product_id": setup["p"]["PLN-01"], "unit_code": "PIECE", "qty": "12"}],
+        "lines": [{"product_id": setup["p"]["PLN"], "unit_code": "PIECE", "qty": "12"}],
     }
     e = sales.put(f"{P}/sales-orders/{d['id']}", json=body, headers=idem())
     assert e.status_code == 200, e.text
     e = e.json()
-    assert [x["sku"] for x in e["lines"]] == ["PLN-01"] and e["version"] == d["version"] + 1
-    assert e["source_snapshot"][0]["sku"] == "NOP-01"  # original capture untouched
+    assert [x["sku"] for x in e["lines"]] == ["PLN"] and e["version"] == d["version"] + 1
+    assert e["source_snapshot"][0]["sku"] == "NOP"  # original capture untouched
     stale = sales.put(f"{P}/sales-orders/{d['id']}", json=body, headers=idem())
     assert stale.status_code == 409 and code(stale) == "VERSION_CONFLICT"
 
@@ -340,7 +340,7 @@ def test_validation_and_draft_editing(owner, user, world, setup):
 
 def test_pick_rules(owner, user, world, setup):
     sales, wh = user("sales"), user("wh_a")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "5")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "5")])
     pk = open_pick(sales, o).json()
     assert open_pick(sales, sales.get(f"{P}/sales-orders/{o['id']}").json()).status_code == 409
     assert record(wh, pk, [(0, "6", None)]).json()["error"]["code"] == "OVER_PICK"
@@ -364,7 +364,7 @@ def test_pick_rules(owner, user, world, setup):
     v = verify(owner, sub)
     assert v.status_code == 200 and v.json()["lines"][0]["outcome"] == "PICKED"
     o = owner.get(f"{P}/sales-orders/{o['id']}").json()
-    assert line(o, "CAS-01")["pending_qty"] == "0.0000"
+    assert line(o, "CAS")["pending_qty"] == "0.0000"
     assert open_pick(sales, o).json()["error"]["code"] == "NOTHING_TO_PICK"
     # awaiting invoice: close refused
     cl = owner.post(
@@ -380,7 +380,7 @@ def test_pick_rules(owner, user, world, setup):
 
 def test_shortage_cancel_and_close(owner, user, world, setup):
     sales, wh = user("sales"), user("wh_a")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "10"), ("PLN-01", "PIECE", "6")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "10"), ("PLN", "PIECE", "6")])
     r = open_pick(sales, o)
     pk = r.json()
     sub = submit(wh, record(wh, pk, [(0, "0", "OUT_OF_STOCK"), (1, "6", None)]).json()).json()
@@ -391,7 +391,7 @@ def test_shortage_cancel_and_close(owner, user, world, setup):
     v = verify(owner, sub, {cas_id: "CANCEL"}, reason="customer declined backorder")
     assert v.status_code == 200, v.text
     o = owner.get(f"{P}/sales-orders/{o['id']}").json()
-    cas = line(o, "CAS-01")
+    cas = line(o, "CAS")
     assert (cas["cancelled_qty"], cas["pending_qty"], cas["backorder"]) == (
         "10.0000",
         "0.0000",
@@ -400,7 +400,7 @@ def test_shortage_cancel_and_close(owner, user, world, setup):
     assert [a["kind"] for a in o["amendments"]] == ["SHORTAGE_CANCELLED"]
 
     # second order: partial line cancel then close with shortage
-    o2 = confirmed(sales, world, setup, [("PLN-01", "PIECE", "10")])
+    o2 = confirmed(sales, world, setup, [("PLN", "PIECE", "10")])
     lid = o2["lines"][0]["id"]
     big = owner.post(
         f"{P}/sales-orders/{o2['id']}/lines/{lid}/cancel",
@@ -430,7 +430,7 @@ def test_shortage_cancel_and_close(owner, user, world, setup):
 
 def test_abort_returns_quantities_to_pending(owner, user, world, setup):
     sales, wh = user("sales"), user("wh_a")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "4")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "4")])
     pk = open_pick(sales, o).json()
     rec = record(wh, pk, [(0, "4", None)]).json()
     ab = sales.post(
@@ -441,7 +441,7 @@ def test_abort_returns_quantities_to_pending(owner, user, world, setup):
     assert ab.status_code == 200 and ab.json()["status"] == "ABORTED"
     o = owner.get(f"{P}/sales-orders/{o['id']}").json()
     assert o["status"] == "CONFIRMED" and o["open_attempt_id"] is None
-    assert line(o, "CAS-01")["pending_qty"] == "4.0000"
+    assert line(o, "CAS")["pending_qty"] == "4.0000"
     # cannot cancel whole order once any (non-aborted) pick exists -- aborted is fine
     p2 = open_pick(sales, o).json()
     assert p2["attempt_no"] == 2
@@ -457,9 +457,9 @@ def test_abort_returns_quantities_to_pending(owner, user, world, setup):
 def test_idempotent_replay(owner, user, world, setup):
     sales, wh = user("sales"), user("wh_a")
     key = idem()
-    first = new_order(sales, world, setup, [("CAS-01", "BOX", "2")], key=key)
+    first = new_order(sales, world, setup, [("CAS", "BOX", "2")], key=key)
     for _ in range(20):
-        again = new_order(sales, world, setup, [("CAS-01", "BOX", "2")], key=key)
+        again = new_order(sales, world, setup, [("CAS", "BOX", "2")], key=key)
         assert again.status_code == 201 and again.json()["id"] == first.json()["id"]
     assert owner.get(f"{P}/sales-orders").json()["total"] == 1
     o = sales.post(
@@ -479,14 +479,14 @@ def test_idempotent_replay(owner, user, world, setup):
 
 def test_concurrent_pick_open_and_numbering(owner, user, world, setup):
     sales = user("sales")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "5")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "5")])
     with ThreadPoolExecutor(8) as ex:
         res = list(ex.map(lambda _: open_pick(sales, o), range(8)))
     codes = sorted(r.status_code for r in res)
     assert codes.count(201) == 1 and set(codes) == {201, 409}
     with ThreadPoolExecutor(8) as ex:
         made = list(
-            ex.map(lambda _: new_order(sales, world, setup, [("CAS-01", "BOX", "1")]), range(8))
+            ex.map(lambda _: new_order(sales, world, setup, [("CAS", "BOX", "1")]), range(8))
         )
     nos = [r.json()["order_no"] for r in made if r.status_code == 201]
     assert len(nos) == 8 and len(set(nos)) == 8
@@ -495,8 +495,8 @@ def test_concurrent_pick_open_and_numbering(owner, user, world, setup):
 def test_scope_and_tenancy(owner, user, world, setup, make_api):
     mgr = user("manager_a")  # MANAGER scoped to WA
     sales = user("sales")
-    ob = confirmed(sales, world, setup, [("CAS-01", "BOX", "1")], wh=world.wh_b)
-    oa = confirmed(sales, world, setup, [("CAS-01", "BOX", "1")])
+    ob = confirmed(sales, world, setup, [("CAS", "BOX", "1")], wh=world.wh_b)
+    oa = confirmed(sales, world, setup, [("CAS", "BOX", "1")])
     assert mgr.get(f"{P}/sales-orders/{ob['id']}").status_code == 403
     ids = [x["id"] for x in mgr.get(f"{P}/sales-orders").json()["items"]]
     assert ids == [oa["id"]]
@@ -513,7 +513,7 @@ def test_scope_and_tenancy(owner, user, world, setup, make_api):
 
 def test_failure_injection_rolls_back(owner, user, world, setup, monkeypatch):
     sales = user("sales")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "3")])
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "3")])
     real = audit.record
 
     def boom(*a, **kw):

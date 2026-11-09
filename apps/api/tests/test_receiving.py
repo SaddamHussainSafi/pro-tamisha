@@ -50,9 +50,9 @@ def user(make_api, world):
 def setup(owner, world):
     prods = {}
     for sku, name, unit, expiry in [
-        ("CAS-01", "Cassava", "BOX", False),
-        ("YAM-01", "Yellow yam", "LB", False),
-        ("MLK-01", "Coconut milk", "PIECE", True),
+        ("CAS", "Cassava", "BOX", False),
+        ("YAM", "Yellow yam", "LB", False),
+        ("MLK", "Coconut milk", "PIECE", True),
     ]:
         body = {"sku": sku, "name": name, "stock_unit": unit, "tracks_expiry": expiry}
         r = owner.post(f"{P}/products", json=body, headers=idem())
@@ -149,7 +149,7 @@ def movements(company_id):
 
 def test_declared_25_accepted_23_damaged_2_posts_only_23_saleable(owner, user, world, setup):
     wh = user("wh_a")
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     s = new_shipment(wh, world, setup, vendor_invoice_no="INV-77", awb_no="AWB-123-456")
     assert s["status"] == "OPEN" and s["shipment_no"].startswith("SHP-")
     r = upload(wh, s)
@@ -223,7 +223,7 @@ def test_declared_25_accepted_23_damaged_2_posts_only_23_saleable(owner, user, w
 
 
 def test_concurrent_posts_add_stock_once(owner, user, world, setup):
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     s = new_shipment(owner, world, setup)
     s = count(owner, s, cas, "10").json()
     s = act(owner, s, "submit-count", {}).json()
@@ -239,7 +239,7 @@ def test_concurrent_posts_add_stock_once(owner, user, world, setup):
 
 
 def test_documents_conflict_and_status_rules(owner, world, setup):
-    cas, yam = setup["p"]["CAS-01"], setup["p"]["YAM-01"]
+    cas, yam = setup["p"]["CAS"], setup["p"]["YAM"]
     s = new_shipment(owner, world, setup)
     s = upload(owner, s).json()
     s = upload(owner, s, PDF2, kind="AWB", ref="AWB-1").json()
@@ -250,16 +250,16 @@ def test_documents_conflict_and_status_rules(owner, world, setup):
     s = count(owner, s, cas, "25").json()
     s = count(owner, s, cas, "1", unit="BOX").json()  # second count line for same product sums
     by = {r["sku"]: r for r in s["comparison"]}
-    assert by["CAS-01"]["status"] == "DOC_CONFLICT"
-    assert by["CAS-01"]["declared_by_document"] == {inv_doc: "25.0000", awb_doc: "24.0000"}
-    assert by["YAM-01"]["status"] == "NOT_RECEIVED" and s["discrepancy_count"] == 2
+    assert by["CAS"]["status"] == "DOC_CONFLICT"
+    assert by["CAS"]["declared_by_document"] == {inv_doc: "25.0000", awb_doc: "24.0000"}
+    assert by["YAM"]["status"] == "NOT_RECEIVED" and s["discrepancy_count"] == 2
 
     # withdraw the mistaken AWB line -> now an overage of 1
     awb_line = next(d for d in s["declared"] if d["shipment_document_id"] == awb_doc)
     r = act(owner, s, f"declared/{awb_line['id']}/withdraw", {"reason": "typed wrong"})
     assert r.status_code == 200, r.text
     s = r.json()
-    assert {r["sku"]: r["status"] for r in s["comparison"]}["CAS-01"] == "OVER"
+    assert {r["sku"]: r["status"] for r in s["comparison"]}["CAS"] == "OVER"
     # same document twice is refused; stale version refused
     assert code(upload(owner, s)) == "ALREADY_ATTACHED"
     stale = {**s, "version": s["version"] - 1}
@@ -302,7 +302,7 @@ def test_documents_conflict_and_status_rules(owner, world, setup):
 
 
 def test_validation_rules(owner, world, setup):
-    cas, milk = setup["p"]["CAS-01"], setup["p"]["MLK-01"]
+    cas, milk = setup["p"]["CAS"], setup["p"]["MLK"]
     s = new_shipment(owner, world, setup)
     assert code(act(owner, s, "submit-count", {})) == "NOTHING_COUNTED"
     assert code(count(owner, s, cas, "0")) == "EMPTY_COUNT"
@@ -349,7 +349,7 @@ def test_validation_rules(owner, world, setup):
 
 
 def test_vendor_label_memory(owner, world, setup):
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     s = new_shipment(owner, world, setup)
     r = act(
         owner,
@@ -366,15 +366,15 @@ def test_vendor_label_memory(owner, world, setup):
         {"raw_label": "manioc 40lb ctn", "unit_code": "BOX", "declared_qty": "3"},
     )
     assert r.status_code == 201, r.text
-    assert [d["sku"] for d in r.json()["declared"]] == ["CAS-01", "CAS-01"]
+    assert [d["sku"] for d in r.json()["declared"]] == ["CAS", "CAS"]
     # exact SKU also maps without memory
     s = r.json()
-    r = act(owner, s, "declared", {"raw_label": "cas-01", "unit_code": "BOX", "declared_qty": "1"})
+    r = act(owner, s, "declared", {"raw_label": "cas", "unit_code": "BOX", "declared_qty": "1"})
     assert r.status_code == 201
 
 
 def test_landed_costs_captured_not_allocated(owner, world, setup):
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     s = new_shipment(owner, world, setup)
     s = upload(owner, s).json()
     s = act(
@@ -445,7 +445,7 @@ def test_permissions_and_scope(owner, user, make_api, world, setup):
 
 
 def test_db_guards(owner, world, setup):
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     s = new_shipment(owner, world, setup)
     s = upload(owner, s).json()
     s = declare(owner, s, s["documents"][0]["id"], cas, "5").json()

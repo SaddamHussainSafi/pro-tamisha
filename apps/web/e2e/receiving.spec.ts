@@ -79,7 +79,7 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
 
   // What physically arrived.
   const cl = page.getByRole("form", { name: "Add count line" });
-  await pick(cl.getByLabel("Product", { exact: true }), "CAS-FZ");
+  await pick(cl.getByLabel("Product", { exact: true }), "CFZ");
   await cl.getByLabel("Unit", { exact: true }).selectOption("BOX");
   await cl.getByLabel("Accepted (good)").fill("23");
   await cl.getByLabel("Damaged", { exact: true }).fill("2");
@@ -89,7 +89,7 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
   await expect(page.getByRole("status").filter({ hasText: "Count line saved" })).toBeVisible();
 
   const cmp = page.getByRole("region", { name: "Documents vs. what arrived" });
-  await expect(cmp.getByRole("row").filter({ hasText: "CAS-FZ" })).toContainText("Damaged");
+  await expect(cmp.getByRole("row").filter({ hasText: "CFZ" })).toContainText("Damaged");
   await axe(page);
   await page.screenshot({ path: "screenshots/receiving-count-1440.png", fullPage: true });
 
@@ -131,9 +131,9 @@ test("manager approves: only the 23 good boxes become saleable, and posting twic
   await expect(page.getByRole("button", { name: "Approve & post stock" })).toHaveCount(0);
   await page.screenshot({ path: "screenshots/receiving-posted-1440.png", fullPage: true });
 
-  // Stock: CAS-FZ now has the 23 saleable boxes plus a separate damaged lot of 2.
+  // Stock: CFZ now has the 23 saleable boxes plus a separate damaged lot of 2.
   await page.goto("/inventory");
-  await page.getByRole("searchbox").first().fill("CAS-FZ");
+  await page.getByRole("searchbox").first().fill("CFZ");
   await expect(page.getByRole("row").filter({ hasText: /-DMG/ }).first()).toBeVisible();
 });
 

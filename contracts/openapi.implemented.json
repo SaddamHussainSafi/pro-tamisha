@@ -9259,9 +9259,8 @@
             "type": "string"
           },
           "sku": {
-            "maxLength": 64,
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9._-]+$",
+            "maxLength": 3,
+            "minLength": 3,
             "title": "Sku",
             "type": "string"
           },
@@ -13365,6 +13364,7 @@
     },
     "/api/v1/auth/logout": {
       "post": {
+        "description": "Revokes the session and always clears the cookie, even when the session already expired.\n\nA tab that lost its CSRF token (it lives in per-tab sessionStorage) can still sign out: the\nbrowser's same-origin Origin header is accepted instead. Cross-site requests are stopped by\nthe Origin check here and in main.py, and by the SameSite=Strict cookie.",
         "operationId": "logout_api_v1_auth_logout_post",
         "responses": {
           "204": {
@@ -13482,7 +13482,7 @@
     },
     "/api/v1/auth/password": {
       "post": {
-        "description": "Change your own password. Other devices are signed out; this one stays signed in.",
+        "description": "Change your own password. Other devices are signed out; this one stays signed in.\n\nA privileged account must have verified MFA in this session (a stolen password alone must\nnot be enough to lock the real owner out). Wrong current passwords count toward the same\nlockout as sign-in; reaching it signs the account out everywhere.",
         "operationId": "change_password_api_v1_auth_password_post",
         "requestBody": {
           "content": {
@@ -14467,6 +14467,7 @@
             "name": "key",
             "required": true,
             "schema": {
+              "pattern": "^[a-z0-9_]{1,64}$",
               "title": "Key",
               "type": "string"
             }
@@ -14982,7 +14983,7 @@
     },
     "/api/v1/inventory/events": {
       "get": {
-        "description": "Server-Sent Events: `stock` whenever committed inventory state changes (polls committed\nstate, so events are only ever emitted after commit). Clients reconnect on close.",
+        "description": "Server-Sent Events: `stock` whenever committed inventory state changes (polls committed\nstate, so events are only ever emitted after commit). Clients reconnect on close.\n\nThe generator is async: it sleeps on the event loop and only borrows a worker thread for each\nshort poll, so open streams can't starve the thread pool every other route runs on. Each\nemployee may hold MAX_STREAMS_PER_EMPLOYEE streams; the stream ends if the session does.",
         "operationId": "stock_events_api_v1_inventory_events_get",
         "parameters": [
           {

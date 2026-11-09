@@ -23,7 +23,7 @@ def owner(make_api, world):
     return o
 
 
-def cassava(sku: str = "CAS-01") -> dict:
+def cassava(sku: str = "CAS") -> dict:
     return {
         "sku": sku,
         "name": "Cassava (frozen)",
@@ -115,7 +115,7 @@ def test_weight_calc_rejects_unknown_piece_conversion(owner, product):
 
 def test_weight_calc_rejects_foreign_profile(owner, product):
     other = owner.post(
-        f"{P}/products", json={**cassava("CAS-02"), "aliases": []}, headers=idem()
+        f"{P}/products", json={**cassava("CAB"), "aliases": []}, headers=idem()
     ).json()
     g = [{"profile_id": prof(other, "CASE20"), "count": "1"}]
     r = owner.post(f"{P}/products/{product['id']}/weight-calc", json={"groups": g})
@@ -143,14 +143,14 @@ def test_duplicate_sku_conflict(owner, product):
 
 
 def test_two_defaults_rejected(owner):
-    body = cassava("CAS-DD")
+    body = cassava("CDD")
     body["unit_profiles"][1]["is_default"] = True
     r = owner.post(f"{P}/products", json=body, headers=idem())
     assert r.status_code == 422 and r.json()["error"]["code"] == "INVALID_PROFILE"
 
 
 def test_base_unit_profile_with_factor_rejected(owner):
-    body = cassava("CAS-LB")
+    body = cassava("CLB")
     body["unit_profiles"] = [{"code": "LB", "unit_code": "LB", "weight_lb_per_unit": "2"}]
     r = owner.post(f"{P}/products", json=body, headers=idem())
     assert r.status_code == 422 and r.json()["error"]["code"] == "INVALID_PROFILE"
@@ -158,16 +158,16 @@ def test_base_unit_profile_with_factor_rejected(owner):
 
 def test_create_replay_and_key_reuse(owner):
     h = idem()
-    r1 = owner.post(f"{P}/products", json=cassava("CAS-R"), headers=h)
-    r2 = owner.post(f"{P}/products", json=cassava("CAS-R"), headers=h)
+    r1 = owner.post(f"{P}/products", json=cassava("CSR"), headers=h)
+    r2 = owner.post(f"{P}/products", json=cassava("CSR"), headers=h)
     assert r1.status_code == r2.status_code == 201
     assert r1.json() == r2.json() and r2.headers.get("Idempotent-Replay") == "true"
-    r3 = owner.post(f"{P}/products", json=cassava("CAS-S"), headers=h)
+    r3 = owner.post(f"{P}/products", json=cassava("CSS"), headers=h)
     assert r3.status_code == 409 and r3.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
 
 
 def test_missing_idempotency_key(owner):
-    assert owner.post(f"{P}/products", json=cassava("CAS-K")).status_code == 422
+    assert owner.post(f"{P}/products", json=cassava("CSK")).status_code == 422
 
 
 def test_patch_version_conflict(owner, product):
@@ -240,7 +240,7 @@ def test_inactive_profile_rejected_in_weight_calc(owner, product):
 
 
 def test_alias_resolve_source_specific_wins(owner, product):
-    other = owner.post(f"{P}/products", json={**cassava("CAS-V"), "aliases": []}, headers=idem())
+    other = owner.post(f"{P}/products", json={**cassava("CSV"), "aliases": []}, headers=idem())
     oid = other.json()["id"]
     r = owner.post(
         f"{P}/products/{oid}/aliases",
@@ -270,11 +270,11 @@ def test_duplicate_alias_conflict_and_delete(owner, product):
 def test_search_and_filters(owner, product):
     owner.post(
         f"{P}/products",
-        json={**cassava("PLN-01"), "name": "Plantain", "aliases": []},
+        json={**cassava("PLN"), "name": "Plantain", "aliases": []},
         headers=idem(),
     )
     by_alias = owner.get(f"{P}/products", params={"search": "yuca"}).json()["items"]
-    assert [x["sku"] for x in by_alias] == ["CAS-01"]
+    assert [x["sku"] for x in by_alias] == ["CAS"]
     page = owner.get(f"{P}/products", params={"limit": 1}).json()
     assert len(page["items"]) == 1 and page["next_cursor"]
     nxt = owner.get(f"{P}/products", params={"limit": 1, "cursor": page["next_cursor"]}).json()
@@ -287,11 +287,11 @@ def test_category_create_and_invalid_category(owner):
     )
     assert r.status_code == 201, r.text
     ok = owner.post(
-        f"{P}/products", json={**cassava("CAS-C"), "category_id": r.json()["id"]}, headers=idem()
+        f"{P}/products", json={**cassava("CSC"), "category_id": r.json()["id"]}, headers=idem()
     )
     assert ok.status_code == 201
     bad = owner.post(
-        f"{P}/products", json={**cassava("CAS-D"), "category_id": str(uuid.uuid4())}, headers=idem()
+        f"{P}/products", json={**cassava("CSD"), "category_id": str(uuid.uuid4())}, headers=idem()
     )
     assert bad.status_code == 422 and bad.json()["error"]["code"] == "INVALID_CATEGORY"
 
@@ -303,7 +303,7 @@ def test_warehouse_role_can_read_but_not_manage(make_api, world, product):
     w = make_api()
     assert w.login(world.emails["wh_a"]).status_code == 200
     assert w.get(f"{P}/products/{product['id']}").status_code == 200
-    r = w.post(f"{P}/products", json=cassava("CAS-W"), headers=idem())
+    r = w.post(f"{P}/products", json=cassava("CSW"), headers=idem())
     assert r.status_code == 403
     r = w.patch(f"{P}/products/{product['id']}", json=pb("x", 1), headers=idem())
     assert r.status_code == 403
@@ -312,9 +312,9 @@ def test_warehouse_role_can_read_but_not_manage(make_api, world, product):
 def test_privileged_role_needs_mfa(make_api, world):
     o = make_api()
     o.login(world.emails["owner"])
-    assert o.post(f"{P}/products", json=cassava("CAS-M"), headers=idem()).status_code == 403
+    assert o.post(f"{P}/products", json=cassava("CSM"), headers=idem()).status_code == 403
     assert o.enroll_and_verify().status_code == 200
-    assert o.post(f"{P}/products", json=cassava("CAS-M"), headers=idem()).status_code == 201
+    assert o.post(f"{P}/products", json=cassava("CSM"), headers=idem()).status_code == 201
 
 
 def test_warehouse_scoped_grant_cannot_manage_company_catalog(make_api, world):
@@ -323,7 +323,7 @@ def test_warehouse_scoped_grant_cannot_manage_company_catalog(make_api, world):
     m.login(world.emails["manager_a"])
     assert m.enroll_and_verify().status_code == 200
     assert m.get(f"{P}/products").status_code == 200
-    assert m.post(f"{P}/products", json=cassava("CAS-N"), headers=idem()).status_code == 403
+    assert m.post(f"{P}/products", json=cassava("CSN"), headers=idem()).status_code == 403
 
 
 def test_unauthenticated_rejected(api):
@@ -336,7 +336,7 @@ def test_cross_company_isolation(make_api, product):
     o.login(other.emails["owner"])
     assert o.enroll_and_verify().status_code == 200
     assert o.get(f"{P}/products/{product['id']}").status_code == 404
-    assert o.get(f"{P}/products", params={"search": "CAS-01"}).json()["items"] == []
+    assert o.get(f"{P}/products", params={"search": "CAS"}).json()["items"] == []
 
 
 # --- database guarantees ---------------------------------------------------------------------
@@ -387,17 +387,17 @@ def test_failure_injection_mid_create_rolls_back_and_retry_succeeds(owner, monke
     monkeypatch.setattr(audit, "record", boom)
     h = idem()
     try:
-        r = owner.post(f"{P}/products", json=cassava("CAS-FAIL"), headers=h)
+        r = owner.post(f"{P}/products", json=cassava("CSF"), headers=h)
         assert r.status_code == 500
     except RuntimeError:
         pass  # TestClient re-raises server exceptions
-    n = db.execute(text("select count(*) from products where sku = 'CAS-FAIL'")).scalar_one()
+    n = db.execute(text("select count(*) from products where sku = 'CSF'")).scalar_one()
     assert n == 0
 
     monkeypatch.setattr(audit, "record", real)
-    r1 = owner.post(f"{P}/products", json=cassava("CAS-FAIL"), headers=h)
-    r2 = owner.post(f"{P}/products", json=cassava("CAS-FAIL"), headers=h)
+    r1 = owner.post(f"{P}/products", json=cassava("CSF"), headers=h)
+    r2 = owner.post(f"{P}/products", json=cassava("CSF"), headers=h)
     assert r1.status_code == r2.status_code == 201
     assert r2.headers.get("Idempotent-Replay") == "true"
-    n = db.execute(text("select count(*) from products where sku = 'CAS-FAIL'")).scalar_one()
+    n = db.execute(text("select count(*) from products where sku = 'CSF'")).scalar_one()
     assert n == 1

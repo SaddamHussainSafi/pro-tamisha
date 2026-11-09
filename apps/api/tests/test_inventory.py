@@ -31,13 +31,13 @@ def owner(make_api, world):
 def prods(owner):
     out = {}
     for sku, expiry, profiles in [
-        ("CAS-01", False, [("CASE40", "BOX", "40")]),
-        ("PLN-01", True, [("PC", "PIECE", None)]),
+        ("CAS", False, [("CASE40", "BOX", "40")]),
+        ("PLN", True, [("PC", "PIECE", None)]),
     ]:
         body = {
             "sku": sku,
             "name": f"Product {sku}",
-            "stock_unit": "BOX" if sku == "CAS-01" else "PIECE",
+            "stock_unit": "BOX" if sku == "CAS" else "PIECE",
             "tracks_expiry": expiry,
             "unit_profiles": [
                 {"code": c, "unit_code": u, "weight_lb_per_unit": w} for c, u, w in profiles
@@ -93,7 +93,7 @@ def ledger(lot):
 
 
 def test_opening_balance_separate_measures_and_reads(owner, world, prods):
-    r = opening(owner, world, prods["CAS-01"], [("BOX", "7"), ("LB", "205.5")], batch_ref="B-1")
+    r = opening(owner, world, prods["CAS"], [("BOX", "7"), ("LB", "205.5")], batch_ref="B-1")
     lot = lot_of(r)
     body = r.json()
     assert [m["movement_type"] for m in body["movements"]] == ["OPENING_BALANCE"] * 2
@@ -104,7 +104,7 @@ def test_opening_balance_separate_measures_and_reads(owner, world, prods):
     assert bal(owner, lot, "BOX")["available_qty"] == "7.0000"
     stock = owner.get(f"{P}/inventory/stock", params={"q": "cas"}).json()
     assert stock["total"] == 2 and {i["unit_code"] for i in stock["items"]} == {"BOX", "LB"}
-    av = owner.get(f"{P}/inventory/availability", params={"product_id": prods["CAS-01"]}).json()
+    av = owner.get(f"{P}/inventory/availability", params={"product_id": prods["CAS"]}).json()
     assert {a["unit_code"]: a["available"] for a in av} == {"BOX": "7.0000", "LB": "205.5000"}
     mv = owner.get(f"{P}/inventory/movements", params={"lot_id": lot}).json()
     assert mv["total"] == 2 and mv["items"][0]["actor_name"] == "owner"
@@ -112,22 +112,22 @@ def test_opening_balance_separate_measures_and_reads(owner, world, prods):
 
 def test_unit_and_quantity_validation(owner, world, prods):
     assert (
-        opening(owner, world, prods["CAS-01"], [("PIECE", "1")]).json()["error"]["code"]
+        opening(owner, world, prods["CAS"], [("PIECE", "1")]).json()["error"]["code"]
         == "INVALID_UNIT"
     )
     assert (
-        opening(owner, world, prods["CAS-01"], [("KG", "1")]).json()["error"]["code"]
+        opening(owner, world, prods["CAS"], [("KG", "1")]).json()["error"]["code"]
         == "INVALID_UNIT"
     )
-    r = opening(owner, world, prods["CAS-01"], [("BOX", "1.5")])
+    r = opening(owner, world, prods["CAS"], [("BOX", "1.5")])
     assert r.status_code == 422 and r.json()["error"]["code"] == "UNIT_NOT_DIVISIBLE"
-    r = opening(owner, world, prods["PLN-01"], [("PIECE", "10")])
+    r = opening(owner, world, prods["PLN"], [("PIECE", "10")])
     assert r.json()["error"]["code"] == "EXPIRY_REQUIRED"
-    r = opening(owner, world, prods["CAS-01"], [("BOX", "1"), ("BOX", "2")])
+    r = opening(owner, world, prods["CAS"], [("BOX", "1"), ("BOX", "2")])
     assert r.json()["error"]["code"] == "DUPLICATE_UNIT"
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "5")], lot_code="LOT-X"))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "5")], lot_code="LOT-X"))
     assert (
-        opening(owner, world, prods["CAS-01"], [("BOX", "5")], lot_code="LOT-X").status_code == 409
+        opening(owner, world, prods["CAS"], [("BOX", "5")], lot_code="LOT-X").status_code == 409
     )
     assert adjust(owner, lot, "BOX", "0").json()["error"]["code"] == "ZERO_QUANTITY"
     r = adjust(owner, lot, "BOX", "-6")
@@ -137,7 +137,7 @@ def test_unit_and_quantity_validation(owner, world, prods):
 
 
 def test_repeat_100_requests_returns_prior_result(owner, world, prods):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "50")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "50")]))
     key = idem()
     first = adjust(owner, lot, "BOX", "-3", key)
     assert first.status_code == 201
@@ -153,7 +153,7 @@ def test_repeat_100_requests_returns_prior_result(owner, world, prods):
 
 def test_concurrent_oversell_rejected(owner, world, prods):
     """INV-004 shape: stock 8, ten concurrent removals of 6 -> exactly one succeeds."""
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "8")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "8")]))
     with ThreadPoolExecutor(10) as ex:
         codes = list(ex.map(lambda _: adjust(owner, lot, "BOX", "-6").status_code, range(10)))
     assert codes.count(201) == 1 and codes.count(409) == 9, codes
@@ -162,7 +162,7 @@ def test_concurrent_oversell_rejected(owner, world, prods):
 
 
 def test_concurrent_identical_key_posts_once(owner, world, prods):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "20")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "20")]))
     key = idem()
     with ThreadPoolExecutor(10) as ex:
         rs = list(ex.map(lambda _: adjust(owner, lot, "BOX", "-5", key), range(10)))
@@ -173,7 +173,7 @@ def test_concurrent_identical_key_posts_once(owner, world, prods):
 
 
 def test_reservations_hold_stock(owner, world, prods, make_api):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "10")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "10")]))
     sales = make_api()
     sales.login(world.emails["sales"])
 
@@ -209,7 +209,7 @@ def test_reservations_hold_stock(owner, world, prods, make_api):
 
 
 def test_damage_return_reverse(owner, world, prods):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "10")], lot_code="L-DMG"))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "10")], lot_code="L-DMG"))
     r = owner.post(
         f"{P}/inventory/damage",
         json={"lot_id": lot, "unit_code": "BOX", "qty": "3", "note": "crushed pallet"},
@@ -223,7 +223,7 @@ def test_damage_return_reverse(owner, world, prods):
     dmg = owner.get(f"{P}/inventory/lots/{comp}").json()
     assert dmg["status"] == "DAMAGED" and dmg["lot_code"] == "L-DMG-DMG"
     assert dmg["balances"][0]["available_qty"] == "0.0000"
-    av = owner.get(f"{P}/inventory/availability", params={"product_id": prods["CAS-01"]}).json()
+    av = owner.get(f"{P}/inventory/availability", params={"product_id": prods["CAS"]}).json()
     assert (av[0]["available"], av[0]["unavailable"], av[0]["on_hand"]) == (
         "7.0000",
         "3.0000",
@@ -267,7 +267,7 @@ def test_damage_return_reverse(owner, world, prods):
 
 
 def test_reversal_refused_when_stock_already_used(owner, world, prods):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "5")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "5")]))
     found = adjust(owner, lot, "BOX", "5", reason="FOUND").json()["movements"][0]["id"]
     assert adjust(owner, lot, "BOX", "-8").status_code == 201
     r = owner.post(
@@ -277,7 +277,7 @@ def test_reversal_refused_when_stock_already_used(owner, world, prods):
 
 
 def test_stock_count_flow_and_stale_count(owner, world, prods, make_api):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "10")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "10")]))
     wh = make_api()
     wh.login(world.emails["wh_a"])
 
@@ -325,7 +325,7 @@ def test_stock_count_flow_and_stale_count(owner, world, prods, make_api):
 
 
 def test_rebuild_cached_balance_equals_ledger(owner, world, prods, make_api):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "10"), ("LB", "400")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "10"), ("LB", "400")]))
     adjust(owner, lot, "BOX", "-2")
     clean = owner.get(f"{P}/inventory/reconciliation").json()
     assert clean["discrepancies"] == [] and clean["ledger_rows"] == 3
@@ -357,7 +357,7 @@ def test_rebuild_cached_balance_equals_ledger(owner, world, prods, make_api):
 
 
 def test_ledger_is_append_only(owner, world, prods):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "3")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "3")]))
     for sql in [
         "UPDATE stock_movements SET delta_qty = 100 WHERE lot_id = :l",
         "DELETE FROM stock_movements WHERE lot_id = :l",
@@ -373,8 +373,8 @@ def test_ledger_is_append_only(owner, world, prods):
 
 def test_lot_status_and_expiry_affect_availability(owner, world, prods):
     past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-    exp = lot_of(opening(owner, world, prods["PLN-01"], [("PIECE", "10")], expires_at=past))
-    av = owner.get(f"{P}/inventory/availability", params={"product_id": prods["PLN-01"]}).json()
+    exp = lot_of(opening(owner, world, prods["PLN"], [("PIECE", "10")], expires_at=past))
+    av = owner.get(f"{P}/inventory/availability", params={"product_id": prods["PLN"]}).json()
     assert av[0]["available"] == "0.0000" and av[0]["unavailable"] == "10.0000"
     assert bal(owner, exp, "PIECE")["expired"] is True
     r = owner.post(
@@ -383,7 +383,7 @@ def test_lot_status_and_expiry_affect_availability(owner, world, prods):
         headers=idem(),
     )
     assert r.json()["error"]["code"] == "LOT_NOT_SALEABLE"
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "4")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "4")]))
     q = owner.post(
         f"{P}/inventory/lots/{lot}/status",
         json={"status": "QUARANTINE", "version": 1, "reason": "temperature"},
@@ -399,8 +399,8 @@ def test_lot_status_and_expiry_affect_availability(owner, world, prods):
 
 
 def test_permissions_and_warehouse_scope(owner, world, prods, make_api):
-    a = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "5")]))
-    b = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "5")], wh=world.wh_b))
+    a = lot_of(opening(owner, world, prods["CAS"], [("BOX", "5")]))
+    b = lot_of(opening(owner, world, prods["CAS"], [("BOX", "5")], wh=world.wh_b))
 
     wh = make_api()
     wh.login(world.emails["wh_a"])
@@ -408,7 +408,7 @@ def test_permissions_and_warehouse_scope(owner, world, prods, make_api):
     assert {i["lot_id"] for i in items} == {a}
     assert wh.get(f"{P}/inventory/lots/{b}").status_code == 403
     assert adjust(wh, a, "BOX", "-1").status_code == 403
-    assert opening(wh, world, prods["CAS-01"], [("BOX", "1")]).status_code == 403
+    assert opening(wh, world, prods["CAS"], [("BOX", "1")]).status_code == 403
 
     sales = make_api()
     sales.login(world.emails["sales"])
@@ -421,7 +421,7 @@ def test_permissions_and_warehouse_scope(owner, world, prods, make_api):
     mgr.enroll_and_verify()
     assert adjust(mgr, a, "BOX", "-1").status_code == 201
     assert adjust(mgr, b, "BOX", "-1").status_code == 403  # scoped to warehouse A
-    assert opening(mgr, world, prods["CAS-01"], [("BOX", "1")], wh=world.wh_b).status_code == 403
+    assert opening(mgr, world, prods["CAS"], [("BOX", "1")], wh=world.wh_b).status_code == 403
 
     fin = make_api()
     fin.login(world.emails["finance"])
@@ -439,7 +439,7 @@ def test_permissions_and_warehouse_scope(owner, world, prods, make_api):
 
 
 def test_failure_mid_command_rolls_back_and_retry_succeeds(owner, world, prods, monkeypatch):
-    lot = lot_of(opening(owner, world, prods["CAS-01"], [("BOX", "9")]))
+    lot = lot_of(opening(owner, world, prods["CAS"], [("BOX", "9")]))
     real = audit.record
 
     def boom(*a, **kw):

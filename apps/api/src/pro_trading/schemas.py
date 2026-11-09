@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 
 class LoginIn(BaseModel):
@@ -153,8 +153,18 @@ class AliasOut(BaseModel):
     source_label: str
 
 
+def _upper_sku(v: Any) -> Any:
+    return v.strip().upper() if isinstance(v, str) else v
+
+
+# A product code is exactly three letters, e.g. "CAS". Lower case is accepted and stored upper case.
+Sku = Annotated[
+    str, BeforeValidator(_upper_sku), Field(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
+]
+
+
 class ProductIn(BaseModel):
-    sku: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    sku: Sku
     name: str = Field(min_length=1, max_length=200)
     category_id: uuid.UUID | None = None
     stock_unit: UnitCode

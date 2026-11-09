@@ -50,8 +50,8 @@ def price125(owner, setup):
 
 
 def invoice(owner, sales, wh, world, s, qty="10", cust=None):
-    stock(owner, world, s, "CAS-01", "BOX", qty)
-    o = confirmed(sales, world, s, [("CAS-01", "BOX", qty)], cust=cust)
+    stock(owner, world, s, "CAS", "BOX", qty)
+    o = confirmed(sales, world, s, [("CAS", "BOX", qty)], cust=cust)
     pk = picked(sales, wh, o, [(0, qty, None)], verifier=owner)
     r = issue(owner, pk)
     assert r.status_code == 201, r.text

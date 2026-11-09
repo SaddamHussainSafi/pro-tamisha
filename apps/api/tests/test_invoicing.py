@@ -89,8 +89,8 @@ def wh(user):
 
 
 def test_inv001_inv002_partial_then_backorder_invoice(owner, sales, wh, world, setup):
-    lot = stock(owner, world, setup, "CAS-01", "BOX", "40")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "15")])
+    lot = stock(owner, world, setup, "CAS", "BOX", "40")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "15")])
     pk = picked(sales, wh, o, [(0, "10", "OUT_OF_STOCK")], verifier=owner)
 
     pv = preview(sales, pk)  # sales may prepare (preview) but not issue
@@ -109,7 +109,7 @@ def test_inv001_inv002_partial_then_backorder_invoice(owner, sales, wh, world, s
     assert on_hand(owner, lot, "BOX") == "30.0000"
     assert movements(a["id"]) == (1, -10)
     order = owner.get(f"{P}/sales-orders/{o['id']}").json()
-    cas = line(order, "CAS-01")
+    cas = line(order, "CAS")
     assert (cas["dispatched_qty"], cas["pending_qty"]) == ("10.0000", "5.0000")
     assert order["status"] == "PARTIALLY_FULFILLED"
 
@@ -122,7 +122,7 @@ def test_inv001_inv002_partial_then_backorder_invoice(owner, sales, wh, world, s
     assert b["invoice_no"] == f"INV-{year}-000002" and b["id"] != a["id"]
     assert on_hand(owner, lot, "BOX") == "25.0000"
     order = owner.get(f"{P}/sales-orders/{o['id']}").json()
-    assert order["status"] == "FULFILLED" and line(order, "CAS-01")["pending_qty"] == "0.0000"
+    assert order["status"] == "FULFILLED" and line(order, "CAS")["pending_qty"] == "0.0000"
     listed = owner.get(f"{P}/invoices", params={"sales_order_id": o["id"]}).json()
     assert {x["invoice_no"] for x in listed["items"]} == {a["invoice_no"], b["invoice_no"]}
     # a second issue for the same sheet is refused, pointing at the first invoice
@@ -132,8 +132,8 @@ def test_inv001_inv002_partial_then_backorder_invoice(owner, sales, wh, world, s
 
 
 def test_inv003_ten_concurrent_retries_same_key(owner, sales, wh, world, setup):
-    lot = stock(owner, world, setup, "CAS-01", "BOX", "20")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "6")])
+    lot = stock(owner, world, setup, "CAS", "BOX", "20")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "6")])
     pk = picked(sales, wh, o, [(0, "6", None)], verifier=owner)
     key = idem()
     with ThreadPoolExecutor(10) as ex:
@@ -155,10 +155,10 @@ def test_inv003_ten_concurrent_retries_same_key(owner, sales, wh, world, setup):
 
 
 def test_inv004_two_picks_compete_for_stock(owner, sales, wh, world, setup):
-    lot = stock(owner, world, setup, "CAS-01", "BOX", "8")
+    lot = stock(owner, world, setup, "CAS", "BOX", "8")
     pks = []
     for _ in range(2):
-        o = confirmed(sales, world, setup, [("CAS-01", "BOX", "6")])
+        o = confirmed(sales, world, setup, [("CAS", "BOX", "6")])
         pks.append(picked(sales, wh, o, [(0, "6", None)], verifier=owner))
     with ThreadPoolExecutor(2) as ex:
         rs = list(ex.map(lambda pk: issue(owner, pk), pks))
@@ -181,8 +181,8 @@ def test_inv004_two_picks_compete_for_stock(owner, sales, wh, world, setup):
 
 
 def test_inv005_price_change_leaves_issued_invoice_identical(owner, sales, wh, world, setup):
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "4")])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "4")])
     pk = picked(sales, wh, o, [(0, "4", None)], verifier=owner)
     inv = issue(owner, pk).json()
     pdf1 = owner.get(f"{P}/invoices/{inv['id']}/pdf")
@@ -193,10 +193,10 @@ def test_inv005_price_change_leaves_issued_invoice_identical(owner, sales, wh, w
 
     csv = (
         "sku,product_name,unit,rate,currency,customer_ref,group_code\r\n"
-        "CAS-01,Cassava,BOX,40.00,CAD,,\r\n"
-        "CAS-01,Cassava,LB,2.00,CAD,,\r\n"
-        "CAS-01,Cassava,BOX,39.00,CAD,C-100,\r\n"
-        "PLN-01,Plantain,PIECE,0.60,CAD,,\r\n"
+        "CAS,Cassava,BOX,40.00,CAD,,\r\n"
+        "CAS,Cassava,LB,2.00,CAD,,\r\n"
+        "CAS,Cassava,BOX,39.00,CAD,C-100,\r\n"
+        "PLN,Plantain,PIECE,0.60,CAD,,\r\n"
     )
     v = owner.post(
         f"{P}/price-books/versions/import",
@@ -236,8 +236,8 @@ def test_inv005_price_change_leaves_issued_invoice_identical(owner, sales, wh, w
 
 
 def test_inv006_catch_weight_billing(owner, sales, wh, world, setup):
-    lot = stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "7")])
+    lot = stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "7")])
     pk = picked(sales, wh, o, [(0, "7", None)], verifier=owner)
     pl = pk["lines"][0]["id"]
     ws = [20, 30, 40, 40, 25, 25, 25]
@@ -270,8 +270,8 @@ def test_inv006_catch_weight_billing(owner, sales, wh, world, setup):
 
 
 def test_weights_only_for_box_lines(owner, sales, wh, world, setup):
-    stock(owner, world, setup, "PLN-01", "PIECE", "50")
-    o = confirmed(sales, world, setup, [("PLN-01", "PIECE", "10")])
+    stock(owner, world, setup, "PLN", "PIECE", "50")
+    o = confirmed(sales, world, setup, [("PLN", "PIECE", "10")])
     pk = picked(sales, wh, o, [(0, "10", None)], verifier=owner)
     pl = pk["lines"][0]["id"]
     r = preview(owner, pk, {pl: [{"cases": 10, "weight_lb": "1"}]})
@@ -282,8 +282,8 @@ def test_weights_only_for_box_lines(owner, sales, wh, world, setup):
 
 
 def test_issue_gates(owner, sales, wh, world, setup):
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "3")])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "3")])
     pk = picked(sales, wh, o, [(0, "3", None)], verifier=owner)
     r = issue(owner, pk, confirmed_=False)
     assert r.status_code == 422 and code(r) == "DISPATCH_NOT_CONFIRMED"
@@ -291,13 +291,13 @@ def test_issue_gates(owner, sales, wh, world, setup):
     assert r.status_code == 409 and code(r) == "VERSION_CONFLICT"
 
     # all-NO sheet: nothing to bill
-    o2 = confirmed(sales, world, setup, [("CAS-01", "BOX", "2")])
+    o2 = confirmed(sales, world, setup, [("CAS", "BOX", "2")])
     nopk = picked(sales, wh, o2, [(0, "0", "NOT_FOUND")], verifier=owner)
     r = issue(owner, nopk)
     assert r.status_code == 422 and code(r) == "NOTHING_TO_INVOICE"
 
     # not yet verified
-    o3 = confirmed(sales, world, setup, [("CAS-01", "BOX", "1")])
+    o3 = confirmed(sales, world, setup, [("CAS", "BOX", "1")])
     r = sales.post(
         f"{P}/sales-orders/{o3['id']}/pick-attempts",
         json={"version": o3["version"]},
@@ -309,8 +309,8 @@ def test_issue_gates(owner, sales, wh, world, setup):
 
 
 def test_tax_unverified_blocks_production(owner, sales, wh, world, setup, monkeypatch):
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "1")])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "1")])
     pk = picked(sales, wh, o, [(0, "1", None)], verifier=owner)
     st = get_settings()
     monkeypatch.setattr(type(st), "is_production_like", property(lambda self: True))
@@ -321,8 +321,8 @@ def test_tax_unverified_blocks_production(owner, sales, wh, world, setup, monkey
 
 
 def test_permissions_and_scope(owner, user, sales, wh, world, setup, make_api):
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "2")])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "2")])
     pk = picked(sales, wh, o, [(0, "2", None)], verifier=owner)
     assert issue(wh, pk).status_code == 403
     assert preview(wh, pk).status_code == 403
@@ -349,8 +349,8 @@ def test_permissions_and_scope(owner, user, sales, wh, world, setup, make_api):
 
 
 def test_failure_injection_rolls_back_everything(owner, sales, wh, world, setup, monkeypatch):
-    lot = stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "4")])
+    lot = stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "4")])
     pk = picked(sales, wh, o, [(0, "4", None)], verifier=owner)
     real = audit.record
 
@@ -388,8 +388,8 @@ def test_email_queued_sent_once_and_resend(owner, sales, wh, world, setup):
         headers=idem(),
     )
     assert r.status_code == 200, r.text
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "1")])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "1")])
     pk = picked(sales, wh, o, [(0, "1", None)], verifier=owner)
     inv = issue(owner, pk).json()
     assert inv["email_status"] == "QUEUED" and inv["email_to"] == "ap@island.example.test"
@@ -440,8 +440,8 @@ def test_email_queued_sent_once_and_resend(owner, sales, wh, world, setup):
 
 
 def test_no_email_address(owner, sales, wh, world, setup):
-    stock(owner, world, setup, "CAS-01", "BOX", "10")
-    o = confirmed(sales, world, setup, [("CAS-01", "BOX", "1")])
+    stock(owner, world, setup, "CAS", "BOX", "10")
+    o = confirmed(sales, world, setup, [("CAS", "BOX", "1")])
     pk = picked(sales, wh, o, [(0, "1", None)], verifier=owner)
     inv = issue(owner, pk).json()
     assert inv["email_status"] == "NO_EMAIL"

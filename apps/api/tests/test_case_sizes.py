@@ -6,7 +6,7 @@ from .test_orders import P, owner, setup, user  # noqa: F401
 
 
 def test_case_sizes_across_products(owner, user, setup):
-    cas = setup["p"]["CAS-01"]
+    cas = setup["p"]["CAS"]
     r = owner.post(
         f"{P}/products/{cas}/unit-profiles",
         json={"code": "CASE35", "unit_code": "BOX", "weight_lb_per_unit": "35", "is_default": True},
@@ -15,13 +15,13 @@ def test_case_sizes_across_products(owner, user, setup):
     assert r.status_code == 201, r.text
     rows = owner.get(f"{P}/unit-profiles", params={"q": "cassava"}).json()
     assert [(x["sku"], x["code"], x["weight_lb_per_unit"], x["is_default"]) for x in rows] == [
-        ("CAS-01", "CASE35", "35.0000", True),  # the new default is listed first
-        ("CAS-01", "CASE40", "40.0000", False),
+        ("CAS", "CASE35", "35.0000", True),  # the new default is listed first
+        ("CAS", "CASE40", "40.0000", False),
     ]
     assert {x["sku"] for x in owner.get(f"{P}/unit-profiles").json()} == {
-        "CAS-01",
-        "PLN-01",
-        "NOP-01",
+        "CAS",
+        "PLN",
+        "NOP",
     }
     # deactivated sizes only when asked for
     prod = owner.get(f"{P}/products/{cas}").json()
@@ -32,10 +32,10 @@ def test_case_sizes_across_products(owner, user, setup):
         headers=idem(),
     )
     assert r.status_code == 200, r.text
-    assert [x["code"] for x in owner.get(f"{P}/unit-profiles", params={"q": "CAS-01"}).json()] == [
+    assert [x["code"] for x in owner.get(f"{P}/unit-profiles", params={"q": "CAS"}).json()] == [
         "CASE35"
     ]
-    every = owner.get(f"{P}/unit-profiles", params={"q": "CAS-01", "include_inactive": True})
+    every = owner.get(f"{P}/unit-profiles", params={"q": "CAS", "include_inactive": True})
     assert [(x["code"], x["active"]) for x in every.json()] == [("CASE35", True), ("CASE40", False)]
     # warehouse staff can read; another company sees nothing
     assert user("wh_a").get(f"{P}/unit-profiles").status_code == 200
@@ -48,9 +48,9 @@ def test_case_sizes_across_products(owner, user, setup):
 
 def test_price_entries_for_one_product(owner, setup):
     rows = owner.get(f"{P}/price-books/versions/{setup['pb']}/entries").json()["items"]
-    assert {x["sku"] for x in rows} == {"CAS-01", "PLN-01"}
+    assert {x["sku"] for x in rows} == {"CAS", "PLN"}
     only = owner.get(
         f"{P}/price-books/versions/{setup['pb']}/entries",
-        params={"product_id": setup["p"]["CAS-01"]},
+        params={"product_id": setup["p"]["CAS"]},
     ).json()
-    assert only["total"] == 3 and {x["sku"] for x in only["items"]} == {"CAS-01"}
+    assert only["total"] == 3 and {x["sku"] for x in only["items"]} == {"CAS"}

@@ -238,13 +238,13 @@ class Product(Base):
     __table_args__ = (
         UniqueConstraint("company_id", "sku"),
         CheckConstraint(f"stock_unit {_UNIT_CHECK}", name="stock_unit_valid"),
-        CheckConstraint("char_length(sku) BETWEEN 1 AND 64", name="sku_len"),
+        CheckConstraint("sku ~ '^[A-Z]{3}$'", name="sku_three_letters"),
         CheckConstraint("version >= 1", name="version_pos"),
         Index("ix_products_company_name", "company_id", text("lower(name)")),
     )
     id: Mapped[uuid.UUID] = _pk()
     company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    sku: Mapped[str] = mapped_column(String(64), nullable=False)
+    sku: Mapped[str] = mapped_column(String(3), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("product_categories.id"), index=True

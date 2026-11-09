@@ -6,7 +6,7 @@ import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh company: Kingston Kitchen (C-1002) has a VERIFIED sheet for 7 boxes of CAS-FZ (standard LB 1.50, BOX 29.00).
+// Fresh company: Kingston Kitchen (C-1002) has a VERIFIED sheet for 7 boxes of CFZ (standard LB 1.50, BOX 29.00).
 const fx: Fixture = JSON.parse(
   execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),
@@ -56,10 +56,10 @@ test("owner bills 7 cases by weight (205 lb × 1.50 = 307.50) and issues once", 
 
   await openSeededSheet(page);
   await page.getByRole("link", { name: "Prepare invoice" }).click();
-  await expect(page.getByTestId("stock-CAS-FZ")).toContainText("In stock");
+  await expect(page.getByTestId("stock-CFZ")).toContainText("In stock");
 
-  const cw = page.getByTestId("cw-CAS-FZ");
-  await cw.getByLabel("Bill CAS-FZ by weight (per lb)").check();
+  const cw = page.getByTestId("cw-CFZ");
+  await cw.getByLabel("Bill CFZ by weight (per lb)").check();
   // Weights 20, 30, 40, 40, 25, 25, 25 → rows of identical weights.
   const rows: [string, string][] = [["1", "20"], ["1", "30"], ["2", "40"], ["3", "25"]];
   for (const [i, [cases, w]] of rows.entries()) {

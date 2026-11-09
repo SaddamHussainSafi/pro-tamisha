@@ -6,7 +6,7 @@ import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh company: Kingston Kitchen (C-1002) has a VERIFIED sheet for 7 boxes of CAS-FZ.
+// Fresh company: Kingston Kitchen (C-1002) has a VERIFIED sheet for 7 boxes of CFZ.
 const fx: Fixture = JSON.parse(
   execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),

@@ -69,7 +69,7 @@ def main() -> int:
                 cust,
                 wh,
                 co.legal_name,
-                fills={"CAS-FZ": "12", "PLN-GR": "3?"},
+                fills={"CFZ": "12", "PLG": "3?"},
                 write_ins=["Mango pulp 4 box"],
             )
             with open(path, "wb") as fh:

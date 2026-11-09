@@ -6,7 +6,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 // Fresh synthetic company + a hand-filled synthetic PT-OS-1 sheet for customer C-1001:
-// CAS-FZ 12 (clear), PLN-GR 3 (smudged → low confidence), and a write-in the catalog doesn't know.
+// CFZ 12 (clear), PLG 3 (smudged → low confidence), and a write-in the catalog doesn't know.
 // Reading runs in the real Celery worker with the fake OCR engine.
 const dir = mkdtempSync(join(tmpdir(), "pt-ocr-"));
 const sheetPath = join(dir, "order-sheet.pdf");
@@ -51,8 +51,8 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
   await expect(page.getByRole("img", { name: /^Original scan .*page 1$/ })).toBeVisible();
   const lines = page.locator("[data-testid^='ocr-line-']");
   await expect(lines).toHaveCount(3);
-  const cassava = lines.filter({ hasText: "CAS-FZ" });
-  const plantain = lines.filter({ hasText: "PLN-GR" });
+  const cassava = lines.filter({ hasText: "CFZ" });
+  const plantain = lines.filter({ hasText: "PLG" });
   const writeIn = lines.filter({ hasText: "Mango" });
   await expect(plantain).toContainText(/Unclear|Unreadable/); // fake engine vs real OCR: both need a person
   await expect(writeIn).toContainText("Unknown product");
@@ -82,8 +82,8 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
 
   await expect(page).toHaveURL(/\/orders\/[0-9a-f-]+$/);
   await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("CAS-FZ").first()).toBeVisible();
-  await expect(page.getByText("PLN-GR").first()).toBeVisible();
+  await expect(page.getByText("CFZ").first()).toBeVisible();
+  await expect(page.getByText("PLG").first()).toBeVisible();
   await axe(page);
   await page.screenshot({ path: "screenshots/ocr-draft-order-1440.png", fullPage: true });
 });

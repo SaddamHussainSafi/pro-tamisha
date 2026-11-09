@@ -113,7 +113,7 @@ def test_invoice_header_and_lines(user, world, setup, vendor, tesseract, tmp_pat
     lines = {
         (f["read_sku"], f["read_qty"], f["read_unit_price"], f["read_amount"]) for f in ex["fields"]
     }
-    want = {("CAS-01", "25.0000", "12.5000", "312.50"), ("YAM-01", "30.0000", "7.7500", "232.50")}
+    want = {("CAS", "25.0000", "12.5000", "312.50"), ("YAM", "30.0000", "7.7500", "232.50")}
     print(
         f"supplier invoice: header {hits}/{len(expect)}, lines {len(want & lines)}/{len(want)}",
         h,
@@ -204,7 +204,7 @@ def test_approve_into_receiving(owner, user, world, setup, vendor, tesseract, tm
     assert shp["status"] == "OPEN" and shp["vendor_invoice_no"] == "ARX-7001"
     assert len(shp["documents"]) == 1
     declared = {(d["sku"], d["declared_qty"], d["unit_cost"]) for d in shp["declared"]}
-    assert declared == {("CAS-01", "25.0000", "12.5000"), ("YAM-01", "30.0000", "7.7500")}
+    assert declared == {("CAS", "25.0000", "12.5000"), ("YAM", "30.0000", "7.7500")}
     with get_sessionmaker()() as db:
         moves = db.execute(
             text("select count(*) from stock_movements where company_id=:c"),

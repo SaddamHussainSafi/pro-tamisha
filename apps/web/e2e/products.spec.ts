@@ -6,7 +6,7 @@ import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh company; CAS-FZ (cassava, frozen) costs 29.00/box and 1.50/lb standard in the seeded book.
+// Fresh company; CFZ (cassava, frozen) costs 29.00/box and 1.50/lb standard in the seeded book.
 const fx: Fixture = JSON.parse(
   execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),
@@ -43,15 +43,15 @@ test("owner adds a 35 lb case size and changes a price from the product page", a
   await expect(page.getByRole("heading", { level: 1, name: "Case sizes" })).toBeVisible();
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "List" }).click(); // table assertions below
   const grid = page.getByRole("table", { name: /^Case sizes/ });
-  await expect(grid.getByRole("row", { name: /CAS-FZ/ }).first()).toBeVisible();
+  await expect(grid.getByRole("row", { name: /CFZ/ }).first()).toBeVisible();
   await page.getByRole("button", { name: "New case size" }).click();
-  await page.getByLabel("Product", { exact: true }).selectOption({ label: "Cassava frozen (CAS-FZ)" });
+  await page.getByLabel("Product", { exact: true }).selectOption({ label: "Cassava frozen (CFZ)" });
   await page.getByLabel("Weight of one box").fill("35");
   await expect(page.getByLabel("Size name")).toHaveValue("35LB");
   await expect(page.getByText("Preview: 35LB · 35 lb a box")).toBeVisible();
   await page.getByRole("button", { name: "Add case size" }).click();
   await expect(page.getByRole("status")).toContainText("Added 35LB to");
-  const row = grid.getByRole("row", { name: /CAS-FZ.*35LB/ });
+  const row = grid.getByRole("row", { name: /CFZ.*35LB/ });
   await expect(row).toBeVisible();
   await axe(page);
 

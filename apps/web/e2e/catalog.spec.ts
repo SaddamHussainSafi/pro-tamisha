@@ -41,7 +41,7 @@ test("owner creates Cassava (205 lb = CAD 307.50) and sees unknown-conversion re
   await page.getByRole("button", { name: "New product" }).click();
 
   const form = page.getByRole("form", { name: "New product" });
-  await form.getByLabel("SKU").fill("CAS-E2E");
+  await form.getByLabel("SKU").fill("CEE");
   await form.getByLabel("Name").fill("Cassava frozen E2E");
   const sizes = ["20", "30", "40", "25"];
   for (let i = 0; i < sizes.length; i++) {
@@ -78,7 +78,7 @@ test("owner creates Cassava (205 lb = CAD 307.50) and sees unknown-conversion re
   await page.getByRole("link", { name: "Products", exact: true }).first().click();
   await page.getByRole("button", { name: "New product" }).click();
   const form2 = page.getByRole("form", { name: "New product" });
-  await form2.getByLabel("SKU").fill("PLN-E2E");
+  await form2.getByLabel("SKU").fill("PEE");
   await form2.getByLabel("Name").fill("Plantain E2E");
   await form2.locator("#pr-code-0").fill("PC");
   await form2.locator("#pr-unit-0").selectOption("PIECE");
@@ -100,7 +100,7 @@ test("warehouse user can view products but not manage them", async ({ page }) =>
   await page.getByRole("link", { name: /Products/ }).click();
   // Products open as cards (Grid view) since 2026-11-08.
   const cards = page.getByRole("list", { name: "Products" });
-  await expect(cards.getByText(/^CAS-E2E/)).toBeVisible();
+  await expect(cards.getByText(/^CEE/)).toBeVisible();
   await expect(page.getByRole("button", { name: "New product" })).toHaveCount(0);
   await cards.getByRole("link", { name: "Cassava frozen E2E" }).click();
   await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);

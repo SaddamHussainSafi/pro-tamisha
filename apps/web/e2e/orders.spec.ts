@@ -6,7 +6,7 @@ import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh synthetic company with catalog, prices (C-1001 CAS-FZ BOX → 29.0000 standard) and opening stock.
+// Fresh synthetic company with catalog, prices (C-1001 CFZ BOX → 29.0000 standard) and opening stock.
 const fx: Fixture = JSON.parse(
   execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),
@@ -47,7 +47,7 @@ test("sales captures 15 boxes, confirms (price frozen) and prints a picking shee
   const form = page.getByRole("form", { name: "New sales order" });
   await form.getByLabel("Customer", { exact: true }).selectOption(await optionValue(page, "#so-cust", "Island Grocers"));
   await form.getByLabel(/Original request/).fill("15 box cassava please");
-  await form.getByLabel("Product 1").selectOption(await optionValue(page, "#ln-p-1", "CAS-FZ"));
+  await form.getByLabel("Product 1").selectOption(await optionValue(page, "#ln-p-1", "CFZ"));
   await form.getByLabel("Unit", { exact: true }).selectOption("BOX");
   await form.getByLabel("Quantity").fill("15.5");
   await expect(form.getByText("Whole numbers only")).toBeVisible();
@@ -62,7 +62,7 @@ test("sales captures 15 boxes, confirms (price frozen) and prints a picking shee
   await page.getByRole("dialog").getByRole("button", { name: "Confirm order" }).click();
   await expect(page.getByText("Confirmed", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("table", { name: "Order lines" })).toContainText("29.00");
-  await expect(page.getByTestId("pending-CAS-FZ")).toHaveText("15");
+  await expect(page.getByTestId("pending-CFZ")).toHaveText("15");
   await axe(page);
   await page.screenshot({ path: "screenshots/orders-detail-1440.png", fullPage: true });
 
@@ -82,8 +82,8 @@ test("warehouse packs 10 of 15, records why, and submits", async ({ page }) => {
   await page.getByPlaceholder("Sheet code (scan QR)").fill(pickCode);
   await page.getByRole("link", { name: pickCode }).click();
 
-  const row = page.getByTestId("pick-CAS-FZ");
-  await row.getByLabel("Packed CAS-FZ").fill("10");
+  const row = page.getByTestId("pick-CFZ");
+  await row.getByLabel("Packed CFZ").fill("10");
   await expect(row.getByText("Short", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Save quantities" }).click();
   await expect(page.getByRole("alert")).toContainText("say why less was packed");
@@ -113,13 +113,13 @@ test("owner verifies: 5 stays pending as backorder, then closes the shortfall", 
 
   await page.goto(orderUrl);
   await page.getByRole("link", { name: "Open picking sheet" }).click();
-  await expect(page.getByLabel("Shortfall for CAS-FZ")).toHaveValue("BACKORDER");
+  await expect(page.getByLabel("Shortfall for CFZ")).toHaveValue("BACKORDER");
   await page.getByRole("button", { name: "Verify pick" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Verify pick" }).click();
   await expect(page.getByText("Pick verified.")).toBeVisible();
 
   await page.getByRole("link", { name: /^SO-/ }).click();
-  await expect(page.getByTestId("pending-CAS-FZ")).toContainText("5");
+  await expect(page.getByTestId("pending-CFZ")).toContainText("5");
   await expect(page.getByText(/Backorder:/)).toBeVisible();
   await expect(page.getByText("Partly supplied").first()).toBeVisible();
 
@@ -137,7 +137,7 @@ test("owner verifies: 5 stays pending as backorder, then closes the shortfall", 
   await d.getByLabel("Quantity to cancel").fill("5");
   await d.getByLabel("Reason (required)").fill("customer no longer needs it");
   await d.getByRole("button", { name: "Cancel quantity" }).click();
-  await expect(page.getByTestId("pending-CAS-FZ")).toHaveText("0");
+  await expect(page.getByTestId("pending-CFZ")).toHaveText("0");
   await expect(page.getByText("Quantity cancelled")).toBeVisible();
   await axe(page);
 });

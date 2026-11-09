@@ -36,9 +36,9 @@ def counts(company_id):
 
 
 def test_preview_then_issue(owner, world, setup):
-    stock(owner, world, setup, "CAS-01", "BOX", "6")
-    stock(owner, world, setup, "PLN-01", "PIECE", "50")
-    b = body(world, setup, [("CAS-01", "BOX", "4"), ("PLN-01", "PIECE", "20")])
+    stock(owner, world, setup, "CAS", "BOX", "6")
+    stock(owner, world, setup, "PLN", "PIECE", "50")
+    b = body(world, setup, [("CAS", "BOX", "4"), ("PLN", "PIECE", "20")])
     before = counts(world.company_id)
     r = owner.post(f"{P}/invoices/direct/preview", json=b)
     assert r.status_code == 200, r.text
@@ -74,24 +74,24 @@ def test_preview_then_issue(owner, world, setup):
 
 
 def test_refusals(owner, user, world, setup):
-    stock(owner, world, setup, "CAS-01", "BOX", "2")
+    stock(owner, world, setup, "CAS", "BOX", "2")
     before = counts(world.company_id)
     r = owner.post(
         f"{P}/invoices/direct",
-        json={**body(world, setup, [("CAS-01", "BOX", "5")]), "dispatch_confirmed": True},
+        json={**body(world, setup, [("CAS", "BOX", "5")]), "dispatch_confirmed": True},
         headers=idem(),
     )
     assert r.status_code == 409 and code(r) == "INSUFFICIENT_STOCK"
     r = owner.post(
         f"{P}/invoices/direct",
-        json={**body(world, setup, [("NOP-01", "BOX", "1")]), "dispatch_confirmed": True},
+        json={**body(world, setup, [("NOP", "BOX", "1")]), "dispatch_confirmed": True},
         headers=idem(),
     )
     assert r.status_code == 422 and code(r) == "NO_PRICE"
     assert counts(world.company_id) == before  # nothing half-written
     # sales may preview (invoice.prepare) but not issue; warehouse may do neither
     sales_api = user("sales")
-    b = body(world, setup, [("CAS-01", "BOX", "1")])
+    b = body(world, setup, [("CAS", "BOX", "1")])
     assert sales_api.post(f"{P}/invoices/direct/preview", json=b).status_code == 200
     r = sales_api.post(
         f"{P}/invoices/direct", json={**b, "dispatch_confirmed": True}, headers=idem()
