@@ -42,6 +42,23 @@ def record(
             detail_redacted=redact(detail),
         )
     )
+    # Committed business events become notifications in this same transaction.
+    from .notification_rules import AuditInfo, on_audit
+
+    on_audit(
+        db,
+        AuditInfo(
+            action=action,
+            success=success,
+            company_id=company_id,
+            actor_id=actor_id,
+            target_type=target_type,
+            target_id=target_id,
+            warehouse_id=warehouse_id,
+            request_id=request_id,
+            detail=detail or {},
+        ),
+    )
 
 
 def record_independent(**kwargs: Any) -> None:

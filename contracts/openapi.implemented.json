@@ -456,6 +456,25 @@
         "title": "AmendmentOut",
         "type": "object"
       },
+      "ArchiveIn": {
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "ArchiveIn",
+        "type": "object"
+      },
       "AuditEventOut": {
         "properties": {
           "action": {
@@ -1128,6 +1147,27 @@
         "title": "CategoryOut",
         "type": "object"
       },
+      "CategoryPrefIn": {
+        "properties": {
+          "desktop": {
+            "default": true,
+            "title": "Desktop",
+            "type": "boolean"
+          },
+          "email": {
+            "default": true,
+            "title": "Email",
+            "type": "boolean"
+          },
+          "in_app": {
+            "default": true,
+            "title": "In App",
+            "type": "boolean"
+          }
+        },
+        "title": "CategoryPrefIn",
+        "type": "object"
+      },
       "CompareRow": {
         "properties": {
           "accepted_qty": {
@@ -1390,107 +1430,6 @@
           "movement_id"
         ],
         "title": "CountLineOut",
-        "type": "object"
-      },
-      "CountOut": {
-        "properties": {
-          "count_no": {
-            "title": "Count No",
-            "type": "string"
-          },
-          "counted_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Counted By Name"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "decided_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decided At"
-          },
-          "decided_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decided By Name"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/CountLineOut"
-            },
-            "title": "Lines",
-            "type": "array"
-          },
-          "note": {
-            "title": "Note",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "SUBMITTED",
-              "POSTED",
-              "REJECTED"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "warehouse_code": {
-            "title": "Warehouse Code",
-            "type": "string"
-          },
-          "warehouse_id": {
-            "format": "uuid",
-            "title": "Warehouse Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "count_no",
-          "warehouse_id",
-          "warehouse_code",
-          "status",
-          "note",
-          "counted_by_name",
-          "decided_by_name",
-          "created_at",
-          "decided_at",
-          "version",
-          "lines"
-        ],
-        "title": "CountOut",
         "type": "object"
       },
       "CurrencyTotalOut": {
@@ -5340,6 +5279,165 @@
         "title": "MyAccountIn",
         "type": "object"
       },
+      "NotificationOut": {
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "category_label": {
+            "title": "Category Label",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "source_module": {
+            "title": "Source Module",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "target_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Type"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "kind",
+          "category",
+          "category_label",
+          "severity",
+          "title",
+          "body",
+          "source_module",
+          "link",
+          "target_type",
+          "target_id",
+          "created_at",
+          "read",
+          "read_at",
+          "archived"
+        ],
+        "title": "NotificationOut",
+        "type": "object"
+      },
+      "NotificationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pass as `before` for the next (older) page",
+            "title": "Next Before"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_before",
+          "unread"
+        ],
+        "title": "NotificationPage",
+        "type": "object"
+      },
       "OcrAcceptIn": {
         "properties": {
           "customer_id": {
@@ -8720,6 +8818,146 @@
         "title": "PostingOut",
         "type": "object"
       },
+      "PrefsIn": {
+        "properties": {
+          "categories": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CategoryPrefIn"
+            },
+            "title": "Categories",
+            "type": "object"
+          },
+          "desktop": {
+            "title": "Desktop",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "boolean"
+          },
+          "grouped": {
+            "title": "Grouped",
+            "type": "boolean"
+          },
+          "in_app": {
+            "title": "In App",
+            "type": "boolean"
+          },
+          "quiet_end": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Quiet End",
+            "type": "string"
+          },
+          "quiet_hours": {
+            "title": "Quiet Hours",
+            "type": "boolean"
+          },
+          "quiet_start": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Quiet Start",
+            "type": "string"
+          },
+          "sound": {
+            "title": "Sound",
+            "type": "boolean"
+          },
+          "version": {
+            "minimum": 0.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "in_app",
+          "desktop",
+          "email",
+          "sound",
+          "grouped",
+          "quiet_hours",
+          "quiet_start",
+          "quiet_end"
+        ],
+        "title": "PrefsIn",
+        "type": "object"
+      },
+      "PrefsOut": {
+        "properties": {
+          "can_mute_security": {
+            "title": "Can Mute Security",
+            "type": "boolean"
+          },
+          "categories": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "type": "object"
+            },
+            "title": "Categories",
+            "type": "object"
+          },
+          "category_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Category Labels",
+            "type": "object"
+          },
+          "desktop": {
+            "title": "Desktop",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "boolean"
+          },
+          "grouped": {
+            "title": "Grouped",
+            "type": "boolean"
+          },
+          "in_app": {
+            "title": "In App",
+            "type": "boolean"
+          },
+          "quiet_end": {
+            "title": "Quiet End",
+            "type": "string"
+          },
+          "quiet_hours": {
+            "title": "Quiet Hours",
+            "type": "boolean"
+          },
+          "quiet_start": {
+            "title": "Quiet Start",
+            "type": "string"
+          },
+          "sound": {
+            "title": "Sound",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "in_app",
+          "desktop",
+          "email",
+          "sound",
+          "grouped",
+          "quiet_hours",
+          "quiet_start",
+          "quiet_end",
+          "categories",
+          "category_labels",
+          "can_mute_security",
+          "version"
+        ],
+        "title": "PrefsOut",
+        "type": "object"
+      },
       "PriceDiffOut": {
         "properties": {
           "added": {
@@ -9833,6 +10071,23 @@
           "qty"
         ],
         "title": "QtyLineIn",
+        "type": "object"
+      },
+      "ReadAllIn": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          }
+        },
+        "title": "ReadAllIn",
         "type": "object"
       },
       "ReasonIn": {
@@ -12621,6 +12876,29 @@
         "title": "StockFlowRowOut",
         "type": "object"
       },
+      "SummaryOut": {
+        "properties": {
+          "critical_unread": {
+            "title": "Critical Unread",
+            "type": "integer"
+          },
+          "latest_seq": {
+            "title": "Latest Seq",
+            "type": "integer"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread",
+          "critical_unread",
+          "latest_seq"
+        ],
+        "title": "SummaryOut",
+        "type": "object"
+      },
       "SupplierBalanceOut": {
         "properties": {
           "active": {
@@ -13863,6 +14141,125 @@
           "weight_lb"
         ],
         "title": "WeightRowIn",
+        "type": "object"
+      },
+      "pro_trading__routes__notifications__CountOut": {
+        "properties": {
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated",
+          "unread"
+        ],
+        "title": "CountOut",
+        "type": "object"
+      },
+      "pro_trading__schemas__CountOut": {
+        "properties": {
+          "count_no": {
+            "title": "Count No",
+            "type": "string"
+          },
+          "counted_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counted By Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CountLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SUBMITTED",
+              "POSTED",
+              "REJECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "warehouse_code": {
+            "title": "Warehouse Code",
+            "type": "string"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "count_no",
+          "warehouse_id",
+          "warehouse_code",
+          "status",
+          "note",
+          "counted_by_name",
+          "decided_by_name",
+          "created_at",
+          "decided_at",
+          "version",
+          "lines"
+        ],
+        "title": "CountOut",
         "type": "object"
       }
     }
@@ -15806,7 +16203,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/CountOut"
+                    "$ref": "#/components/schemas/pro_trading__schemas__CountOut"
                   },
                   "title": "Response List Counts Api V1 Inventory Counts Get",
                   "type": "array"
@@ -15862,7 +16259,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CountOut"
+                  "$ref": "#/components/schemas/pro_trading__schemas__CountOut"
                 }
               }
             },
@@ -15905,7 +16302,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CountOut"
+                  "$ref": "#/components/schemas/pro_trading__schemas__CountOut"
                 }
               }
             },
@@ -15970,7 +16367,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CountOut"
+                  "$ref": "#/components/schemas/pro_trading__schemas__CountOut"
                 }
               }
             },
@@ -16034,7 +16431,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CountOut"
+                  "$ref": "#/components/schemas/pro_trading__schemas__CountOut"
                 }
               }
             },
@@ -17475,6 +17872,550 @@
         "summary": "Upload Pod",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "description": "Newest first, keyset-paginated by `seq` (`before` = the previous page's next_before).",
+        "operationId": "list_notifications_api_v1_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "unread",
+                "all",
+                "archived"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/archive": {
+      "post": {
+        "description": "Clear a stack (a group of related notifications) in one go.",
+        "operationId": "archive_many_api_v1_notifications_archive_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pro_trading__routes__notifications__CountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Many",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/preferences": {
+      "get": {
+        "operationId": "get_preferences_api_v1_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Preferences",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "description": "Optimistic concurrency on `version` (0 = never saved). Muting the security category\nneeds employee.manage; critical alerts are delivered whatever is chosen here.",
+        "operationId": "put_preferences_api_v1_notifications_preferences_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Preferences",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "operationId": "read_all_api_v1_notifications_read_all_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadAllIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pro_trading__routes__notifications__CountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read All",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/stream": {
+      "get": {
+        "description": "Server-Sent Events for the caller's inbox, sent only for committed rows:\n`notification` (id = seq, so the browser's Last-Event-ID resumes after a reconnect),\n`unread` (counts changed, e.g. read in another tab), `resync` (too much was missed: reload),\nand `ready` (id = latest seq). Missed rows are replayed from Last-Event-ID / `after`.",
+        "operationId": "stream_api_v1_notifications_stream_get",
+        "parameters": [
+          {
+            "description": "Seconds before the stream closes",
+            "in": "query",
+            "name": "timeout",
+            "required": false,
+            "schema": {
+              "default": 55,
+              "description": "Seconds before the stream closes",
+              "maximum": 300,
+              "minimum": 1,
+              "title": "Timeout",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Resume after this seq",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Resume after this seq",
+              "title": "After"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/summary": {
+      "get": {
+        "operationId": "get_summary_api_v1_notifications_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Summary",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/archive": {
+      "post": {
+        "description": "Dismiss: archived rows leave the inbox and stop counting as unread.",
+        "operationId": "archive_api_v1_notifications__notification_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "mark_read_api_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/unarchive": {
+      "post": {
+        "operationId": "unarchive_api_v1_notifications__notification_id__unarchive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unarchive",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/unread": {
+      "post": {
+        "operationId": "mark_unread_api_v1_notifications__notification_id__unread_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Unread",
+        "tags": [
+          "notifications"
         ]
       }
     },

@@ -6,6 +6,8 @@ import { roleLabel } from "../lib/staff";
 import { NAV_GROUPS, SETTINGS, type NavItem } from "../nav";
 import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
+import { NotificationBell } from "./notifications/NotificationBell";
+import { NotificationProvider } from "./notifications/NotificationProvider";
 import { QuickJump } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
 
@@ -229,6 +231,7 @@ export function Shell() {
   const name = session?.employee.display_name;
 
   return (
+    <NotificationProvider>
     <div className="flex h-full">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2">Skip to content</a>
 
@@ -247,6 +250,7 @@ export function Shell() {
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <ScannerIndicator warehouseId={active?.id} />
             <div className="hidden md:block"><QuickJump ref={jump} /></div>
+            <NotificationBell />
             <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{initials(name)}</span>
           </div>
         </header>
@@ -269,6 +273,7 @@ export function Shell() {
         </>
       )}
     </div>
+    </NotificationProvider>
   );
 }
 

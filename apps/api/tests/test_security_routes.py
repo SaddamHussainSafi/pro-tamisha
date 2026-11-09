@@ -46,6 +46,18 @@ SELF_SERVICE = {
     ("post", "/api/v1/auth/sessions/{session_id}/revoke"),
     ("post", "/api/v1/auth/sessions/revoke-others"),
     ("get", "/api/v1/auth/activity"),
+    # Notification Center: only ever the caller's own inbox and preferences.
+    ("get", "/api/v1/notifications"),
+    ("get", "/api/v1/notifications/summary"),
+    ("get", "/api/v1/notifications/stream"),
+    ("get", "/api/v1/notifications/preferences"),
+    ("put", "/api/v1/notifications/preferences"),
+    ("post", "/api/v1/notifications/read-all"),
+    ("post", "/api/v1/notifications/archive"),
+    ("post", "/api/v1/notifications/{notification_id}/read"),
+    ("post", "/api/v1/notifications/{notification_id}/unread"),
+    ("post", "/api/v1/notifications/{notification_id}/archive"),
+    ("post", "/api/v1/notifications/{notification_id}/unarchive"),
 }
 
 

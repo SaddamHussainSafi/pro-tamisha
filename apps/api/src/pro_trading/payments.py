@@ -567,8 +567,33 @@ def schedule_reminders(db: Session, at: datetime | None = None) -> int:
                     aggregate_id=str(inv.id),
                 )
                 queued += 1
+                if o > 0:
+                    _overdue_alert(db, inv, (today - due).days, o)
     db.commit()
     return queued
+
+
+def _overdue_alert(db: Session, inv: Invoice, days: int, offset: int) -> None:
+    """Tell finance once per reminder step that an invoice is past due (real open balance)."""
+    from .notifications import notify_safely
+
+    cust = (inv.snapshot or {}).get("customer") or {}
+    notify_safely(
+        db,
+        inv.company_id,
+        "invoice.overdue",
+        event_id=f"invoice.overdue:{inv.id}:{offset}",
+        target_type="invoice",
+        target_id=inv.id,
+        category="payment",
+        severity="warning",
+        source_module="Receivables",
+        title=f"Invoice {inv.invoice_no} is {days} day{'' if days == 1 else 's'} overdue",
+        body=f"{cust.get('name', 'Customer')} · open balance {inv.currency} {balance(inv):,.2f}",
+        link=f"/invoices/{inv.id}",
+        permission="payment.verify",
+        warehouse_id=inv.warehouse_id,
+    )
 
 
 def handle_reminder(ev: OutboxEvent) -> None:

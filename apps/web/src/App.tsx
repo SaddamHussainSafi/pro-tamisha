@@ -17,6 +17,7 @@ const chunks = {
   invoices: () => import("./pages/Invoices"),
   mfa: () => import("./pages/Mfa"),
   newInvoice: () => import("./pages/NewInvoice"),
+  notifications: () => import("./pages/Notifications"),
   ocrReview: () => import("./pages/OcrReview"),
   orders: () => import("./pages/Orders"),
   payments: () => import("./pages/Payments"),
@@ -46,6 +47,7 @@ const InvoicePage = page(chunks.invoices, (m) => m.InvoicePage);
 const IssueInvoicePage = page(chunks.invoices, (m) => m.IssueInvoicePage);
 const MfaPage = page(chunks.mfa, (m) => m.MfaPage);
 const NewInvoicePage = page(chunks.newInvoice, (m) => m.NewInvoicePage);
+const NotificationCenterPage = page(chunks.notifications, (m) => m.NotificationCenterPage);
 const OcrReviewPage = page(chunks.ocrReview, (m) => m.OcrReviewPage);
 const OrdersPage = page(chunks.orders, (m) => m.OrdersPage);
 const OrderPage = page(chunks.orders, (m) => m.OrderPage);
@@ -157,6 +159,8 @@ export function App() {
           <Route path="settings/users" element={<SettingsPage />} />
           <Route path="settings/roles" element={<SettingsPage />} />
           <Route path="settings/security" element={<SettingsPage />} />
+          <Route path="settings/notifications" element={<SettingsPage />} />
+          <Route path="notifications" element={<NotificationCenterPage />} />
           <Route path="settings/*" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

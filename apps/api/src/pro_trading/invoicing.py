@@ -567,6 +567,25 @@ def handle_email(ev: OutboxEvent) -> None:
         if ev.attempts >= outbox.MAX_ATTEMPTS:
             invoice.email_status = "FAILED"
             invoice.email_error = f"{type(exc).__name__}: {exc}"[:300]
+            from .notifications import notify_safely
+
+            notify_safely(
+                db,
+                invoice.company_id,
+                "invoice.email_failed",
+                event_id=f"invoice.email_failed:{invoice.id}:{invoice.email_sends}",
+                target_type="invoice",
+                target_id=invoice.id,
+                category="integration",
+                severity="warning",
+                source_module="Invoices",
+                title=f"Invoice {invoice.invoice_no} wasn't emailed",
+                body=f"Sending to {invoice.email_to} failed after {ev.attempts} tries. "
+                "Check the address and send it again.",
+                link=f"/invoices/{invoice.id}",
+                permission="invoice.issue",
+                warehouse_id=invoice.warehouse_id,
+            )
         raise
     invoice.email_status = "SENT"
     invoice.email_sent_at = datetime.now(UTC)

@@ -11,6 +11,8 @@ from .config import get_settings
 from .db import get_sessionmaker
 from .documents import DRIVE_EVENT, handle_sync
 from .invoicing import EMAIL_EVENT, handle_email
+from .notifications import EMAIL_EVENT as NOTIFY_EMAIL_EVENT
+from .notifications import handle_email as handle_notify_email
 from .ocr import EXTRACT_EVENT, handle_extract
 from .outbox import Handler, dispatch_pending
 from .payments import REMINDER_EVENT, handle_reminder, schedule_reminders
@@ -27,6 +29,7 @@ HANDLERS: dict[str, Handler] = {
     EXTRACT_EVENT: handle_extract,
     DRIVE_EVENT: handle_sync,
     REMINDER_EVENT: handle_reminder,
+    NOTIFY_EMAIL_EVENT: handle_notify_email,
 }
 
 

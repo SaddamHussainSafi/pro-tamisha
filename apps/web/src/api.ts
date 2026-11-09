@@ -729,6 +729,8 @@ async function request<T>(method: string, path: string, body?: unknown, idempote
   }
   return data as T;
 }
+/** The same fetch wrapper for feature modules that keep their own endpoints (e.g. lib/notificationsApi.ts). */
+export const apiRequest = request;
 
 
 /* ---------- Module 08: receiving ---------- */

@@ -3,6 +3,7 @@ import { hasCompanyWide } from "../api";
 import { useAuth } from "../auth";
 import { Icon, type IconName } from "../ui/Icon";
 import { PageHeader } from "../ui/primitives";
+import { NotificationPreferences } from "../components/notifications/NotificationPreferences";
 import { MyAccount } from "./settings/MyAccount";
 import { Roles } from "./settings/Roles";
 import { Security } from "./settings/Security";
@@ -11,6 +12,7 @@ import { Users } from "./settings/Users";
 type Tab = { to: string; key: string; label: string; icon: IconName; admin: boolean };
 const TABS: Tab[] = [
   { to: "/settings", key: "account", label: "My account", icon: "user", admin: false },
+  { to: "/settings/notifications", key: "notifications", label: "Notifications", icon: "bell", admin: false },
   { to: "/settings/users", key: "users", label: "User management", icon: "users", admin: true },
   { to: "/settings/roles", key: "roles", label: "Roles & permissions", icon: "layers", admin: true },
   { to: "/settings/security", key: "security", label: "Security & sessions", icon: "shield", admin: true },
@@ -43,7 +45,7 @@ export function SettingsPage() {
           ))}
         </nav>
       )}
-      {current.key === "users" ? <Users /> : current.key === "roles" ? <Roles /> : current.key === "security" ? <Security /> : <MyAccount />}
+      {current.key === "users" ? <Users /> : current.key === "roles" ? <Roles /> : current.key === "security" ? <Security /> : current.key === "notifications" ? <NotificationPreferences /> : <MyAccount />}
     </div>
   );
 }

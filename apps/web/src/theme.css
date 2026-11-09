@@ -76,6 +76,12 @@ body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: "
    when a list finishes loading and the page becomes scrollable. */
 #main { scrollbar-gutter: stable; }
 dialog[open] { animation: var(--animate-pop); }
+/* Notification panel closing (opening uses animate-pop); off under reduced motion like the rest. */
+@keyframes pt-pop-out { to { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+.pt-pop-out { animation: pt-pop-out 160ms ease-in forwards; }
+/* A new notification sliding in from the right edge. */
+@keyframes pt-slide-in { from { opacity: 0; transform: translateX(16px); } }
+.pt-slide-in { animation: pt-slide-in 220ms var(--ease-calm) backwards; }
 dialog[open]::backdrop { animation: var(--animate-fade); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after, ::backdrop { transition: none !important; animation: none !important; scroll-behavior: auto !important; }

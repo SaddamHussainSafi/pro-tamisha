@@ -25,6 +25,7 @@ from .routes import (
     health,
     inventory,
     invoices,
+    notifications,
     ocr,
     orders,
     payments,
@@ -173,6 +174,7 @@ def create_app() -> FastAPI:
         account.router,
         security.router,
         suppliers.router,
+        notifications.router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app
