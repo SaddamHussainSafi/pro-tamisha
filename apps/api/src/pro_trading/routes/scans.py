@@ -10,6 +10,7 @@ Nothing here creates orders, invoices or stock — scanned documents are inputs 
 """
 
 import secrets
+import threading
 import uuid
 from datetime import timedelta
 from typing import Annotated, Any
@@ -55,7 +56,7 @@ from ..schemas import (
     ScanJobType,
     ScanUploadIn,
 )
-from ._common import esc, mutate
+from ._common import content_disposition, esc, mutate
 
 router = APIRouter(tags=["scans"])
 
@@ -191,6 +192,13 @@ async def raw_body(request: Request) -> bytes:
 
 
 RawBody = Annotated[bytes, Depends(raw_body)]
+
+
+def _bridge_device(request: Request, db: DbDep) -> ScanDevice:
+    return svc.device_auth(db, request)
+
+
+BridgeDevice = Annotated[ScanDevice, Depends(_bridge_device)]
 
 
 # ------------------------------------------------------------------ devices (staff)
@@ -587,6 +595,7 @@ def _readable_doc(
 
 
 _PAGE_CACHE: dict[tuple[str, int], tuple[bytes, int]] = {}
+_PAGE_CACHE_LOCK = threading.Lock()  # sync routes run on many threads at once
 
 
 @router.get(
@@ -607,11 +616,15 @@ def document_page(
     if page < 1 or page > 500:
         raise ApiError(404, "NOT_FOUND", "No such page")
     key = (doc.sha256, page)
-    if key not in _PAGE_CACHE:
-        _PAGE_CACHE[key] = svc.render_page(doc.content, doc.mime_type, page)
-        while len(_PAGE_CACHE) > 64:
-            _PAGE_CACHE.pop(next(iter(_PAGE_CACHE)))
-    png, count = _PAGE_CACHE[key]
+    with _PAGE_CACHE_LOCK:
+        hit = _PAGE_CACHE.get(key)
+    if hit is None:
+        hit = svc.render_page(doc.content, doc.mime_type, page)
+        with _PAGE_CACHE_LOCK:
+            _PAGE_CACHE[key] = hit
+            while len(_PAGE_CACHE) > 64:
+                _PAGE_CACHE.pop(next(iter(_PAGE_CACHE)))
+    png, count = hit
     return Response(
         png,
         media_type="image/png",
@@ -647,7 +660,7 @@ def document_content(
             else "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; "
             "frame-ancestors 'self'"
         ),
-        "Content-Disposition": f'inline; filename="{doc.original_filename}"',
+        "Content-Disposition": content_disposition("inline", doc.original_filename),
     }
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
@@ -804,11 +817,11 @@ def bridge_upload(
     job_id: uuid.UUID,
     request: Request,
     db: DbDep,
-    data: RawBody,
+    d: BridgeDevice,
+    data: RawBody,  # declared after the device: the body is read only once it authenticated
     filename: str = Query("scan", max_length=255),
 ) -> dict[str, Any]:
     """Scanned bytes for a job this device claimed. Retrying after success returns the job."""
-    d = svc.device_auth(db, request)
     j = _bridge_job(db, d, job_id)
     mime = svc.check_upload(data, request.headers.get("content-type"))
     digest = svc.sha256hex(data)

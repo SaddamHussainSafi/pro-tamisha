@@ -2,25 +2,31 @@
 Idempotency-Key, post through `inventory.post()` (locks + exactly-once posting keys), audit,
 commit — all in one transaction. Reads are filtered to warehouses the caller may read."""
 
+import asyncio
 import json
+import threading
 import time
 import uuid
-from collections.abc import Iterator
-from datetime import UTC, datetime
+from collections import Counter
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from .. import idempotency
 from .. import inventory as inv
+from ..config import get_settings
 from ..db import get_sessionmaker
 from ..deps import DbDep, Principal, PrincipalDep, authorize
 from ..errors import ApiError
 from ..models import (
+    AuthSession,
     Company,
     Employee,
     InventoryBalance,
@@ -1161,6 +1167,27 @@ def change_cursor(db: Session, company_id: uuid.UUID) -> str:
     return "-".join(str(x) for x in stamp)
 
 
+MAX_STREAMS_PER_EMPLOYEE = 4
+_streams: Counter[uuid.UUID] = Counter()
+_streams_lock = threading.Lock()
+
+
+def _poll(company_id: uuid.UUID, session_id: uuid.UUID) -> str | None:
+    """Cursor, or None once the session is revoked or expired (the stream then ends)."""
+    idle = timedelta(minutes=get_settings().session_idle_minutes)
+    with get_sessionmaker()() as s:
+        sess = s.get(AuthSession, session_id)
+        now = datetime.now(UTC)
+        if (
+            sess is None
+            or sess.revoked_at is not None
+            or sess.expires_at <= now
+            or sess.last_seen_at + idle <= now
+        ):
+            return None
+        return change_cursor(s, company_id)
+
+
 @router.get("/events", response_class=StreamingResponse)
 def stock_events(
     request: Request,
@@ -1169,26 +1196,49 @@ def stock_events(
     timeout: int = Query(55, ge=1, le=300, description="Seconds before the stream closes"),
 ) -> StreamingResponse:
     """Server-Sent Events: `stock` whenever committed inventory state changes (polls committed
-    state, so events are only ever emitted after commit). Clients reconnect on close."""
+    state, so events are only ever emitted after commit). Clients reconnect on close.
+
+    The generator is async: it sleeps on the event loop and only borrows a worker thread for each
+    short poll, so open streams can't starve the thread pool every other route runs on. Each
+    employee may hold MAX_STREAMS_PER_EMPLOYEE streams; the stream ends if the session does."""
     authorize(request, p, "inventory.read", any_scope=True)
-    company_id = p.company_id
-    first = change_cursor(db, company_id)
+    company_id, session_id, emp_id = p.company_id, p.session.id, p.employee.id
+    with _streams_lock:
+        if _streams[emp_id] >= MAX_STREAMS_PER_EMPLOYEE:
+            raise ApiError(429, "TOO_MANY_STREAMS", "Too many live stock views open; close a tab")
+        _streams[emp_id] += 1
+    try:
+        first = change_cursor(db, company_id)
+    except Exception:
+        _release(emp_id)
+        raise
     db.close()
 
-    def gen() -> Iterator[str]:
-        last = first
-        yield f"event: ready\ndata: {json.dumps({'cursor': last})}\nretry: 3000\n\n"
-        end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            time.sleep(min(1.5, max(0.0, end - time.monotonic())))
-            with get_sessionmaker()() as s:
-                cur = change_cursor(s, company_id)
-            if cur != last:
-                last = cur
-                yield f"event: stock\ndata: {json.dumps({'cursor': cur})}\n\n"
-            else:
-                yield ": keep-alive\n\n"
+    async def gen() -> AsyncIterator[str]:
+        try:
+            last = first
+            yield f"event: ready\ndata: {json.dumps({'cursor': last})}\nretry: 3000\n\n"
+            end = time.monotonic() + timeout
+            while time.monotonic() < end:
+                await asyncio.sleep(min(1.5, max(0.0, end - time.monotonic())))
+                cur = await run_in_threadpool(_poll, company_id, session_id)
+                if cur is None:
+                    return
+                if cur != last:
+                    last = cur
+                    yield f"event: stock\ndata: {json.dumps({'cursor': cur})}\n\n"
+                else:
+                    yield ": keep-alive\n\n"
+        finally:
+            _release(emp_id)
 
     return StreamingResponse(
         gen(), media_type="text/event-stream", headers={"Cache-Control": "no-store"}
     )
+
+
+def _release(emp_id: uuid.UUID) -> None:
+    with _streams_lock:
+        _streams[emp_id] -= 1
+        if _streams[emp_id] <= 0:
+            del _streams[emp_id]

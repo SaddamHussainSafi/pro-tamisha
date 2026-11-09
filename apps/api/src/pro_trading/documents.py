@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import urllib.error
 import urllib.parse
@@ -52,6 +53,8 @@ from .models import (
     Vendor,
 )
 from .scanning import _EXT
+
+log = logging.getLogger("pro_trading.documents")
 
 DRIVE_EVENT = "document.drive_sync"
 
@@ -328,7 +331,9 @@ def local_provider(f: DocumentFile, content: bytes) -> str:
                 "DRIVE_CONFLICT", "A different file already has this name in the archive", False
             ) from None
     except OSError as e:
-        raise DriveError("DRIVE_IO", str(e)[:200], True) from e
+        # The OS message holds the absolute archive path; keep it in the server log only.
+        log.warning("archive write failed", extra={"ctx": {"file_id": str(f.id), "error": str(e)}})
+        raise DriveError("DRIVE_IO", "Could not write the archive copy", True) from e
     return f"local-{f.id.hex}"
 
 
@@ -346,7 +351,8 @@ def _gcall(req: urllib.request.Request, timeout: int) -> dict[str, Any]:
         code = "DRIVE_DENIED" if e.code in (401, 403) else f"DRIVE_HTTP_{e.code}"
         raise DriveError(code, f"Drive answered {e.code}", transient) from e
     except (TimeoutError, urllib.error.URLError) as e:
-        raise DriveError("DRIVE_TIMEOUT", f"Drive unreachable: {e}"[:200], True) from e
+        log.warning("drive unreachable", extra={"ctx": {"error": str(e)[:300]}})
+        raise DriveError("DRIVE_TIMEOUT", "Google Drive could not be reached", True) from e
 
 
 def google_provider(f: DocumentFile, content: bytes) -> str:

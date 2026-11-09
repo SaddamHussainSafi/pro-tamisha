@@ -51,11 +51,39 @@ def _setup_logging() -> None:
     root.setLevel(logging.INFO)
 
 
+# API responses never run scripts or get framed by another site. img-src/style-src let the
+# browser's own image and PDF viewers show inline files (documents, invoice PDFs); routes that
+# set their own CSP (scan content) keep it.
+API_CSP = (
+    "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'; "
+    "base-uri 'none'; form-action 'none'"
+)
+
+
+def _security_headers(resp: Response, rid: str, https: bool) -> None:
+    h = resp.headers
+    h["X-Request-Id"] = rid
+    h["X-Content-Type-Options"] = "nosniff"
+    h["Referrer-Policy"] = "same-origin"
+    h["X-Frame-Options"] = "SAMEORIGIN"
+    h["Cross-Origin-Opener-Policy"] = "same-origin"
+    h.setdefault("Content-Security-Policy", API_CSP)
+    # Signed-in data must not land in shared/browser caches unless a route opted in.
+    h.setdefault("Cache-Control", "no-store")
+    if https:
+        h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+
 def create_app() -> FastAPI:
     s = get_settings()
     _setup_logging()
+    prod = s.is_production_like
     app = FastAPI(
-        title="Pro Trading API", version="0.1.0", docs_url=None if s.is_production_like else "/docs"
+        title="Pro Trading API",
+        version="0.1.0",
+        docs_url=None if prod else "/docs",
+        redoc_url=None if prod else "/redoc",
+        openapi_url=None if prod else "/openapi.json",
     )
     errors.install(app)
     app.add_middleware(
@@ -105,9 +133,7 @@ def create_app() -> FastAPI:
                     }
                 },
             )
-        resp.headers["X-Request-Id"] = rid
-        resp.headers["X-Content-Type-Options"] = "nosniff"
-        resp.headers["Referrer-Policy"] = "same-origin"
+        _security_headers(resp, rid, s.cookie_secure)
         return resp
 
     app.include_router(health.router)  # probes at /health/* (no auth, outside API version)

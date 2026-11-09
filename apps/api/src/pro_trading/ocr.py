@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import re
 import subprocess
 import tempfile
@@ -35,7 +36,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from . import audit, outbox, supplier_ocr
+from . import audit, outbox, scanning, supplier_ocr
 from . import inventory as inv
 from .config import get_settings
 from .errors import ApiError
@@ -105,6 +106,8 @@ Provider = Callable[[bytes, str], OcrResult]
 _PDF_TEXT = re.compile(
     rb"BT /(F\d+) ([\d.]+) Tf (-?[\d.]+) (-?[\d.]+) Td \(((?:\\.|[^\\)])*)\) Tj ET"
 )
+
+log = logging.getLogger("pro_trading.ocr")
 
 
 def _d(v: float | str | Decimal) -> Decimal:
@@ -215,9 +218,12 @@ def document_ai_provider(content: bytes, mime: str) -> OcrResult:
             e.code >= 500 or e.code == 429,
         ) from None
     except (urllib.error.URLError, TimeoutError) as e:
-        raise ProviderError("OCR_UNAVAILABLE", f"Document AI unreachable: {e}", True) from None
+        log.warning("document ai unreachable", extra={"ctx": {"error": str(e)[:300]}})
+        raise ProviderError("OCR_UNAVAILABLE", "Document AI could not be reached", True) from None
     except (OSError, KeyError, ValueError) as e:
-        raise ProviderError("OCR_NOT_CONFIGURED", f"Document AI setup: {e}", False) from None
+        # e.g. a missing credentials file: the path stays in the server log, not on the scan.
+        log.warning("document ai setup", extra={"ctx": {"error": str(e)[:300]}})
+        raise ProviderError("OCR_NOT_CONFIGURED", "Document AI is not set up", False) from None
     text: str = doc.get("text", "")
     tokens: list[Token] = []
     for pi, page in enumerate(doc.get("pages", []), start=1):
@@ -270,8 +276,10 @@ def _prepare(img: Path, rot: int) -> None:
 
     try:
         with Image.open(img) as im:
+            if scanning.image_too_large(*im.size):  # header only; nothing decoded yet
+                raise ProviderError("TOO_LARGE", "The image is too large to read", False)
             g = ImageOps.exif_transpose(im).convert("L")
-    except OSError:
+    except (OSError, Image.DecompressionBombError):
         raise ProviderError("UNREADABLE", "The image could not be opened", False) from None
     if rot:
         g = g.rotate(-rot, expand=True, fillcolor=255)
@@ -285,7 +293,12 @@ def tesseract_provider(content: bytes, mime: str) -> OcrResult:
         if mime == "application/pdf":
             src = Path(tmp) / "in.pdf"
             src.write_bytes(content)
-            r = _run(["pdftoppm", "-r", "300", "-gray", "-png", str(src), str(Path(tmp) / "p")], t)
+            last = scanning.MAX_OCR_PAGES  # later pages are not read
+            _, sizes = scanning.pdf_info(src, 1, last)
+            if scanning.pdf_page_too_large(sizes, 300):
+                raise ProviderError("TOO_LARGE", "A page is too large to read", False)
+            args = ["pdftoppm", "-l", str(last), "-r", "300", "-gray", "-png"]
+            r = _run([*args, str(src), str(Path(tmp) / "p")], t)
             if r.returncode != 0:
                 raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
             images = sorted(Path(tmp).glob("p-*.png"))

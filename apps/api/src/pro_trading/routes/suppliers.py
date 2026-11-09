@@ -17,7 +17,7 @@ from .. import idempotency
 from .. import suppliers as svc
 from ..deps import DbDep, Principal, require_permission
 from ..errors import ApiError
-from ..models import Shipment, SupplierPayment, Vendor
+from ..models import Company, Shipment, SupplierPayment, Vendor
 from ..payments import local_today
 from ..schemas import (
     SupplierBalanceOut,
@@ -92,6 +92,9 @@ def record_supplier_payment(
         if body.paid_on > today + timedelta(days=1):
             raise ApiError(422, "FUTURE_DATE", "The payment date is in the future")
         ref = (body.reference or "").strip() or None
+        # Serialize per company before the duplicate check, so two concurrent requests with the
+        # same reference can't both pass it (next_no takes the same lock again).
+        db.get(Company, p.company_id, with_for_update=True)
         if ref is not None:
             dup = db.scalar(
                 select(SupplierPayment.payment_no).where(

@@ -72,6 +72,24 @@ cd apps/web && npx eslint src && npx tsc -b --noEmit && npx vitest run && npx pl
 
 Playwright reuses the running API (:8000) and Vite (:5173) dev servers.
 
+Security checks (findings and fixes: `docs/SECURITY_REVIEW.md`, 2026-11-09):
+
+```bash
+cd apps/api && PYTHONPATH=src uv run pytest -q tests/test_security.py tests/test_security_orders.py tests/test_security_receiving.py tests/test_security_ocr.py tests/test_dev_login.py
+```
+
+```bash
+cd apps/api && uv audit --frozen
+```
+
+```bash
+cd apps/web && npm audit --omit=dev
+```
+
+- pytest needs Redis on 127.0.0.1:6379 (per-IP throttles) and poppler (`pdfinfo`, `pdftoppm`). `conftest.py` sets `LOGIN_IP_MAX_FAILURES` high because every test client shares one address.
+- `npm audit` without `--omit=dev` reports 7 moderate `minimatch` advisories in the eslint toolchain (known, dev-only).
+- Dev sign-in now answers only loopback requests with a localhost `Host` and a localhost `FRONTEND_ORIGIN`; staging/production refuse to start on dev keys or `COOKIE_SECURE=false`.
+
 ## Conventions learned this session
 
 - **Look:**

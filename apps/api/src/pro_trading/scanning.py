@@ -25,7 +25,7 @@ from fastapi import Request
 from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 
-from . import audit
+from . import audit, ratelimit
 from .config import get_settings
 from .errors import ApiError
 from .models import Company, ScanDevice, ScanJob, SourceDocument
@@ -289,7 +289,24 @@ def _security_event(request: Request, action: str, detail: dict[str, Any]) -> No
 def device_auth(
     db: Session, request: Request, *, allow_pending: bool = False, lock: bool = False
 ) -> ScanDevice:
-    """Authorization: Device <device_id>.<secret>. Failures are audited as security events."""
+    """Authorization: Device <device_id>.<secret>. Failures are audited as security events.
+
+    Failures are also counted per client IP; past LOGIN_IP_MAX_FAILURES in the window the
+    endpoint answers 429 without touching the database, so it can't be used to flood the audit
+    log or guess secrets."""
+    s = get_settings()
+    ip = request.client.host if request.client else "unknown"
+    if ratelimit.failures("bridge_ip", ip) >= s.login_ip_max_failures:
+        raise ApiError(429, "TOO_MANY_ATTEMPTS", "Too many failed scanner sign-ins; wait a while")
+    try:
+        return _device_auth(db, request, allow_pending=allow_pending, lock=lock)
+    except ApiError as e:
+        if e.status == 401:
+            ratelimit.record_failure("bridge_ip", ip, s.login_ip_window_minutes * 60)
+        raise
+
+
+def _device_auth(db: Session, request: Request, *, allow_pending: bool, lock: bool) -> ScanDevice:
     raw = request.headers.get("authorization", "")
     fail = ApiError(401, "DEVICE_AUTH_FAILED", "Scanner bridge is not paired or was revoked")
     if not raw.startswith("Device "):
@@ -336,6 +353,35 @@ def capability_rejected(request: Request, code: str, detail: dict[str, Any]) -> 
     return ApiError(403, code, msg)
 
 
+# Decompression-bomb guards. A few hundred KB of PNG or PDF can describe a page that decodes to
+# gigabytes; anything larger than this (about A2 at 300 dpi) is refused before it is decoded.
+MAX_IMAGE_PIXELS = 40_000_000
+MAX_OCR_PAGES = 20
+
+
+def image_too_large(width: float, height: float) -> bool:
+    return width * height > MAX_IMAGE_PIXELS
+
+
+def pdf_info(src: Any, first: int, last: int) -> tuple[int, list[tuple[float, float]]]:
+    """(page count, [(width, height) in points] of pages first..last) from poppler's pdfinfo."""
+    import subprocess
+
+    r = subprocess.run(  # noqa: S603 - fixed poppler tool, list args
+        ["pdfinfo", "-f", str(first), "-l", str(last), str(src)],  # noqa: S607
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    m = re.search(rb"Pages:\s+(\d+)", r.stdout)
+    sizes = re.findall(rb"Page\s+\d+\s+size:\s+([\d.]+) x ([\d.]+)", r.stdout)
+    return (int(m.group(1)) if m else 1), [(float(w), float(h)) for w, h in sizes]
+
+
+def pdf_page_too_large(sizes: list[tuple[float, float]], dpi: int) -> bool:
+    return any(image_too_large(w / 72 * dpi, h / 72 * dpi) for w, h in sizes)
+
+
 def render_page(content: bytes, mime: str, page: int) -> tuple[bytes, int]:
     """(PNG bytes of one page, page count). Raises 404-style ApiError for a missing page."""
     import io
@@ -350,24 +396,21 @@ def render_page(content: bytes, mime: str, page: int) -> tuple[bytes, int]:
             raise ApiError(404, "NOT_FOUND", "No such page")
         try:
             with Image.open(io.BytesIO(content)) as im:
+                if image_too_large(*im.size):  # header only; nothing decoded yet
+                    raise ApiError(422, "IMAGE_TOO_LARGE", "The image is too large to show")
                 out = io.BytesIO()
                 ImageOps.exif_transpose(im).convert("RGB").save(out, format="PNG")
-        except OSError:
+        except (OSError, Image.DecompressionBombError):
             raise ApiError(422, "UNREADABLE", "The image could not be opened") from None
         return out.getvalue(), 1
     with tempfile.TemporaryDirectory(prefix="ptpage-") as tmp:
         src = Path(tmp) / "d.pdf"
         src.write_bytes(content)
-        info = subprocess.run(  # noqa: S603, S607 - fixed poppler tool, list args
-            ["pdfinfo", str(src)],  # noqa: S607
-            capture_output=True,
-            timeout=30,
-            check=False,  # noqa: S607
-        )
-        m = re.search(rb"Pages:\s+(\d+)", info.stdout)
-        count = int(m.group(1)) if m else 1
+        count, sizes = pdf_info(src, page, page)
         if page > count:
             raise ApiError(404, "NOT_FOUND", "No such page")
+        if pdf_page_too_large(sizes, 110):
+            raise ApiError(422, "IMAGE_TOO_LARGE", "This page is too large to show")
         subprocess.run(  # noqa: S603
             ["pdftoppm", "-f", str(page), "-l", str(page), "-r", "110", "-png",  # noqa: S607
              "-singlefile", str(src), str(Path(tmp) / "p")],

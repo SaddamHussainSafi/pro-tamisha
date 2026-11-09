@@ -25,7 +25,7 @@ from ..schemas import (
     DocumentRetryIn,
     PodUploadIn,
 )
-from ._common import esc, mutate
+from ._common import content_disposition, esc, mutate
 from .invoices import get_invoice
 from .orders import check_version
 from .scans import RawBody
@@ -124,7 +124,7 @@ def document_content(
     headers = {
         "ETag": etag,
         "Cache-Control": "private, max-age=0, must-revalidate",
-        "Content-Disposition": f'inline; filename="{f.filename}"',
+        "Content-Disposition": content_disposition("inline", f.filename),
         "X-Content-SHA256": f.sha256,
     }
     if request.headers.get("if-none-match") == etag:

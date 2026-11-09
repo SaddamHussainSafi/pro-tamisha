@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from .. import audit
-from ..config import get_settings
+from .. import audit, ratelimit
+from ..config import LOCAL_HOSTS, Settings, get_settings
 from ..deps import DbDep, Principal, PrincipalDep, load_grants, require_permission
 from ..errors import ApiError
-from ..models import AuthSession, Employee
+from ..models import AuditEvent, AuthSession, Employee
 from ..schemas import (
     EmployeeOut,
     GrantOut,
@@ -22,7 +22,15 @@ from ..schemas import (
     MfaVerifyIn,
     SessionOut,
 )
-from ..security import new_token, new_totp_secret, totp_uri, verify_password, verify_totp
+from ..security import (
+    new_token,
+    new_totp_secret,
+    sha256_hex,
+    tokens_match,
+    totp_uri,
+    verify_password,
+    verify_totp,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 BAD_LOGIN = ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect")
@@ -30,6 +38,14 @@ BAD_LOGIN = ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect
 
 def _rid(request: Request) -> str | None:
     return getattr(request.state, "request_id", None)
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _login_failed(request: Request, s: Settings) -> None:
+    ratelimit.record_failure("login_ip", _client_ip(request), s.login_ip_window_minutes * 60)
 
 
 def _session_out(p: Principal) -> SessionOut:
@@ -49,11 +65,22 @@ def _session_out(p: Principal) -> SessionOut:
 def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> LoginOut:
     s = get_settings()
     now = datetime.now(UTC)
+    if ratelimit.failures("login_ip", _client_ip(request)) >= s.login_ip_max_failures:
+        audit.record_independent(
+            action="auth.login",
+            success=False,
+            request_id=_rid(request),
+            detail={"reason": "ip_throttled"},
+        )
+        raise ApiError(
+            429, "TOO_MANY_ATTEMPTS", "Too many failed sign-ins. Wait a few minutes and try again."
+        )
     emp = db.scalar(
         select(Employee).where(func.lower(Employee.email) == body.email.lower()).with_for_update()
     )
     if emp is None:
         verify_password(None, body.password)  # equalize timing
+        _login_failed(request, s)
         audit.record_independent(
             action="auth.login",
             success=False,
@@ -68,6 +95,7 @@ def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> Log
     }
     if emp.locked_until and emp.locked_until > now:
         db.rollback()
+        _login_failed(request, s)
         audit.record_independent(
             action="auth.login", success=False, detail={"reason": "locked"}, **base
         )
@@ -81,6 +109,7 @@ def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> Log
             reason = "locked_now"
         audit.record(db, action="auth.login", success=False, detail={"reason": reason}, **base)
         db.commit()
+        _login_failed(request, s)
         raise BAD_LOGIN
 
     emp.failed_login_count, emp.locked_until = 0, None
@@ -89,9 +118,20 @@ def login(body: LoginIn, request: Request, response: Response, db: DbDep) -> Log
 
 @router.post("/dev-login", response_model=LoginOut, include_in_schema=False)
 def dev_login(request: Request, response: Response, db: DbDep) -> LoginOut:
-    """Development only: sign in as DEV_AUTO_LOGIN_EMAIL without password or MFA."""
+    """Development only: sign in as DEV_AUTO_LOGIN_EMAIL without password or MFA.
+
+    Answers only when all hold: the setting is non-empty, APP_ENV is development/test, the
+    configured FRONTEND_ORIGIN is localhost, and this request came from a loopback address with a
+    localhost Host header (so a LAN client or a DNS-rebinding page cannot use it)."""
     s = get_settings()
-    if not s.dev_auto_login_email or s.is_production_like:
+    client = request.client.host if request.client else ""
+    if (
+        not s.dev_auto_login_email
+        or s.is_production_like
+        or not s.frontend_is_local
+        or client not in LOCAL_HOSTS
+        or request.url.hostname not in LOCAL_HOSTS
+    ):
         raise ApiError(404, "NOT_FOUND", "Not found")
     emp = db.scalar(
         select(Employee).where(func.lower(Employee.email) == s.dev_auto_login_email.lower())
@@ -153,19 +193,39 @@ def get_session(p: PrincipalDep) -> SessionOut:
 
 
 @router.post("/logout", status_code=204)
-def logout(request: Request, response: Response, p: PrincipalDep, db: DbDep) -> None:
-    sess = db.merge(p.session)
-    sess.revoked_at, sess.revoked_reason = datetime.now(UTC), "logout"
-    audit.record(
-        db,
-        action="auth.logout",
-        success=True,
-        company_id=p.company_id,
-        actor_id=p.employee.id,
-        request_id=_rid(request),
+def logout(request: Request, response: Response, db: DbDep) -> None:
+    """Revokes the session and always clears the cookie, even when the session already expired.
+
+    A tab that lost its CSRF token (it lives in per-tab sessionStorage) can still sign out: the
+    browser's same-origin Origin header is accepted instead. Cross-site requests are stopped by
+    the Origin check here and in main.py, and by the SameSite=Strict cookie."""
+    s = get_settings()
+    raw = request.cookies.get(s.session_cookie_name)
+    sess = (
+        db.scalar(select(AuthSession).where(AuthSession.token_sha256 == sha256_hex(raw)))
+        if raw
+        else None
     )
-    db.commit()
-    response.delete_cookie(get_settings().session_cookie_name, path="/")
+    if sess is not None and sess.revoked_at is None:
+        same_origin = request.headers.get("origin") == s.frontend_origin
+        if not (
+            same_origin or tokens_match(request.headers.get("X-CSRF-Token"), sess.csrf_token_sha256)
+        ):
+            raise ApiError(403, "CSRF_FAILED", "Missing or invalid CSRF token")
+        emp = db.get(Employee, sess.employee_id)
+        sess.revoked_at, sess.revoked_reason = datetime.now(UTC), "logout"
+        audit.record(
+            db,
+            action="auth.logout",
+            success=True,
+            company_id=emp.company_id if emp else None,
+            actor_id=sess.employee_id,
+            request_id=_rid(request),
+        )
+        db.commit()
+    response.delete_cookie(
+        s.session_cookie_name, path="/", secure=s.cookie_secure, httponly=True, samesite="strict"
+    )
 
 
 @router.post("/mfa/enroll", response_model=MfaEnrollOut)
@@ -196,6 +256,12 @@ def mfa_verify(body: MfaVerifyIn, request: Request, p: PrincipalDep, db: DbDep) 
         "actor_id": emp.id,
         "request_id": _rid(request),
     }
+    if _mfa_locked(db, emp):
+        audit.record(db, action="auth.mfa_locked", success=False, **base)
+        db.commit()
+        raise ApiError(
+            429, "TOO_MANY_ATTEMPTS", "Too many wrong codes. Wait a few minutes and try again."
+        )
     step = (
         verify_totp(emp.mfa_secret_enc, body.code, emp.mfa_last_step)
         if emp.mfa_secret_enc
@@ -236,6 +302,25 @@ def revoke_sessions(
         request_id=_rid(request),
     )
     db.commit()
+
+
+def _mfa_locked(db: Session, emp: Employee) -> bool:
+    """True when the last MFA_MAX_FAILURES verifications in the window all failed. The caller
+    holds the employee row lock, so concurrent guesses are counted one after another."""
+    s = get_settings()
+    since = datetime.now(UTC) - timedelta(minutes=s.mfa_window_minutes)
+    recent = db.scalars(
+        select(AuditEvent.success)
+        .where(
+            AuditEvent.company_id == emp.company_id,
+            AuditEvent.created_at > since,
+            AuditEvent.actor_id == emp.id,
+            AuditEvent.action == "auth.mfa_verify",
+        )
+        .order_by(AuditEvent.created_at.desc())
+        .limit(s.mfa_max_failures)
+    ).all()
+    return len(recent) >= s.mfa_max_failures and not any(recent)
 
 
 def _revoke_all(db: Session, employee_id: uuid.UUID, reason: str) -> None:

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -17,6 +18,14 @@ from ..errors import ApiError
 def esc(s: str) -> str:
     """Escape LIKE wildcards so user search text is matched literally."""
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def content_disposition(kind: str, filename: str) -> str:
+    """Content-Disposition for any stored filename: an ASCII fallback plus the RFC 5987 UTF-8
+    form. Header values must be Latin-1, so a raw "Łódź.pdf" would crash the response (500)."""
+    name = "".join(c for c in filename if c.isprintable() and c not in '"\\') or "file"
+    fallback = name.encode("ascii", "replace").decode().replace("?", "_")
+    return f"{kind}; filename=\"{fallback}\"; filename*=UTF-8''{quote(name, safe='')}"
 
 
 def mutate(

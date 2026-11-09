@@ -1,0 +1,79 @@
+# Security review — 2026-11-09
+
+A sweep of the API (`apps/api`) and the parts of the web app that handle sessions and files. It covers sign-in and sessions, MFA, dev auto sign-in, CSRF, permissions, company (tenant) isolation, input validation, uploads and file serving, SQL, secrets, CORS, headers, rate limits, error responses and dependencies. Bugs found along the way are included.
+
+**Result: no High-severity issue.** Company isolation held on every route reviewed: every lookup is checked against the caller's `company_id`, and every id in a request body is verified. Money is `Decimal` everywhere, and stock and invoice numbering are locked. The fixes below are Medium and Low. Each one has a regression test that fails on the old code.
+
+## Fixed
+
+| # | Sev | Where | Problem | Fix | Test |
+|---|---|---|---|---|---|
+| 1 | Medium | `routes/auth.py` `mfa_verify` | No limit on wrong MFA codes. With a stolen password, the 6-digit code could be brute-forced. | After `MFA_MAX_FAILURES` (5) wrong codes in `MFA_WINDOW_MINUTES` (15), the API returns 429. Failures are counted from the audit log under the employee row lock. | `test_security.py::test_mfa_codes_cannot_be_brute_forced`, `test_a_success_resets_the_mfa_counter` |
+| 2 | Medium | `config.py` | In staging/production the app started with the public dev `MFA_ENCRYPTION_KEY` (a *valid* Fernet key), the dev `SCAN_CAPABILITY_KEY`, `COOKIE_SECURE=false`, an http origin, `OCR_PROVIDER=fake` or `DRIVE_FAULT`. | The production settings validator now refuses to start with any of these. | `test_production_settings_refuse_dev_placeholders` |
+| 3 | Medium | `routes/auth.py` `dev_login`, `config.py` | Dev sign-in (no password, no MFA) was gated only by `APP_ENV`. That defaults to `development`, so a server deployed without `APP_ENV` but with `.env` copied would serve it. LAN clients and DNS-rebinding pages could also reach it. | The settings refuse `DEV_AUTO_LOGIN_EMAIL` unless `FRONTEND_ORIGIN` is localhost. The route answers only a loopback client with a localhost `Host` header, otherwise 404. | `test_dev_login.py::test_refused_for_non_local_requests`, `test_refused_when_frontend_is_not_localhost`, `test_settings_refuse_dev_login_with_a_real_frontend_origin` |
+| 4 | Medium | `routes/employees.py` `change_password` | A privileged account could change its password without MFA. A stolen Owner password alone could reset it and sign the real Owner out everywhere. Wrong current passwords were unlimited, so someone holding a cookie could guess the password. | `MFA_REQUIRED` for privileged sessions. Wrong current passwords count toward the sign-in lockout. Reaching it locks the account and signs it out everywhere. | `test_privileged_password_change_needs_mfa`, `test_guessing_the_current_password_locks_the_account` |
+| 5 | Medium | `routes/auth.py` `login` | Lockout is per account only, so password spraying (one guess per account) and unknown-email guessing were unlimited. | Failed sign-ins are counted per client IP in Redis: `LOGIN_IP_MAX_FAILURES` (30) per `LOGIN_IP_WINDOW_MINUTES` (15), then 429. This fails open if Redis is down. New `ratelimit.py`. | `test_failed_sign_ins_are_throttled_per_ip`, `test_unknown_emails_count_toward_the_ip_limit` |
+| 6 | Medium | `routes/ocr.py` `to_receiving` | `grn.record` was checked only for the scan's warehouse. A given `shipment_id` from another warehouse received the document and the declared lines and costs. | Returns 422 `WRONG_WAREHOUSE` unless the shipment is in the scan's warehouse. | `test_security_ocr.py` |
+| 7 | Medium | `routes/scans.py` `bridge_upload` | The upload body (up to `SCAN_MAX_BYTES`, max 100 MB) was buffered before the scanner was authenticated, so anonymous clients could exhaust memory. | Device auth is now a dependency that runs before the body is read. | `test_scanner_upload_authenticates_before_reading_the_body` |
+| 8 | Medium | `scanning.py` `render_page`, `ocr.py` | Images and PDFs had no pixel or page limits. A few-KB PNG or a PDF with a 200-inch page decodes to gigabytes in the viewer and in the OCR worker. `DecompressionBombError` gave a 500. | The image header and `pdfinfo` page sizes are checked before decoding (≤ 40 M pixels). OCR reads at most 20 PDF pages. Bomb errors are caught. | `test_viewer_refuses_huge_images_before_decoding`, `test_ocr_refuses_huge_images_before_decoding`, `test_huge_pdf_pages_are_refused` |
+| 9 | Medium | `invoice_pdf.py` | The text was cp1252 but the stream was encoded Latin-1. Any `’ “ ” – — … €` in a customer, company or product name made **issuing the invoice fail with a 500**, which is likely with the real catalog. | The stream is encoded cp1252, matching `/WinAnsiEncoding`. | `test_security_orders.py::test_invoice_pdf_renders_windows_1252_punctuation` |
+| 10 | Medium | `routes/inventory.py` `/inventory/events` | The SSE generator was synchronous and used `time.sleep`, holding a worker thread per open stream. About 40 tabs stalled every other route. The stream also ignored session revocation. | The generator is now async: it sleeps on the event loop and only borrows a thread per short poll. At most 4 streams per employee. The stream ends when the session is revoked or expires. | `test_stock_stream_does_not_block_worker_threads`, `test_stock_streams_are_capped_per_employee`, `test_stock_stream_ends_when_the_session_is_revoked` |
+| 11 | Low | `routes/auth.py` `logout` | Logout needed the CSRF token, which lives in per-tab `sessionStorage`. "Sign out" in a new tab failed silently and **left the session alive**. An expired session got a 401 and kept its cookie. | A same-origin `Origin` header is accepted in place of the token. An already-expired session still returns 204 and clears the cookie. Cross-site requests are still refused. | `test_logout_from_a_tab_without_the_csrf_token`, `test_logout_still_needs_token_or_same_origin`, `test_logout_with_an_expired_session_clears_the_cookie` |
+| 12 | Low | `routes/employees.py` `patch_staff` | Two Owners disabling or demoting each other at once could both pass "keep one Owner", leaving zero, or deadlock (500). | The company row is locked before the employee row (fixed lock order). | `test_two_owners_cannot_disable_each_other_at_once` |
+| 13 | Low | `routes/suppliers.py` | The duplicate bank-reference check ran before the company lock. Two concurrent payments with the same reference were both recorded. | The company lock is now taken before the check. | `test_security_receiving.py::test_duplicate_bank_reference_cannot_race` |
+| 14 | Low | `scanning.py` `device_auth` | No throttle on failed scanner auth. Anonymous requests could flood the audit log. | Per-IP counter, then 429 without touching the database. | `test_scanner_auth_failures_are_throttled_per_ip` |
+| 15 | Low | `routes/orders.py` line cancel | The idempotency scope lacked `line_id`. Reusing a key on another line replayed the first line's response and cancelled nothing. | `line_id` is added to the scope. | `test_line_cancel_idempotency_is_scoped_to_the_line` |
+| 16 | Low | `invoicing.py` | A $0 invoice stayed ISSUED (open) forever, because nothing can be allocated to a zero balance. | Issued as PAID when the total is 0. | `test_zero_total_invoice_is_paid_at_issue` |
+| 17 | Low | `inventory.py` `damaged_companion` | Damage or damaged return failed with a permanent 409 for a 64-character lot code, or when a lot named `X-DMG` already existed. | The base is truncated to 60 characters, with a per-parent suffix if the name is taken. | `test_damage_works_when_the_dmg_code_is_taken` |
+| 18 | Low | `routes/scans.py`, `routes/documents.py`, `routes/ocr.py` | A filename outside Latin-1 (e.g. `Łódź.pdf`) made the content route return 500, so that document could never be opened. | `content_disposition()` sends an ASCII fallback plus RFC 5987 `filename*`. | `test_content_disposition_survives_any_filename`, `test_scan_with_a_non_latin_filename_can_be_opened` |
+| 19 | Low | `documents.py`, `ocr.py` | `last_error` / `error_detail` shown in the UI held raw OS and Document AI messages, including absolute archive paths and the credentials-file path. | Users see a generic message. The detail goes to the server log. | `test_archive_write_errors_do_not_expose_paths`, `test_document_ai_setup_errors_do_not_expose_paths` |
+| 20 | Low | `main.py`, `errors.py` | Unexpected errors returned Starlette's text 500 outside the envelope. In production, `/redoc` and `/openapi.json` stayed public (only `/docs` was off). Headers were missing frame and CSP protection and `Cache-Control` on API data. | A JSON envelope (`INTERNAL`) with no detail, logged with a traceback. Docs and schema are off in production. Added `X-Frame-Options: SAMEORIGIN`, a CSP (`default-src 'none'`, `frame-ancestors 'self'`), `Cache-Control: no-store` unless a route sets one, COOP, and HSTS when cookies are secure. | `test_unexpected_errors_use_the_envelope_and_hide_details`, `test_api_schema_and_docs_are_off_in_production`, `test_security_headers_on_api_responses`, `test_hsts_when_cookies_are_secure` |
+| 21 | Low | `routes/admin.py` | `GET /feature-flags` had no permission check (pre-MFA sessions included). `PUT` accepted any key, and keys over 64 characters returned 500. | Both need `feature_flag.manage`. The key must match `^[a-z0-9_]{1,64}$`. | `test_feature_flags_need_the_manage_permission`, `test_feature_flag_keys_are_validated` |
+
+Also fixed with #8: the scan page cache (`_PAGE_CACHE`) is now guarded by a lock, so concurrent evictions can no longer raise `KeyError`.
+
+## Not fixed: decisions or follow-ups
+
+| Sev | Where | Finding | Why it is open |
+|---|---|---|---|
+| Low | `routes/pricing.py` `activate` | Activating a draft based on an older version silently reverts newer prices (the `stale` flag is display-only). CSV imports have no `based_on`, so blocking them would break the full-book import. | Needs an owner decision: block with an explicit override, or keep it as a warning. |
+| Low | `outbox.py` | Handlers run without a savepoint. A database error inside one handler aborts the batch, so the oldest event is retried first forever. The trigger is unconfirmed: no handler was found that raises a DB error. | Handlers deliberately write failure state before re-raising, so a savepoint would change their behaviour. Needs its own change and tests. |
+| Low | `inventory.py` `reserve`, `invoicing._lots`, `set_lot_status` | A lot being quarantined can race a reservation or invoice taking stock from it, because the lot status is read without a lock. | Needs a `FOR SHARE` lock-order change across three paths, plus concurrency tests. |
+| Low | `supplier_ocr.py` `money()` | Negative or 19+-digit numbers from OCR are not range-checked. Database constraints stop bad data, but the user sees a misleading 409 "DUPLICATE", or the read is retried 5×. | Should mark such values `UNREADABLE`. |
+| Low | `routes/orders.py`, `invoicing.py` | Catch weights and the `weights` / `dispositions` maps have no upper bounds. An extreme weight overflows `Numeric(18,2)` and returns 500. Only `invoice.issue` holders can send these. | Bounds need the owner's real maximum case weights. |
+| Info | `routes/auth.py` `mfa_enroll` | First-time MFA enrollment is trust-on-first-use. A stolen password for a privileged user who has **not** enrolled lets the attacker enroll their own phone. | Have every Owner/Manager enroll on day one. An admin "must enroll in person" flow is a product decision. |
+| Info | `routes/employees.py` | Email uniqueness is global, so `create_staff` shows whether an email belongs to another company (409 `EMAIL_TAKEN`). Changing a role makes a warehouse-scoped grant company-wide. With one warehouse this has no effect today. | Inherent to global sign-in email; revisit if a second warehouse opens. |
+| Info | `payments.py` | Payment lists and aging are company-wide even for warehouse-scoped staff. | Documented as intended (company ledger). |
+| Info | `routes/scans.py` | The full single-use scan capability token (5 min, one job) is kept in the idempotency response record. | Very small exposure. |
+| Info | `apps/api/pyproject.toml` | The dev dependency `httpx2` (with `httpcore2`, `truststore`) is imported nowhere. It looks like a fork of `httpx` of unknown provenance. | Recommend removing it after confirming nobody added it on purpose. Not removed, per the owner's "do not delete anything". |
+| Info | `apps/web` | `npm audit`: 7 moderate (`minimatch` ReDoS) in the eslint toolchain only. `npm audit --omit=dev`: 0. | The fix is a breaking `typescript-eslint` major. Dev-only, so not urgent. |
+| Info | `/health/ready` | Shows the migration revision without auth. | Harmless; keep or hide behind the proxy. |
+
+## Checked and OK
+
+- **Tenant isolation:** every route in `catalog`, `customers`, `pricing`, `employees`, `admin`, `warehouses`, `suppliers`, `reports`, `inventory`, `orders`, `invoices`, `payments`, `scans`, `ocr`, `receiving` and `documents`. Body ids are verified per company, warehouse scope is enforced, and list queries filter by company and readable warehouses.
+- **SQL:** no string-built SQL from user input. LIKE is escaped (`_common.esc`). The only `literal_column` in `reports.py` uses a regex-checked timezone.
+- **Uploads:** types are detected by magic bytes (PDF/PNG/JPEG/TIFF), with a size cap by `Content-Length` plus a streaming cap. Filenames are display-only. The local Drive path is built from a UUID plus cleaned names, with a `resolve()` containment check and create-only writes. Subprocesses use list arguments only.
+- **Scan capability:** HMAC-SHA256 with constant-time compare and expiry, bound to job and device, single use.
+- **Sessions:** opaque 256-bit tokens stored as SHA-256. The cookie is `HttpOnly` and `SameSite=Strict` (`Secure` is enforced in production). Absolute and idle expiry, revocation on password or MFA reset and on disable. CSRF uses a double token plus an `Origin` check. CORS allows only `FRONTEND_ORIGIN`.
+- **Secrets:** `.env`, service-account JSON and keys are git-ignored. No secret is returned to the browser or logged.
+- **Dependencies:** `uv audit --frozen` found no known vulnerabilities in 70 packages.
+
+## How to re-run
+
+The commands are in `docs/SESSION_HANDOFF.md` → "Checks to run". The security-specific ones:
+
+```bash
+cd apps/api && PYTHONPATH=src uv run pytest -q tests/test_security.py tests/test_security_orders.py tests/test_security_receiving.py tests/test_security_ocr.py tests/test_dev_login.py
+cd apps/api && uv audit --frozen
+cd apps/web && npm audit --omit=dev
+```
+
+## New settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `LOGIN_IP_MAX_FAILURES` / `LOGIN_IP_WINDOW_MINUTES` | 30 / 15 | Failed sign-ins (and scanner auth failures) per client IP. Behind a reverse proxy, run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>` so the real client IP is used. Otherwise everyone shares the proxy's counter. |
+| `MFA_MAX_FAILURES` / `MFA_WINDOW_MINUTES` | 5 / 15 | Wrong MFA codes per employee before 429. |
+
+Production now refuses to start unless `MFA_ENCRYPTION_KEY` and `SCAN_CAPABILITY_KEY` are real, `COOKIE_SECURE=true`, `FRONTEND_ORIGIN` is https, `OCR_PROVIDER` is not `fake`, and `DRIVE_FAULT` is empty.

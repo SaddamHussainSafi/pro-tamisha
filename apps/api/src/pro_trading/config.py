@@ -1,8 +1,13 @@
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEV_MFA_KEY = "dev-only-insecure-key-change-me-000000000000="
+DEV_SCAN_KEY = "dev-only-scan-capability-key-change-me"
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 class Settings(BaseSettings):
@@ -19,15 +24,21 @@ class Settings(BaseSettings):
     session_idle_minutes: int = Field(default=60, ge=5, le=1440)
     login_max_failures: int = 5
     login_lockout_minutes: int = 15
+    # Failed sign-ins allowed per client IP per window (password spraying across accounts).
+    login_ip_max_failures: int = Field(default=30, ge=1)
+    login_ip_window_minutes: int = Field(default=15, ge=1, le=1440)
+    # Wrong MFA codes allowed per employee per window before verification is refused.
+    mfa_max_failures: int = Field(default=5, ge=1)
+    mfa_window_minutes: int = Field(default=15, ge=1, le=1440)
     # Fernet key (urlsafe base64, 32 bytes) used to encrypt TOTP secrets at rest.
-    mfa_encryption_key: str = "dev-only-insecure-key-change-me-000000000000="
+    mfa_encryption_key: str = DEV_MFA_KEY
     mfa_issuer: str = "Pro Trading"
     # Module 05 invoicing. Tax rules are unverified (OPEN_DECISIONS D-03): production-like
     # environments refuse to issue until an accountant signs off and this is set true.
     invoice_tax_verified: bool = False
     invoice_prefix: str = Field(default="INV", pattern=r"^[A-Z]{1,8}$")
     # Module 06 scanner bridge. The capability key signs short-lived, single-job scan grants.
-    scan_capability_key: str = "dev-only-scan-capability-key-change-me"
+    scan_capability_key: str = DEV_SCAN_KEY
     scan_capability_ttl_seconds: int = Field(default=300, ge=30, le=900)
     scan_timeout_seconds: int = Field(default=180, ge=30, le=1800)
     scan_pairing_ttl_minutes: int = Field(default=10, ge=1, le=60)
@@ -59,17 +70,47 @@ class Settings(BaseSettings):
     )
     payment_reminder_offsets: str = Field(default="-3,1,14", pattern=r"^-?\d{1,3}(,-?\d{1,3})*$")
     # Development only: POST /auth/dev-login signs the browser in as this employee with no
-    # password and no MFA. Empty = off. The app refuses to start with it set in staging/production.
+    # password and no MFA. Empty = off. The app refuses to start with it set in staging/production
+    # or with a non-localhost FRONTEND_ORIGIN, and the route only answers loopback requests.
     dev_auto_login_email: str = ""
 
     @property
     def is_production_like(self) -> bool:
         return self.app_env in ("staging", "production")
 
+    @property
+    def frontend_is_local(self) -> bool:
+        return urlsplit(self.frontend_origin).hostname in LOCAL_HOSTS
+
     @model_validator(mode="after")
     def _no_dev_login_in_production(self) -> "Settings":
-        if self.dev_auto_login_email and self.is_production_like:
-            raise ValueError("DEV_AUTO_LOGIN_EMAIL must be empty in staging/production")
+        if self.dev_auto_login_email and (self.is_production_like or not self.frontend_is_local):
+            raise ValueError(
+                "DEV_AUTO_LOGIN_EMAIL only works in development with a localhost FRONTEND_ORIGIN"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _production_secrets(self) -> "Settings":
+        """Staging/production refuse to start on the public dev placeholders or plain-HTTP
+        cookies, so a forgotten env var fails loudly instead of running insecurely."""
+        if not self.is_production_like:
+            return self
+        problems = []
+        if self.mfa_encryption_key == DEV_MFA_KEY:
+            problems.append("MFA_ENCRYPTION_KEY is the dev placeholder")
+        if self.scan_capability_key == DEV_SCAN_KEY or len(self.scan_capability_key) < 32:
+            problems.append("SCAN_CAPABILITY_KEY is the dev placeholder or shorter than 32 chars")
+        if not self.cookie_secure:
+            problems.append("COOKIE_SECURE must be true")
+        if not self.frontend_origin.startswith("https://"):
+            problems.append("FRONTEND_ORIGIN must be https")
+        if self.ocr_provider == "fake":
+            problems.append("OCR_PROVIDER=fake is for dev/test only")
+        if self.drive_fault:
+            problems.append("DRIVE_FAULT is for dev/test only")
+        if problems:
+            raise ValueError("Unsafe production settings: " + "; ".join(problems))
         return self
 
 

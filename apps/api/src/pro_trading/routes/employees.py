@@ -10,7 +10,7 @@ person gets one company-wide role: the business runs from one warehouse. Safety 
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -20,9 +20,10 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from .. import audit, idempotency
+from ..config import get_settings
 from ..deps import DbDep, Principal, PrincipalDep, require_permission
 from ..errors import ApiError
-from ..models import AuthSession, Employee, EmployeeRole, Role
+from ..models import AuthSession, Company, Employee, EmployeeRole, Role
 from ..schemas import (
     MyAccountIn,
     PasswordChangeIn,
@@ -94,7 +95,9 @@ def _role(db: Session, p: Principal, code: str) -> Role:
 
 
 def _other_owners(db: Session, p: Principal, exclude: uuid.UUID) -> int:
-    """Active Owner / Admin accounts other than `exclude`."""
+    """Active Owner / Admin accounts other than `exclude`. Callers hold the company row lock
+    (taken before any employee row, see patch_staff), so two Owners demoting or disabling each
+    other at once can't both pass the check."""
     return (
         db.scalar(
             select(func.count(func.distinct(Employee.id)))
@@ -180,6 +183,10 @@ def patch_staff(
     p: Principal = Manage,
 ) -> JSONResponse:
     def fn() -> tuple[dict[str, Any], str, dict[str, Any]]:
+        if body.role_code is not None or body.active is not None:
+            # Serialize Owner changes per company. Lock order company -> employee, so two
+            # Owners editing each other queue instead of deadlocking.
+            db.get(Company, p.company_id, with_for_update=True)
         e = _target(db, p, employee_id, lock=True)
         before = _out(db, e)
         if body.display_name is not None:
@@ -271,15 +278,29 @@ def update_me(body: MyAccountIn, request: Request, db: DbDep, p: PrincipalDep) -
 
 @router.post("/auth/password", status_code=204)
 def change_password(body: PasswordChangeIn, request: Request, db: DbDep, p: PrincipalDep) -> None:
-    """Change your own password. Other devices are signed out; this one stays signed in."""
-    e = _target(db, p, p.employee.id)
+    """Change your own password. Other devices are signed out; this one stays signed in.
+
+    A privileged account must have verified MFA in this session (a stolen password alone must
+    not be enough to lock the real owner out). Wrong current passwords count toward the same
+    lockout as sign-in; reaching it signs the account out everywhere."""
+    if p.mfa_required:
+        raise ApiError(403, "MFA_REQUIRED", "Verify MFA before changing your password")
+    s = get_settings()
+    e = _target(db, p, p.employee.id, lock=True)
     if not verify_password(e.password_hash, body.current_password):
-        db.rollback()  # the failure is audited in its own transaction
-        audit.record_independent(
-            action="employee.password_change", success=False, company_id=p.company_id,
+        e.failed_login_count += 1
+        locked = e.failed_login_count >= s.login_max_failures
+        if locked:
+            e.locked_until = datetime.now(UTC) + timedelta(minutes=s.login_lockout_minutes)
+            e.failed_login_count = 0
+            _sign_out(db, e.id, "password_guessing")
+        audit.record(
+            db, action="employee.password_change", success=False, company_id=p.company_id,
             actor_id=e.id, target_type="employee", target_id=str(e.id),
-            request_id=request.state.request_id, detail={"reason": "wrong_current"},
+            request_id=request.state.request_id,
+            detail={"reason": "wrong_current", "locked": locked},
         )  # fmt: skip
+        db.commit()
         raise ApiError(422, "WRONG_PASSWORD", "Your current password is not right")
     if body.new_password == body.current_password:
         raise ApiError(422, "SAME_PASSWORD", "Choose a new password")

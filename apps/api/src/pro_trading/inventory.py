@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -210,13 +210,25 @@ def damaged_companion(db: Session, lot: InventoryLot, actor_id: uuid.UUID | None
     """Get or create the DAMAGED lot that holds stock split off `lot` (race-safe)."""
     if lot.status == "DAMAGED":
         return lot
+    # "<code>-DMG", unless that name is already another lot's (a user-made "X-DMG", or a
+    # 64-char code whose "-DMG" would be cut off): then a per-parent suffix keeps it unique.
+    code = f"{lot.lot_code[:60]}-DMG"
+    taken = db.scalar(
+        select(InventoryLot.id).where(
+            InventoryLot.company_id == lot.company_id,
+            InventoryLot.lot_code == code,
+            or_(InventoryLot.parent_lot_id.is_(None), InventoryLot.parent_lot_id != lot.id),
+        )
+    )
+    if taken is not None:
+        code = f"{lot.lot_code[:51]}-DMG-{lot.id.hex[:8]}"
     db.execute(
         insert(InventoryLot)
         .values(
             company_id=lot.company_id,
             product_id=lot.product_id,
             warehouse_id=lot.warehouse_id,
-            lot_code=f"{lot.lot_code}-DMG"[:64],
+            lot_code=code,
             batch_ref=lot.batch_ref,
             received_at=lot.received_at,
             expires_at=lot.expires_at,

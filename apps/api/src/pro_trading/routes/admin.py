@@ -1,12 +1,13 @@
 """Feature flags and audit log read."""
 
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
 from .. import audit
-from ..deps import DbDep, Principal, PrincipalDep, require_permission
+from ..deps import DbDep, Principal, require_permission
 from ..models import AuditEvent, FeatureFlag
 from ..schemas import AuditEventOut, FeatureFlagIn, FeatureFlagOut
 
@@ -14,7 +15,9 @@ router = APIRouter(tags=["admin"])
 
 
 @router.get("/feature-flags", response_model=list[FeatureFlagOut])
-def list_flags(db: DbDep, p: PrincipalDep) -> list[FeatureFlag]:
+def list_flags(
+    db: DbDep, p: Principal = Depends(require_permission("feature_flag.manage"))
+) -> list[FeatureFlag]:
     return list(
         db.scalars(
             select(FeatureFlag)
@@ -26,7 +29,7 @@ def list_flags(db: DbDep, p: PrincipalDep) -> list[FeatureFlag]:
 
 @router.put("/feature-flags/{key}", response_model=FeatureFlagOut)
 def set_flag(
-    key: str,
+    key: Annotated[str, Path(pattern=r"^[a-z0-9_]{1,64}$")],
     body: FeatureFlagIn,
     request: Request,
     db: DbDep,

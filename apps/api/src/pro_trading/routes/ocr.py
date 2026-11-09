@@ -54,7 +54,7 @@ from ..schemas import (
     ReasonIn,
     ShipmentDocKind,
 )
-from ._common import esc, mutate
+from ._common import content_disposition, esc, mutate
 from .orders import insert_order
 from .receiving import _attach
 
@@ -340,7 +340,7 @@ def order_sheet(
         pdf,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{fname}"',
+            "Content-Disposition": content_disposition("attachment", fname),
             "Cache-Control": "private, no-store",
         },
     )
@@ -681,6 +681,12 @@ def to_receiving(
             s = db.get(Shipment, body.shipment_id, with_for_update=True)
             if s is None or s.company_id != p.company_id or s.vendor_id != v.id:
                 raise ApiError(422, "INVALID_SHIPMENT", "That shipment is not from this supplier")
+            # grn.record was checked for the scan's warehouse only: never write into another
+            # warehouse's shipment from here.
+            if s.warehouse_id != ex.warehouse_id:
+                raise ApiError(
+                    422, "WRONG_WAREHOUSE", "That shipment belongs to a different warehouse"
+                )
             if s.status != "OPEN":
                 raise ApiError(409, "INVALID_STATE", f"Shipment {s.shipment_no} is not open")
         else:

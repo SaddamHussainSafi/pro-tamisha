@@ -415,7 +415,7 @@ def issue(
         picking_attempt_id=attempt.id,
         customer_id=customer.id,
         warehouse_id=order.warehouse_id,
-        state="ISSUED",
+        state="PAID" if draft.total == 0 else "ISSUED",  # nothing to collect on a $0 invoice
         currency="CAD",
         subtotal=draft.subtotal,
         tax_amount=draft.tax_amount,

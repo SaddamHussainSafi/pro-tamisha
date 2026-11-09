@@ -47,7 +47,7 @@ class _Page:
         self.ops.append(f"{x1:.1f} {y1:.1f} m {x2:.1f} {y2:.1f} l S")
 
     def stream(self) -> bytes:
-        return ("0.5 w\n" + "\n".join(self.ops)).encode("latin-1")
+        return ("0.5 w\n" + "\n".join(self.ops)).encode("cp1252")  # WinAnsiEncoding
 
 
 COLS = [  # (header, x, right-aligned)

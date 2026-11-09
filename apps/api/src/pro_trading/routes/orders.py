@@ -423,7 +423,7 @@ def cancel_line_qty(
         request,
         p,
         key,
-        f"sales_order.line_cancel:{order_id}",
+        f"sales_order.line_cancel:{order_id}:{line_id}",
         body,
         200,
         "sales_order.line_cancel",

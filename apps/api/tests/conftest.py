@@ -12,6 +12,9 @@ os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://tami@127.0.0.1:5432/
 os.environ["APP_ENV"] = "test"
 os.environ["OCR_PROVIDER"] = "fake"  # tests that use Tesseract switch it on themselves
 os.environ.setdefault("MFA_ENCRYPTION_KEY", "q0f5L2m9ZPZ0g3W9H3nmVvG7Pq0V8k1oJ5sQ0yYy7Uk=")
+# Per-IP failure throttles are shared by every test (all requests come from "testclient");
+# test_security.py lowers it for its own client address.
+os.environ.setdefault("LOGIN_IP_MAX_FAILURES", "1000000")
 
 import pyotp  # noqa: E402
 import pytest  # noqa: E402
