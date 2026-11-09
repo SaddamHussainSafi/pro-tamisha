@@ -2,6 +2,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api, has, type Warehouse } from "../api";
 import { useAuth } from "../auth";
+import { roleLabel } from "../lib/staff";
 import { NAV_GROUPS, SETTINGS, type NavItem } from "../nav";
 import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
@@ -120,7 +121,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; onToggle?: () => void; onClose?: () => void }) {
   const { session, logout } = useAuth();
   const name = session?.employee.display_name;
-  const role = session && has(session, "employee.manage") ? "Administrator" : session?.employee.email;
+  const role = session?.roles?.length ? session.roles.map(roleLabel).join(", ") : session?.employee.email;
   return (
     <div className="flex h-full min-h-0 flex-col border-r border-line bg-card">
       <div className={`flex shrink-0 items-center gap-2 p-4 ${collapsed ? "flex-col" : ""}`}>

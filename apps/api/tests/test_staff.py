@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from pro_trading.db import get_sessionmaker
 
-from .conftest import PASSWORD, Api, build_world, idem
+from .conftest import PASSWORD, Api, build_world, idem, mailed_token
 from .test_orders import P, code, owner, user  # noqa: F401
 
 NEW_PW = "Fresh-Cassava-2026!"
@@ -18,7 +18,7 @@ def staff(api, **body):
         "display_name": "New Hire",
         "role_code": "SALES_OPERATOR",
     }
-    return api.post(f"{P}/employees", json={**b, "password": NEW_PW, **body}, headers=idem())
+    return api.post(f"{P}/employees", json={**b, **body}, headers=idem())
 
 
 def audit_details(company_id, action):
@@ -35,24 +35,34 @@ def audit_details(company_id, action):
         ]
 
 
-def test_create_and_sign_in(owner, make_api, world):
-    for bad in ("short-1!", "aaaaaaaaaaaaa"):
-        r = staff(owner, password=bad)
-        assert r.status_code == 422, bad
+def test_create_invites_and_the_person_sets_their_password(owner, make_api, world):
     r = staff(owner, email=world.emails["sales"])
     assert r.status_code == 409 and code(r) == "EMAIL_TAKEN"
     assert staff(owner, role_code="KING").status_code == 422
-    r = staff(owner, email=f"hire.{world.company_id.hex[:6]}@example.test")
+    extra = staff(owner, email=f"x.{world.company_id.hex[:6]}@example.test", password=NEW_PW)
+    assert extra.status_code == 201 and extra.json()["status"] == "INVITED"  # field ignored...
+    hire = f"hire.{world.company_id.hex[:6]}@example.test"
+    r = staff(owner, email=hire)
     assert r.status_code == 201, r.text
     s = r.json()
-    assert (s["roles"], s["active"], s["mfa_enrolled"]) == (["SALES_OPERATOR"], True, False)
+    assert (s["roles"], s["active"], s["status"]) == (["SALES_OPERATOR"], True, "INVITED")
+    assert s["invite_expires_at"] is not None and s["last_login_at"] is None
+    assert make_api().login(hire, NEW_PW).status_code == 401  # ...no password until accepted
+    token = mailed_token(hire)
     a = make_api()
-    assert a.login(s["email"], NEW_PW).status_code == 200
+    for bad in ("short-1!", "aaaaaaaaaaaaa"):
+        r = a.post(f"{P}/auth/invitation/accept", json={"token": token, "password": bad})
+        assert r.status_code == 422, bad
+    r = a.post(f"{P}/auth/invitation/accept", json={"token": token, "password": NEW_PW})
+    assert r.status_code == 204, r.text
+    assert a.login(hire, NEW_PW).status_code == 200
     assert a.get(f"{P}/customers").status_code == 200  # sales can read customers
-    listed = owner.get(f"{P}/employees").json()
-    assert s["id"] in {x["id"] for x in listed} and len(listed) == 7
+    listed = {x["email"]: x for x in owner.get(f"{P}/employees").json()}
+    assert listed[hire]["status"] == "ACTIVE" and listed[hire]["last_login_at"] is not None
+    assert len(listed) == 8  # 6 fixture people + 2 invited here
     details = audit_details(world.company_id, "employee.create")
     assert details and all(NEW_PW not in d and "password" not in d for d in details)
+    assert all(token not in d for d in audit_details(world.company_id, "auth.invitation_accepted"))
 
 
 def test_role_change_disable_and_self_protection(owner, user, make_api, world):
@@ -90,11 +100,10 @@ def test_reset_password_and_two_step(owner, user, make_api, world):
     r = owner.post(f"{P}/employees/{fid}/reset-mfa")
     assert r.status_code == 200 and r.json()["mfa_enrolled"] is False
     b = make_api()
-    assert b.login(world.emails["finance"], NEW_PW).status_code == 200
-    r = b.get(f"{P}/payments")
-    assert r.status_code == 403 and code(r) == "MFA_REQUIRED"
-    assert b.enroll_and_verify().status_code == 200  # sets up a new authenticator
+    body = b.login(world.emails["finance"], NEW_PW).json()
+    assert body["mfa_required"] is False  # two-step is off again: password alone signs in
     assert b.get(f"{P}/payments").status_code == 200
+    assert b.enroll_and_verify(NEW_PW).status_code == 200  # can turn it on again
     assert not any(NEW_PW in d for d in audit_details(world.company_id, "employee.password_reset"))
 
 

@@ -417,8 +417,7 @@ def test_permissions_and_warehouse_scope(owner, world, prods, make_api):
 
     mgr = make_api()
     mgr.login(world.emails["manager_a"])
-    assert adjust(mgr, a, "BOX", "-1").json()["error"]["code"] == "MFA_REQUIRED"
-    mgr.enroll_and_verify()
+    mgr.enroll_and_verify()  # optional two-step (2026-11-09); harmless here
     assert adjust(mgr, a, "BOX", "-1").status_code == 201
     assert adjust(mgr, b, "BOX", "-1").status_code == 403  # scoped to warehouse A
     assert opening(mgr, world, prods["CAS"], [("BOX", "1")], wh=world.wh_b).status_code == 403

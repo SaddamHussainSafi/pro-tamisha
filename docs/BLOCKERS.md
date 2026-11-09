@@ -14,6 +14,8 @@ Last updated 2026-11-08. Decision numbers refer to `docs/decisions/OPEN_DECISION
 | Focus V7 backup format, history migration scope | D-13, D-17 | Module 11 has not started. |
 | OCR accuracy target and review turnaround | D-18 | Every line is reviewed by hand regardless of confidence. |
 | Data retention / privacy policy | D-19 | No retention jobs exist. |
+| Email provider for account links (invitations, password resets, security notices) | D-15 | In dev/test the `email_messages` table is the mailbox. Staging/production have no provider: the message is stored **without** the link (a warning is logged), so invitations and "forgot password" can't reach anyone there yet. A Super Admin can still set a temporary password (User management › Manage › Set temporary password). |
+| Two-step sign-in for everyone | Owner, 2026-11-09 | Built but switched off: it is optional for every role. Setting the company flag `require_two_step` (`PUT /feature-flags/require_two_step`, Super Admin) would make everyone set it up at their next sign-in. There is no button for it on purpose. |
 
 ## Open questions from Module 12 (Reports)
 

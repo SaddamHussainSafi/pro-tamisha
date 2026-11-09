@@ -2965,6 +2965,21 @@
         "title": "FeatureFlagOut",
         "type": "object"
       },
+      "ForgotPasswordIn": {
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPasswordIn",
+        "type": "object"
+      },
       "GrantOut": {
         "properties": {
           "permission": {
@@ -4743,11 +4758,24 @@
             "title": "Mfa Required",
             "type": "boolean"
           },
+          "mfa_setup_required": {
+            "default": false,
+            "title": "Mfa Setup Required",
+            "type": "boolean"
+          },
           "permissions": {
             "items": {
               "type": "string"
             },
             "title": "Permissions",
+            "type": "array"
+          },
+          "roles": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
             "type": "array"
           }
         },
@@ -4957,6 +4985,113 @@
         "title": "LotStatusIn",
         "type": "object"
       },
+      "MessageOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "MessageOut",
+        "type": "object"
+      },
+      "MfaChangeIn": {
+        "description": "Turning two-step off or making new recovery codes: password plus a current code.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "recovery_code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Code"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "MfaChangeIn",
+        "type": "object"
+      },
+      "MfaConfirmIn": {
+        "properties": {
+          "code": {
+            "pattern": "^\\d{6}$",
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "MfaConfirmIn",
+        "type": "object"
+      },
+      "MfaConfirmOut": {
+        "properties": {
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          },
+          "session": {
+            "$ref": "#/components/schemas/SessionOut"
+          }
+        },
+        "required": [
+          "session",
+          "recovery_codes"
+        ],
+        "title": "MfaConfirmOut",
+        "type": "object"
+      },
+      "MfaEnrollIn": {
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "title": "MfaEnrollIn",
+        "type": "object"
+      },
       "MfaEnrollOut": {
         "properties": {
           "otpauth_uri": {
@@ -4971,16 +5106,34 @@
         "type": "object"
       },
       "MfaVerifyIn": {
+        "description": "Either the 6-digit code from the authenticator app or one recovery code.",
         "properties": {
           "code": {
-            "pattern": "^\\d{6}$",
-            "title": "Code",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^\\d{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "recovery_code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Code"
           }
         },
-        "required": [
-          "code"
-        ],
         "title": "MfaVerifyIn",
         "type": "object"
       },
@@ -7984,6 +8137,24 @@
         "title": "PaymentVerifyIn",
         "type": "object"
       },
+      "PermissionOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "description"
+        ],
+        "title": "PermissionOut",
+        "type": "object"
+      },
       "PickLineIn": {
         "properties": {
           "line_id": {
@@ -9841,6 +10012,22 @@
         "title": "ReconciliationOut",
         "type": "object"
       },
+      "RecoveryCodesOut": {
+        "properties": {
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recovery_codes"
+        ],
+        "title": "RecoveryCodesOut",
+        "type": "object"
+      },
       "ReservationIn": {
         "properties": {
           "lot_id": {
@@ -10043,6 +10230,66 @@
           "reason"
         ],
         "title": "ReverseIn",
+        "type": "object"
+      },
+      "RoleMatrixOut": {
+        "properties": {
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionOut"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleOut"
+            },
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "roles",
+          "permissions"
+        ],
+        "title": "RoleMatrixOut",
+        "type": "object"
+      },
+      "RoleOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "members": {
+            "title": "Members",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "description",
+          "permissions",
+          "members"
+        ],
+        "title": "RoleOut",
         "type": "object"
       },
       "RowErrorOut": {
@@ -10955,6 +11202,286 @@
         "title": "ScanJobPage",
         "type": "object"
       },
+      "SecurityEventOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "target_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Name"
+          },
+          "target_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Type"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "success",
+          "created_at",
+          "actor_id",
+          "actor_name",
+          "target_type",
+          "target_id",
+          "target_name",
+          "reason",
+          "ip_address",
+          "user_agent"
+        ],
+        "title": "SecurityEventOut",
+        "type": "object"
+      },
+      "SecuritySettingsOut": {
+        "properties": {
+          "invite_ttl_hours": {
+            "title": "Invite Ttl Hours",
+            "type": "integer"
+          },
+          "login_ip_max_failures": {
+            "title": "Login Ip Max Failures",
+            "type": "integer"
+          },
+          "login_ip_window_minutes": {
+            "title": "Login Ip Window Minutes",
+            "type": "integer"
+          },
+          "login_lockout_minutes": {
+            "title": "Login Lockout Minutes",
+            "type": "integer"
+          },
+          "login_max_failures": {
+            "title": "Login Max Failures",
+            "type": "integer"
+          },
+          "password_min_length": {
+            "title": "Password Min Length",
+            "type": "integer"
+          },
+          "password_reset_ttl_minutes": {
+            "title": "Password Reset Ttl Minutes",
+            "type": "integer"
+          },
+          "session_idle_minutes": {
+            "title": "Session Idle Minutes",
+            "type": "integer"
+          },
+          "session_ttl_minutes": {
+            "title": "Session Ttl Minutes",
+            "type": "integer"
+          },
+          "two_step_required": {
+            "title": "Two Step Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "two_step_required",
+          "session_ttl_minutes",
+          "session_idle_minutes",
+          "login_max_failures",
+          "login_lockout_minutes",
+          "login_ip_max_failures",
+          "login_ip_window_minutes",
+          "invite_ttl_hours",
+          "password_reset_ttl_minutes",
+          "password_min_length"
+        ],
+        "title": "SecuritySettingsOut",
+        "type": "object"
+      },
+      "SessionInfoOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "employee_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Email"
+          },
+          "employee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Id"
+          },
+          "employee_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Name"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "last_seen_at",
+          "expires_at",
+          "user_agent",
+          "ip_address",
+          "current"
+        ],
+        "title": "SessionInfoOut",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "employee": {
@@ -10980,11 +11507,24 @@
             "title": "Mfa Required",
             "type": "boolean"
           },
+          "mfa_setup_required": {
+            "default": false,
+            "title": "Mfa Setup Required",
+            "type": "boolean"
+          },
           "permissions": {
             "items": {
               "type": "string"
             },
             "title": "Permissions",
+            "type": "array"
+          },
+          "roles": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
             "type": "array"
           }
         },
@@ -11751,6 +12291,7 @@
         "type": "object"
       },
       "StaffCreateIn": {
+        "description": "Invitation-based: the person sets their own password from the emailed link.",
         "properties": {
           "display_name": {
             "maxLength": 200,
@@ -11764,19 +12305,14 @@
             "title": "Email",
             "type": "string"
           },
-          "password": {
-            "maxLength": 128,
-            "minLength": 12,
-            "title": "Password",
-            "type": "string"
-          },
           "role_code": {
             "enum": [
               "OWNER_ADMIN",
               "MANAGER",
               "SALES_OPERATOR",
               "WAREHOUSE",
-              "FINANCE"
+              "FINANCE",
+              "VIEWER"
             ],
             "title": "Role Code",
             "type": "string"
@@ -11785,8 +12321,7 @@
         "required": [
           "email",
           "display_name",
-          "role_code",
-          "password"
+          "role_code"
         ],
         "title": "StaffCreateIn",
         "type": "object"
@@ -11815,6 +12350,30 @@
             "title": "Id",
             "type": "string"
           },
+          "invite_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Expires At"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
           "last_seen_at": {
             "anyOf": [
               {
@@ -11841,6 +12400,15 @@
             },
             "title": "Roles",
             "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "INVITED",
+              "SUSPENDED"
+            ],
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
@@ -11848,10 +12416,13 @@
           "email",
           "display_name",
           "active",
+          "status",
           "roles",
           "mfa_enrolled",
           "locked",
           "last_seen_at",
+          "last_login_at",
+          "invite_expires_at",
           "created_at"
         ],
         "title": "StaffOut",
@@ -11891,7 +12462,8 @@
                   "MANAGER",
                   "SALES_OPERATOR",
                   "WAREHOUSE",
-                  "FINANCE"
+                  "FINANCE",
+                  "VIEWER"
                 ],
                 "type": "string"
               },
@@ -12501,6 +13073,87 @@
           "reason"
         ],
         "title": "SupplierPaymentVoidIn",
+        "type": "object"
+      },
+      "TokenInspectIn": {
+        "properties": {
+          "purpose": {
+            "enum": [
+              "INVITE",
+              "PASSWORD_RESET"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 20,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "purpose"
+        ],
+        "title": "TokenInspectIn",
+        "type": "object"
+      },
+      "TokenInspectOut": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "INVITE",
+              "PASSWORD_RESET"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "display_name",
+          "purpose",
+          "expires_at"
+        ],
+        "title": "TokenInspectOut",
+        "type": "object"
+      },
+      "TokenPasswordIn": {
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 20,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "TokenPasswordIn",
         "type": "object"
       },
       "UnitProfileIn": {
@@ -13285,6 +13938,56 @@
         ]
       }
     },
+    "/api/v1/auth/activity": {
+      "get": {
+        "description": "My recent sign-ins (including failed ones) and account changes.",
+        "operationId": "my_activity_api_v1_auth_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecurityEventOut"
+                  },
+                  "title": "Response My Activity Api V1 Auth Activity Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "My Activity",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/employees/{employee_id}/revoke-sessions": {
       "post": {
         "operationId": "revoke_sessions_api_v1_auth_employees__employee_id__revoke_sessions_post",
@@ -13316,6 +14019,41 @@
           }
         },
         "summary": "Revoke Sessions",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/invitation/accept": {
+      "post": {
+        "description": "A new person chooses their password; they then sign in normally.",
+        "operationId": "accept_invitation_api_v1_auth_invitation_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Invitation",
         "tags": [
           "auth"
         ]
@@ -13418,9 +14156,69 @@
         ]
       }
     },
+    "/api/v1/auth/mfa/disable": {
+      "post": {
+        "description": "Turn two-step sign-in off: password plus a current code or a recovery code.",
+        "operationId": "mfa_disable_api_v1_auth_mfa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa Disable",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/mfa/enroll": {
       "post": {
+        "description": "Start setting up an authenticator app. From My account the password is asked again;\nduring a sign-in that the company's policy holds for setup it was just entered.",
         "operationId": "mfa_enroll_api_v1_auth_mfa_enroll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MfaEnrollIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -13431,6 +14229,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Mfa Enroll",
@@ -13439,8 +14247,93 @@
         ]
       }
     },
+    "/api/v1/auth/mfa/enroll/confirm": {
+      "post": {
+        "description": "Finish setup with a code from the app. Turns two-step sign-in on, returns 10 one-time\nrecovery codes (shown once) and signs out every other session (they had no second step).",
+        "operationId": "mfa_enroll_confirm_api_v1_auth_mfa_enroll_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaConfirmOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa Enroll Confirm",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/recovery-codes": {
+      "post": {
+        "description": "Replace every recovery code with 10 new ones (the old ones stop working).",
+        "operationId": "mfa_new_recovery_codes_api_v1_auth_mfa_recovery_codes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa New Recovery Codes",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/mfa/verify": {
       "post": {
+        "description": "Second step of sign-in for people who turned two-step sign-in on.",
         "operationId": "mfa_verify_api_v1_auth_mfa_verify_post",
         "requestBody": {
           "content": {
@@ -13482,7 +14375,7 @@
     },
     "/api/v1/auth/password": {
       "post": {
-        "description": "Change your own password. Other devices are signed out; this one stays signed in.\n\nA privileged account must have verified MFA in this session (a stolen password alone must\nnot be enough to lock the real owner out). Wrong current passwords count toward the same\nlockout as sign-in; reaching it signs the account out everywhere.",
+        "description": "Change your own password. Other devices are signed out; this one stays signed in.\n\nRefused while the sign-in's two-step code is pending. Wrong current passwords count toward\nthe same lockout as sign-in; reaching it signs the account out everywhere.",
         "operationId": "change_password_api_v1_auth_password_post",
         "requestBody": {
           "content": {
@@ -13515,6 +14408,82 @@
         ]
       }
     },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "operationId": "forgot_password_api_v1_auth_password_forgot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forgot Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "description": "Set a new password from an emailed link. Signs the account out everywhere.",
+        "operationId": "reset_password_api_v1_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/session": {
       "get": {
         "operationId": "get_session_api_v1_auth_session_get",
@@ -13531,6 +14500,123 @@
           }
         },
         "summary": "Get Session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "operationId": "my_sessions_api_v1_auth_sessions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionInfoOut"
+                  },
+                  "title": "Response My Sessions Api V1 Auth Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "My Sessions",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sessions/revoke-others": {
+      "post": {
+        "operationId": "revoke_my_other_sessions_api_v1_auth_sessions_revoke_others_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Revoke My Other Sessions",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sessions/{session_id}/revoke": {
+      "post": {
+        "operationId": "revoke_my_session_api_v1_auth_sessions__session_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke My Session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/token/inspect": {
+      "post": {
+        "description": "What a link is for (who, until when), so the page can greet the person. POST keeps the\ntoken out of URLs and logs.",
+        "operationId": "inspect_link_api_v1_auth_token_inspect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenInspectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenInspectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Link",
         "tags": [
           "auth"
         ]
@@ -14219,6 +15305,7 @@
         ]
       },
       "post": {
+        "description": "Invite someone: the account is created without a password and they get an email link\nto choose one. Until then they show as Invited and cannot sign in.",
         "operationId": "create_staff_api_v1_employees_post",
         "parameters": [
           {
@@ -14335,9 +15422,53 @@
         ]
       }
     },
+    "/api/v1/employees/{employee_id}/invite": {
+      "post": {
+        "description": "Send a fresh invitation link; earlier links stop working.",
+        "operationId": "resend_invite_api_v1_employees__employee_id__invite_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "employee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Employee Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Invite",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v1/employees/{employee_id}/reset-mfa": {
       "post": {
-        "description": "Lost phone: clear two-step sign-in; they set it up again at their next sign-in.",
+        "description": "Lost phone and recovery codes: turn their two-step sign-in off (they can turn it on again\nfrom My account). Signs them out everywhere.",
         "operationId": "reset_mfa_api_v1_employees__employee_id__reset_mfa_post",
         "parameters": [
           {
@@ -20602,6 +21733,27 @@
         ]
       }
     },
+    "/api/v1/roles": {
+      "get": {
+        "operationId": "role_matrix_api_v1_roles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMatrixOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Role Matrix",
+        "tags": [
+          "security"
+        ]
+      }
+    },
     "/api/v1/sales-orders": {
       "get": {
         "operationId": "list_orders_api_v1_sales_orders_get",
@@ -22346,6 +23498,198 @@
         "summary": "Manual Upload",
         "tags": [
           "scans"
+        ]
+      }
+    },
+    "/api/v1/security/events": {
+      "get": {
+        "description": "Sign-ins (and failures), lockouts, two-step changes, password resets, invitations,\nrole and status changes, session revocations and permission denials, newest first.\nPage with `before` = the last row's created_at.",
+        "operationId": "security_events_api_v1_security_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "sign_in",
+                "account",
+                "denied"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "failed_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Failed Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Employee Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecurityEventOut"
+                  },
+                  "title": "Response Security Events Api V1 Security Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Security Events",
+        "tags": [
+          "security"
+        ]
+      }
+    },
+    "/api/v1/security/sessions": {
+      "get": {
+        "operationId": "company_sessions_api_v1_security_sessions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionInfoOut"
+                  },
+                  "title": "Response Company Sessions Api V1 Security Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Company Sessions",
+        "tags": [
+          "security"
+        ]
+      }
+    },
+    "/api/v1/security/sessions/{session_id}/revoke": {
+      "post": {
+        "operationId": "revoke_company_session_api_v1_security_sessions__session_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Company Session",
+        "tags": [
+          "security"
+        ]
+      }
+    },
+    "/api/v1/security/settings": {
+      "get": {
+        "operationId": "security_settings_api_v1_security_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecuritySettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Security Settings",
+        "tags": [
+          "security"
         ]
       }
     },

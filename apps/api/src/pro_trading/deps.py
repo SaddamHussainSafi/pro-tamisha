@@ -14,7 +14,15 @@ from . import audit
 from .config import get_settings
 from .db import get_db, get_sessionmaker
 from .errors import ApiError
-from .models import AuthSession, Employee, EmployeeRole, Role, RolePermission, Warehouse
+from .models import (
+    AuthSession,
+    Employee,
+    EmployeeRole,
+    FeatureFlag,
+    Role,
+    RolePermission,
+    Warehouse,
+)
 from .security import sha256_hex, tokens_match
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -23,30 +31,46 @@ CSRF_HEADER = "X-CSRF-Token"
 DbDep = Annotated[Session, Depends(get_db)]
 
 
+TWO_STEP_FLAG = "require_two_step"
+
+
 @dataclass(frozen=True)
 class Grant:
     permission: str
     warehouse_id: uuid.UUID | None  # None = company-wide
-    privileged: bool
 
 
 @dataclass
 class Principal:
+    """The signed-in employee. Two-step sign-in is optional: it is asked for only when the
+    employee turned it on (or the company's `require_two_step` flag is on, which is off today).
+    Until that code is entered the session holds no permissions at all."""
+
     employee: Employee
     session: AuthSession
     grants: list[Grant] = field(default_factory=list)
+    two_step_policy: bool = False  # company requires two-step sign-in for everyone
 
     @property
     def company_id(self) -> uuid.UUID:
         return self.employee.company_id
 
     @property
+    def mfa_enrolled(self) -> bool:
+        return self.employee.mfa_enrolled_at is not None
+
+    @property
+    def mfa_setup_required(self) -> bool:
+        """Policy requires two-step sign-in but this person has not set it up yet."""
+        return self.two_step_policy and not self.mfa_enrolled
+
+    @property
     def mfa_required(self) -> bool:
-        return any(g.privileged for g in self.grants) and not self.session.mfa_verified
+        """This session still has to pass (or set up) two-step sign-in."""
+        return (self.mfa_enrolled or self.two_step_policy) and not self.session.mfa_verified
 
     def effective(self) -> list[Grant]:
-        """Privileged-role grants only count after MFA in this session."""
-        return [g for g in self.grants if not g.privileged or self.session.mfa_verified]
+        return [] if self.mfa_required else self.grants
 
     def can(
         self, permission: str, warehouse_id: uuid.UUID | None = None, *, any_scope: bool = False
@@ -65,12 +89,26 @@ class Principal:
 
 def load_grants(db: Session, employee_id: uuid.UUID) -> list[Grant]:
     rows = db.execute(
-        select(RolePermission.permission_code, EmployeeRole.warehouse_id, Role.privileged)
+        select(RolePermission.permission_code, EmployeeRole.warehouse_id)
         .join(Role, Role.id == EmployeeRole.role_id)
         .join(RolePermission, RolePermission.role_id == Role.id)
         .where(EmployeeRole.employee_id == employee_id)
     ).all()
-    return [Grant(p, w, priv) for p, w, priv in rows]
+    return [Grant(p, w) for p, w in rows]
+
+
+def two_step_policy(db: Session, company_id: uuid.UUID) -> bool:
+    return bool(
+        db.scalar(
+            select(FeatureFlag.enabled).where(
+                FeatureFlag.company_id == company_id, FeatureFlag.key == TWO_STEP_FLAG
+            )
+        )
+    )
+
+
+def build_principal(db: Session, emp: Employee, sess: AuthSession) -> Principal:
+    return Principal(emp, sess, load_grants(db, emp.id), two_step_policy(db, emp.company_id))
 
 
 def get_principal(request: Request, db: DbDep) -> Principal:
@@ -100,10 +138,20 @@ def get_principal(request: Request, db: DbDep) -> Principal:
     sess.last_seen_at = now
     db.commit()
     request.state.actor_id = emp.id
-    return Principal(emp, sess, load_grants(db, emp.id))
+    return build_principal(db, emp, sess)
 
 
 PrincipalDep = Annotated[Principal, Depends(get_principal)]
+
+
+def get_verified_principal(p: PrincipalDep) -> Principal:
+    """Self-service routes (My account): refused while the sign-in's two-step code is pending."""
+    if p.mfa_required:
+        raise ApiError(403, "MFA_REQUIRED", "Enter your two-step sign-in code first")
+    return p
+
+
+VerifiedPrincipalDep = Annotated[Principal, Depends(get_verified_principal)]
 
 
 def _own_warehouse(company_id: uuid.UUID, warehouse_id: uuid.UUID) -> bool:
@@ -141,10 +189,8 @@ def deny(
         target_id=f"{request.method} {request.url.path}",
         detail=detail,
     )
-    if principal.mfa_required and any(
-        g.permission == permission for g in principal.grants if g.privileged
-    ):
-        return ApiError(403, "MFA_REQUIRED", "Verify MFA to use this permission")
+    if principal.mfa_required:
+        return ApiError(403, "MFA_REQUIRED", "Enter your two-step sign-in code first")
     return ApiError(403, "FORBIDDEN", "You do not have permission for this action")
 
 

@@ -129,6 +129,7 @@ class Api:
         self.c = TestClient(app)
         self.csrf: str | None = None
         self.totp: pyotp.TOTP | None = None
+        self.recovery_codes: list[str] = []
 
     def login(self, email: str, password: str = PASSWORD) -> Any:
         r = self.c.post("/api/v1/auth/login", json={"email": email, "password": password})
@@ -152,12 +153,22 @@ class Api:
     def put(self, url: str, json: Any = None, headers: dict[str, str] | None = None) -> Any:
         return self.c.put(url, json=json, headers=self._h(headers))
 
-    def enroll_and_verify(self) -> Any:
-        r = self.post("/api/v1/auth/mfa/enroll")
+    def enroll_and_verify(self, password: str = PASSWORD) -> Any:
+        """Turn on two-step sign-in from My account (optional since 2026-11-09): returns the
+        confirm response ({session, recovery_codes}) and keeps the codes on the client."""
+        r = self.post("/api/v1/auth/mfa/enroll", json={"password": password})
         assert r.status_code == 200, r.text
         secret = parse_qs(urlparse(r.json()["otpauth_uri"]).query)["secret"][0]
         self.totp = pyotp.TOTP(secret)
-        return self.post("/api/v1/auth/mfa/verify", json={"code": self.totp.now()})
+        r = self.post("/api/v1/auth/mfa/enroll/confirm", json={"code": self.totp.now()})
+        if r.status_code == 200:
+            self.recovery_codes = r.json()["recovery_codes"]
+        return r
+
+    def verify(self, code: str | None = None) -> Any:
+        """Second sign-in step for someone who turned two-step sign-in on."""
+        assert self.totp is not None
+        return self.post("/api/v1/auth/mfa/verify", json={"code": code or self.totp.now()})
 
 
 @pytest.fixture
@@ -175,3 +186,23 @@ def idem() -> dict[str, str]:
 
 
 ERR = re.compile(r"^[A-Z_]+$")
+
+
+def mailed_token(email: str, kind: str = "accept-invite") -> str:
+    """The raw token from the latest dev-mailbox message to `email` whose link is `/kind#...`
+    (email_messages is the mailbox in dev/test)."""
+    from sqlalchemy import select as _select
+
+    from pro_trading.models import EmailMessage
+
+    with get_sessionmaker()() as db:
+        bodies = db.scalars(
+            _select(EmailMessage.body)
+            .where(EmailMessage.to_addr == email)
+            .order_by(EmailMessage.created_at.desc())
+        ).all()
+    for body in bodies:
+        m = re.search(rf"/{kind}#token=([A-Za-z0-9_-]+)", body)
+        if m:
+            return m.group(1)
+    raise AssertionError(f"no {kind} email to {email}")

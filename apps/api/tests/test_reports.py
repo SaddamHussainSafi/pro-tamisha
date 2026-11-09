@@ -244,9 +244,6 @@ def test_permissions_scope_and_tenancy(owner, user, make_api, world, setup, sold
     # a manager of warehouse B sees nothing from A
     mb = make_api()
     assert mb.login(_manager_b(world)).status_code == 200
-    r = mb.get(f"{R}/sales")
-    assert r.status_code == 403 and code(r) == "MFA_REQUIRED"
-    assert mb.enroll_and_verify().status_code == 200
     rep = get(mb, "sales")
     assert (rep["net_sales"], rep["invoice_count"]) == ("0.00", 0)
     assert get(mb, "stock-flow")["rows"] == []

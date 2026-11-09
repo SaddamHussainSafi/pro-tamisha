@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
 import { returnTo } from "../lib/returnTo";
@@ -12,6 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const notice = (loc.state as { notice?: string } | null)?.notice;
 
   if (status === "authenticated" && session) return <Navigate to={session.mfa_required ? "/mfa" : returnTo(loc.state)} replace state={loc.state} />;
 
@@ -47,6 +48,7 @@ export function LoginPage() {
             <h1 id="login-title" className="text-lg font-semibold">Sign in</h1>
             <p className="text-sm text-ink-muted">Tamisha Trading Inc. staff only</p>
           </div>
+          {notice && !error && <p role="status" className="alert-success">{notice}</p>}
           {error && <div role="alert" className="alert-danger">{error}</div>}
           <div>
             <label className="label" htmlFor="email">Email</label>
@@ -54,7 +56,10 @@ export function LoginPage() {
               value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
           </div>
           <div>
-            <label className="label" htmlFor="password">Password</label>
+            <div className="flex items-baseline justify-between gap-2">
+              <label className="label" htmlFor="password">Password</label>
+              <Link to="/forgot-password" className="text-sm font-medium text-brand-primary hover:underline">Forgot password?</Link>
+            </div>
             <input id="password" className="input" type="password" autoComplete="current-password" required
               value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>

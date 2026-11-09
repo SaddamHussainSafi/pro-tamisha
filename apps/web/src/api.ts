@@ -3,8 +3,11 @@
 export type Grant = { permission: string; warehouse_id: string | null };
 export type Session = {
   employee: { id: string; email: string; display_name: string; company_id: string };
+  /** This sign-in still needs its two-step code (or, when the company requires it, setup). */
   mfa_required: boolean;
   mfa_enrolled: boolean;
+  mfa_setup_required?: boolean;
+  roles?: string[];
   permissions: string[];
   grants: Grant[];
   expires_at: string;
@@ -882,8 +885,22 @@ export const api = {
       storage.set(null);
     }
   },
-  mfaEnroll: () => request<{ otpauth_uri: string }>("POST", "/auth/mfa/enroll"),
-  mfaVerify: (code: string) => request<Session>("POST", "/auth/mfa/verify", { code }),
+  /* Two-step sign-in (optional). From My account the password is asked again. */
+  mfaEnroll: (password?: string) => request<{ otpauth_uri: string }>("POST", "/auth/mfa/enroll", password ? { password } : {}),
+  mfaConfirm: (code: string) => request<{ session: Session; recovery_codes: string[] }>("POST", "/auth/mfa/enroll/confirm", { code }),
+  mfaVerify: (b: SecondFactor) => request<Session>("POST", "/auth/mfa/verify", b),
+  mfaDisable: (b: SecondFactor & { password: string }) => request<Session>("POST", "/auth/mfa/disable", b),
+  mfaRecoveryCodes: (b: SecondFactor & { password: string }) => request<{ recovery_codes: string[] }>("POST", "/auth/mfa/recovery-codes", b),
+  /* Account links (public): forgot / reset password, invitation */
+  forgotPassword: (email: string) => request<{ message: string }>("POST", "/auth/password/forgot", { email }),
+  inspectLink: (token: string, purpose: LinkPurpose) => request<LinkInfo>("POST", "/auth/token/inspect", { token, purpose }),
+  resetPassword: (token: string, password: string) => request<undefined>("POST", "/auth/password/reset", { token, password }),
+  acceptInvite: (token: string, password: string) => request<undefined>("POST", "/auth/invitation/accept", { token, password }),
+  /* My sessions and sign-in activity */
+  mySessions: () => request<SessionInfo[]>("GET", "/auth/sessions"),
+  revokeMySession: (id: string) => request<undefined>("POST", `/auth/sessions/${id}/revoke`),
+  revokeMyOtherSessions: () => request<undefined>("POST", "/auth/sessions/revoke-others"),
+  myActivity: () => request<SecurityEvent[]>("GET", "/auth/activity"),
   warehouses: () => request<Warehouse[]>("GET", "/warehouses"),
   createWarehouse: (b: { code: string; name: string }) => request<Warehouse>("POST", "/warehouses", b, true),
   updateWarehouse: (id: string, b: { name: string; active: boolean; version: number }) =>
@@ -1148,7 +1165,19 @@ export const api = {
   updateMe: (b: { display_name: string }) => request<StaffMember>("PATCH", "/auth/me", b, true),
   changePassword: (b: { current_password: string; new_password: string }) => request<undefined>("POST", "/auth/password", b, true),
   staff: () => request<StaffMember[]>("GET", "/employees"),
-  createStaff: (b: { email: string; display_name: string; role_code: RoleCode; password: string }) => request<StaffMember>("POST", "/employees", b, true),
+  createStaff: (b: { email: string; display_name: string; role_code: RoleCode }) => request<StaffMember>("POST", "/employees", b, true),
+  resendInvite: (id: string) => request<StaffMember>("POST", `/employees/${id}/invite`),
+  revokeStaffSessions: (id: string) => request<undefined>("POST", `/auth/employees/${id}/revoke-sessions`),
+  /* Roles & permissions, Security & sessions (Super Admin) */
+  roleMatrix: () => request<RoleMatrix>("GET", "/roles"),
+  securitySettings: () => request<SecuritySettings>("GET", "/security/settings"),
+  securitySessions: () => request<SessionInfo[]>("GET", "/security/sessions"),
+  revokeSecuritySession: (id: string) => request<undefined>("POST", `/security/sessions/${id}/revoke`),
+  securityEvents: (q: { kind?: EventKind; failed_only?: boolean; before?: string; limit?: number }) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "" && v !== false) p.set(k, String(v));
+    return request<SecurityEvent[]>("GET", `/security/events?${p}`);
+  },
   updateStaff: (id: string, b: { display_name?: string; role_code?: RoleCode; active?: boolean }) => request<StaffMember>("PATCH", `/employees/${id}`, b, true),
   resetStaffPassword: (id: string, password: string) => request<StaffMember>("POST", `/employees/${id}/reset-password`, { password }, true),
   resetStaffMfa: (id: string) => request<StaffMember>("POST", `/employees/${id}/reset-mfa`, undefined, true),
@@ -1325,17 +1354,65 @@ export type VendorReceivingRow = {
 export type ReceivingReport = ReportPeriod & { shipments: number; rows: VendorReceivingRow[] };
 
 /* ---------- Settings: staff users ---------- */
-export type RoleCode = "OWNER_ADMIN" | "MANAGER" | "SALES_OPERATOR" | "WAREHOUSE" | "FINANCE";
+export type RoleCode = "OWNER_ADMIN" | "MANAGER" | "SALES_OPERATOR" | "WAREHOUSE" | "FINANCE" | "VIEWER";
+export type StaffStatus = "ACTIVE" | "INVITED" | "SUSPENDED";
 export type StaffMember = {
   id: string;
   email: string;
   display_name: string;
   active: boolean;
+  status: StaffStatus;
   roles: string[];
   mfa_enrolled: boolean;
   locked: boolean;
   last_seen_at: string | null;
+  last_login_at: string | null;
+  invite_expires_at: string | null;
   created_at: string;
+};
+export type SecondFactor = { code: string } | { recovery_code: string };
+export type LinkPurpose = "INVITE" | "PASSWORD_RESET";
+export type LinkInfo = { email: string; display_name: string; purpose: LinkPurpose; expires_at: string };
+export type SessionInfo = {
+  id: string;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  current: boolean;
+  employee_id?: string | null;
+  employee_name?: string | null;
+  employee_email?: string | null;
+};
+export type SecurityEvent = {
+  id: string;
+  action: string;
+  success: boolean;
+  created_at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  target_type: string | null;
+  target_id: string | null;
+  target_name: string | null;
+  reason: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+};
+export type EventKind = "all" | "sign_in" | "account" | "denied";
+export type RoleInfo = { code: RoleCode; name: string; description: string; permissions: string[]; members: number };
+export type RoleMatrix = { roles: RoleInfo[]; permissions: { code: string; description: string }[] };
+export type SecuritySettings = {
+  two_step_required: boolean;
+  session_ttl_minutes: number;
+  session_idle_minutes: number;
+  login_max_failures: number;
+  login_lockout_minutes: number;
+  login_ip_max_failures: number;
+  login_ip_window_minutes: number;
+  invite_ttl_hours: number;
+  password_reset_ttl_minutes: number;
+  password_min_length: number;
 };
 
 /* ---------- Suppliers: ledger + payments ---------- */

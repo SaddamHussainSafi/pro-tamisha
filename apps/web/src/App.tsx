@@ -9,6 +9,7 @@ import { PageSkeleton } from "./ui/primitives";
 // Every screen except Overview and Login is its own chunk, so the first load stays small.
 // Once the app is idle the other chunks are fetched too, so moving between screens never waits.
 const chunks = {
+  authLinks: () => import("./pages/AuthLinks"),
   caseSizes: () => import("./pages/CaseSizes"),
   customers: () => import("./pages/Customers"),
   documents: () => import("./pages/Documents"),
@@ -31,6 +32,9 @@ const chunks = {
 function page<M>(load: () => Promise<M>, pick: (m: M) => ComponentType) {
   return lazy(() => load().then((m) => ({ default: pick(m) })));
 }
+const ForgotPasswordPage = page(chunks.authLinks, (m) => m.ForgotPasswordPage);
+const ResetPasswordPage = page(chunks.authLinks, (m) => m.ResetPasswordPage);
+const AcceptInvitePage = page(chunks.authLinks, (m) => m.AcceptInvitePage);
 const CaseSizesPage = page(chunks.caseSizes, (m) => m.CaseSizesPage);
 const CustomersPage = page(chunks.customers, (m) => m.CustomersPage);
 const CustomerDetailPage = page(chunks.customers, (m) => m.CustomerDetailPage);
@@ -109,6 +113,10 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/mfa" element={<MfaPage />} />
+        {/* Signed-out account links (no public sign-up exists). */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route element={<Protected />}>
           <Route index element={<OverviewPage />} />
           <Route path="products" element={<ProductsPage />} />
@@ -147,6 +155,8 @@ export function App() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="settings/users" element={<SettingsPage />} />
+          <Route path="settings/roles" element={<SettingsPage />} />
+          <Route path="settings/security" element={<SettingsPage />} />
           <Route path="settings/*" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string } };
 
@@ -45,17 +44,13 @@ test("bad password shows generic error", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText("Email or password is incorrect.");
 });
 
-test("owner must enroll MFA, then sees two-step sign-in on in Settings", async ({ page }) => {
+test("owner signs in with a password alone (two-step sign-in is optional)", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(fx.users.owner);
   await page.getByLabel("Password").fill(fx.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/mfa$/);
-  await page.getByRole("button", { name: "Set up authenticator" }).click();
-  const secret = (await page.getByTestId("mfa-secret").textContent()) ?? "";
-  await page.getByLabel("6-digit code").fill(totp(secret));
-  await page.getByRole("button", { name: "Verify" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(page).not.toHaveURL(/\/mfa$/);
   await page.getByRole("link", { name: /Settings/ }).click();
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   await page.goto("/settings/warehouses"); // removed page: back to Settings

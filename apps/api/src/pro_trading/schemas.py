@@ -28,8 +28,10 @@ class GrantOut(BaseModel):
 
 class SessionOut(BaseModel):
     employee: EmployeeOut
-    mfa_required: bool
+    mfa_required: bool  # this sign-in still needs its two-step code (or setup)
     mfa_enrolled: bool
+    mfa_setup_required: bool = False  # company requires two-step and it is not set up yet
+    roles: list[str] = []
     permissions: list[str]
     grants: list[GrantOut]
     expires_at: datetime
@@ -44,7 +46,34 @@ class MfaEnrollOut(BaseModel):
 
 
 class MfaVerifyIn(BaseModel):
+    """Either the 6-digit code from the authenticator app or one recovery code."""
+
+    code: str | None = Field(default=None, pattern=r"^\d{6}$")
+    recovery_code: str | None = Field(default=None, min_length=8, max_length=32)
+
+
+class MfaEnrollIn(BaseModel):
+    # Required when two-step is turned on from My account (re-authentication).
+    password: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class MfaConfirmIn(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
+
+
+class MfaConfirmOut(BaseModel):
+    session: SessionOut
+    recovery_codes: list[str]
+
+
+class MfaChangeIn(MfaVerifyIn):
+    """Turning two-step off or making new recovery codes: password plus a current code."""
+
+    password: str = Field(min_length=1, max_length=128)
+
+
+class RecoveryCodesOut(BaseModel):
+    recovery_codes: list[str]
 
 
 class WarehouseIn(BaseModel):
@@ -1859,10 +1888,13 @@ class ReceivingReportOut(ReportPeriodOut):
 
 
 # ---------------------------------------------------------------- Settings: users / my account
-RoleCode = Literal["OWNER_ADMIN", "MANAGER", "SALES_OPERATOR", "WAREHOUSE", "FINANCE"]
+RoleCode = Literal["OWNER_ADMIN", "MANAGER", "SALES_OPERATOR", "WAREHOUSE", "FINANCE", "VIEWER"]
 # Passwords: 12-128 characters. Never logged, audited or kept in idempotency records.
 Password = Annotated[str, Field(min_length=12, max_length=128)]
 EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+StaffStatus = Literal["ACTIVE", "INVITED", "SUSPENDED"]
 
 
 class StaffOut(BaseModel):
@@ -1870,18 +1902,22 @@ class StaffOut(BaseModel):
     email: str
     display_name: str
     active: bool
+    status: StaffStatus  # INVITED = has not set a password yet; SUSPENDED = cannot sign in
     roles: list[str]
     mfa_enrolled: bool
     locked: bool
     last_seen_at: datetime | None
+    last_login_at: datetime | None
+    invite_expires_at: datetime | None
     created_at: datetime
 
 
 class StaffCreateIn(BaseModel):
+    """Invitation-based: the person sets their own password from the emailed link."""
+
     email: str = Field(max_length=320, pattern=EMAIL_RE)
     display_name: str = Field(min_length=1, max_length=200)
     role_code: RoleCode
-    password: Password
 
 
 class StaffPatchIn(BaseModel):
@@ -1901,6 +1937,95 @@ class MyAccountIn(BaseModel):
 class PasswordChangeIn(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: Password
+
+
+# ---------------------------------------------------------------- auth: links, sessions, security
+TokenPurpose = Literal["INVITE", "PASSWORD_RESET"]
+RawToken = Annotated[str, Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
+
+
+class ForgotPasswordIn(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class MessageOut(BaseModel):
+    message: str
+
+
+class TokenInspectIn(BaseModel):
+    token: RawToken
+    purpose: TokenPurpose
+
+
+class TokenInspectOut(BaseModel):
+    email: str
+    display_name: str
+    purpose: TokenPurpose
+    expires_at: datetime
+
+
+class TokenPasswordIn(BaseModel):
+    token: RawToken
+    password: Password
+
+
+class SessionInfoOut(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    user_agent: str | None
+    ip_address: str | None
+    current: bool
+    employee_id: uuid.UUID | None = None
+    employee_name: str | None = None
+    employee_email: str | None = None
+
+
+class SecurityEventOut(BaseModel):
+    id: uuid.UUID
+    action: str
+    success: bool
+    created_at: datetime
+    actor_id: uuid.UUID | None
+    actor_name: str | None
+    target_type: str | None
+    target_id: str | None
+    target_name: str | None
+    reason: str | None
+    ip_address: str | None
+    user_agent: str | None
+
+
+class RoleOut(BaseModel):
+    code: str
+    name: str
+    description: str
+    permissions: list[str]
+    members: int
+
+
+class PermissionOut(BaseModel):
+    code: str
+    description: str
+
+
+class RoleMatrixOut(BaseModel):
+    roles: list[RoleOut]
+    permissions: list[PermissionOut]
+
+
+class SecuritySettingsOut(BaseModel):
+    two_step_required: bool
+    session_ttl_minutes: int
+    session_idle_minutes: int
+    login_max_failures: int
+    login_lockout_minutes: int
+    login_ip_max_failures: int
+    login_ip_window_minutes: int
+    invite_ttl_hours: int
+    password_reset_ttl_minutes: int
+    password_min_length: int
 
 
 # ---------------------------------------------------------------- suppliers: ledger + payments

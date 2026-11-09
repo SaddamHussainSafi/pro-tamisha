@@ -82,6 +82,8 @@ class Employee(Base):
     mfa_last_step: Mapped[int | None] = mapped_column(BigInteger)
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
 
 
@@ -145,6 +147,55 @@ class AuthSession(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_reason: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(Text)
+    ip_address: Mapped[str | None] = mapped_column(Text)
+
+
+TOKEN_PURPOSES = ("INVITE", "PASSWORD_RESET")
+
+
+class AuthToken(Base):
+    """Single-use invitation / password-reset link. Only the SHA-256 is stored (migration 0017).
+    A token is usable while used_at, revoked_at are NULL and expires_at is in the future."""
+
+    __tablename__ = "auth_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_sha256", name="uq_auth_tokens_token"),
+        CheckConstraint("purpose IN ('INVITE','PASSWORD_RESET')", name="purpose_valid"),
+        CheckConstraint("expires_at > created_at", name="expires_after_created"),
+        Index(
+            "ix_auth_tokens_open",
+            "employee_id",
+            "purpose",
+            postgresql_where=text("used_at IS NULL AND revoked_at IS NULL"),
+        ),
+    )
+    id: Mapped[uuid.UUID] = _pk()
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False)
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
+    created_at: Mapped[datetime] = _created()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MfaRecoveryCode(Base):
+    """One-time 2FA recovery code (80 random bits), stored as SHA-256."""
+
+    __tablename__ = "mfa_recovery_codes"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "code_sha256", name="uq_mfa_recovery_code"),
+        Index("ix_mfa_recovery_codes_employee", "employee_id"),
+    )
+    id: Mapped[uuid.UUID] = _pk()
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    code_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = _created()
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class FeatureFlag(Base):
@@ -176,7 +227,10 @@ class AuditEvent(Base):
     """Append-only. UPDATE/DELETE are rejected by a DB trigger (see migration 0001)."""
 
     __tablename__ = "audit_events"
-    __table_args__ = (Index("ix_audit_company_created", "company_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_company_created", "company_id", "created_at"),
+        Index("ix_audit_actor_created", "actor_id", "created_at"),
+    )
     id: Mapped[uuid.UUID] = _pk()
     company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.id"))
     actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))

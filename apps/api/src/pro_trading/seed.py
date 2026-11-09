@@ -86,7 +86,7 @@ def main() -> int:
         seed_inventory(db, co)
         seed_orders(db, co)
         seed_vendors(db, co)
-    print("seeded synthetic demo company; privileged users must enroll MFA at first sign-in")
+    print("seeded synthetic demo company; two-step sign-in is optional (My account)")
     return 0
 
 

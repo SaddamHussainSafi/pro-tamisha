@@ -1,6 +1,6 @@
 # Progress — Pro Trading ERP
 
-Last updated: 2026-11-08. Evidence for every item is in `docs/operations/BUILD_LOG.md`.
+Last updated: 2026-11-09. Evidence for every item is in `docs/operations/BUILD_LOG.md`.
 
 ## Modules
 
@@ -21,9 +21,11 @@ Last updated: 2026-11-08. Evidence for every item is in `docs/operations/BUILD_L
 | 11 | Focus migration | Deferred by owner until the rest of the app is functional (also blocked on D-13, D-17) | — |
 | 12 | Analytics / Reports (read-only) | Done (no profit/margin until D-04; no SSE refresh; credits not testable until a credit-note flow exists) | — (no new tables) |
 | — | Customers management UI (`/customers`, `/customers/:id`) | Done (inactive has no effect on new orders yet: open question) | — |
+| — | User management & authentication (2026-11-09): six roles, invitations, forgot/reset password, optional two-step sign-in with recovery codes, sessions, security events, bootstrap command | Done (email provider for links pending D-15; "two-step for everyone" built but off) | `0017_user_management` |
+| 14 | Notification Center (2026-11-09): bell + panel, `/notifications` history, Settings › Notifications, live SSE with replay, per-person preferences, quiet hours, email + desktop channels | Done (low-stock needs a reorder threshold that doesn't exist yet; email goes to the dev sink until D-15; see `docs/modules/14-notification-center.md`) | `0018_notifications` |
 | — | Owner menu changes 2026-11-08: Suppliers, Products › Case sizes + Prices, one warehouse, no previews, customer tabs, Settings (My account, Users), supplier ledger + payments, Create invoice (sheet or direct), Overview panels, scanner discovery | Done (supplier/direct-invoice/discovery questions in BLOCKERS; Toshiba discovery unverified, D-14) | `0012_supplier_payments`, `0013_scanner_discovery` |
 
-The dev database `tami` is at migration `0013` (head).
+The dev database `tami` is at migration `0017` (2026-11-09; `0018`–`0019` belong to the Order Connect session, still in progress).
 
 ## Owner-directed changes on 2026-11-08 (UI and dev)
 

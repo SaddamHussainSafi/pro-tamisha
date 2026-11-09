@@ -1,5 +1,6 @@
 """Module 01 catalog: Postgres integration, authz, idempotency, concurrency. Synthetic data."""
 
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
@@ -309,12 +310,18 @@ def test_warehouse_role_can_read_but_not_manage(make_api, world, product):
     assert r.status_code == 403
 
 
-def test_privileged_role_needs_mfa(make_api, world):
+def test_two_step_code_is_asked_only_when_turned_on(make_api, world):
     o = make_api()
-    o.login(world.emails["owner"])
-    assert o.post(f"{P}/products", json=cassava("CSM"), headers=idem()).status_code == 403
-    assert o.enroll_and_verify().status_code == 200
+    o.login(world.emails["owner"])  # two-step is optional (2026-11-09): password is enough
     assert o.post(f"{P}/products", json=cassava("CSM"), headers=idem()).status_code == 201
+    assert o.enroll_and_verify().status_code == 200
+    o2 = make_api()
+    o2.login(world.emails["owner"])  # now on: this sign-in waits for the code
+    other = {**cassava("CSO"), "name": "Cassava (fresh)", "aliases": []}
+    assert o2.post(f"{P}/products", json=other, headers=idem()).status_code == 403
+    o2.totp = o.totp
+    assert o2.verify(o.totp.at(time.time() + 30)).status_code == 200
+    assert o2.post(f"{P}/products", json=other, headers=idem()).status_code == 201
 
 
 def test_warehouse_scoped_grant_cannot_manage_company_catalog(make_api, world):

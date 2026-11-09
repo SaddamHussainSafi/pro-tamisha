@@ -316,7 +316,7 @@ def test_permissions_and_tenancy(owner, user, sales, wh, finance, world, price12
     manager = user("manager_a")
     r = verify(manager, pay, ref())
     assert r.status_code == 403
-    # finance holds payment.verify through a privileged role: MFA first
+    # finance turned two-step on: a new sign-in can't verify money until the code is entered
     raw = Api(sales.c.app)
     raw.login(world.emails["finance"])
     r = verify(raw, pay, ref())

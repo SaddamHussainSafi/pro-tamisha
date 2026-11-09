@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { totp } from "./totp";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
@@ -24,11 +23,7 @@ async function signIn(page: Page, email: string) {
 
 async function ownerSignIn(page: Page) {
   await signIn(page, fx.users.owner);
-  await expect(page).toHaveURL(/\/mfa$/);
-  await page.getByRole("button", { name: "Set up authenticator" }).click();
-  const secret = (await page.getByTestId("mfa-secret").textContent()) ?? "";
-  await page.getByLabel("6-digit code").fill(totp(secret));
-  await page.getByRole("button", { name: "Verify" }).click();
+  // Two-step sign-in is optional (2026-11-09): the owner lands on Overview.
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 }
 

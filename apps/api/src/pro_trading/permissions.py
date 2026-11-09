@@ -51,12 +51,25 @@ PERMISSIONS: Final[dict[str, str]] = {
 
 ALL: Final = frozenset(PERMISSIONS)
 
-# role_code -> (display name, privileged => MFA required, permissions)
-DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
-    "OWNER_ADMIN": ("Owner / Admin", True, ALL),
+# Who may manage users, roles, sessions and security settings: Super Admin only.
+USER_ADMIN_PERMISSIONS: Final = frozenset(
+    {"employee.manage", "feature_flag.manage", "company.manage"}
+)
+
+# role_code -> (display name, description, permissions). Codes are stable; names are the owner's
+# six roles (2026-11-09, migration 0017). The matrix is fixed: access changes by assigning roles.
+# Two-step sign-in is optional for every role (the `require_two_step` flag makes it mandatory).
+DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
+    "OWNER_ADMIN": (
+        "Super Admin",
+        "Full access. The only role that adds users, assigns roles, suspends or reactivates "
+        "accounts, signs people out and manages security settings.",
+        ALL,
+    ),
     "MANAGER": (
-        "Manager",
-        True,
+        "Admin",
+        "Runs day-to-day operations: products, prices, orders, invoices, stock, receiving, "
+        "scans and reports. Cannot add users or manage roles.",
         frozenset(
             {
                 "warehouse.read",
@@ -93,8 +106,8 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
         ),
     ),
     "SALES_OPERATOR": (
-        "Sales / Operator",
-        False,
+        "Sales",
+        "Sales orders, invoice drafts and customer records; records payments customers report.",
         frozenset(
             {
                 "warehouse.read",
@@ -116,7 +129,7 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
     ),
     "WAREHOUSE": (
         "Warehouse",
-        False,
+        "Picking, receiving counts and stock counts.",
         frozenset(
             {
                 "warehouse.read",
@@ -130,8 +143,8 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
         ),
     ),
     "FINANCE": (
-        "Finance",
-        True,
+        "Accounting",
+        "Payments, receivables, supplier ledgers and financial reports.",
         frozenset(
             {
                 "warehouse.read",
@@ -151,6 +164,15 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, bool, frozenset[str]]]] = {
             }
         ),
     ),
+    "VIEWER": (
+        "Viewer",
+        "Read-only: products, customers, orders and stock. Cannot change anything.",
+        frozenset({"warehouse.read", "catalog.read", "sales_order.read", "inventory.read"}),
+    ),
 }
 
 assert all(p <= ALL for _, _, p in DEFAULT_ROLES.values()), "unknown permission in role"
+assert all(
+    not (p & USER_ADMIN_PERMISSIONS) for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
+), "only Super Admin may hold user-administration permissions"
+SUPER_ADMIN: Final = "OWNER_ADMIN"

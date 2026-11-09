@@ -1,11 +1,13 @@
-"""Settings › Users (staff accounts) and Settings › My account.
+"""Settings › User management (staff accounts) and Settings › My account.
 
-Staff management needs company-wide `employee.manage` (OWNER_ADMIN, privileged ⇒ MFA). Each
-person gets one company-wide role: the business runs from one warehouse. Safety rules:
+User management needs company-wide `employee.manage`, which only the Super Admin role holds
+(code OWNER_ADMIN). Each person gets one company-wide role: the business runs from one
+warehouse. Safety rules:
+- new people are invited by email and choose their own password (no public sign-up);
 - passwords are never logged, audited or kept in idempotency records;
-- nobody disables, re-roles or resets themselves here (My account covers name and password);
-- the company always keeps at least one active Owner / Admin;
-- disabling someone, or changing their role, password or two-step sign-in, signs them out
+- nobody suspends, re-roles or resets themselves here (My account covers name and password);
+- the company always keeps at least one active Super Admin who has set a password;
+- suspending someone, or changing their role, password or two-step sign-in, signs them out
   everywhere.
 """
 
@@ -15,15 +17,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from .. import audit, idempotency
+from .. import accounts, audit, idempotency
 from ..config import get_settings
-from ..deps import DbDep, Principal, PrincipalDep, require_permission
+from ..deps import DbDep, Principal, VerifiedPrincipalDep, require_permission
 from ..errors import ApiError
 from ..models import AuthSession, Company, Employee, EmployeeRole, Role
+from ..permissions import SUPER_ADMIN
 from ..schemas import (
     MyAccountIn,
     PasswordChangeIn,
@@ -32,18 +34,12 @@ from ..schemas import (
     StaffOut,
     StaffPatchIn,
 )
-from ..security import hash_password, verify_password
+from ..security import hash_password, password_problem, verify_password
 from ._common import mutate
 
 router = APIRouter(tags=["users"])
 Manage = Depends(require_permission("employee.manage"))
-OWNER = "OWNER_ADMIN"
-
-
-class _Redacted(BaseModel):
-    """Request body minus the password, for idempotency hashing and audit."""
-
-    model_config = ConfigDict(extra="allow")
+OWNER = SUPER_ADMIN
 
 
 def _roles(db: Session, emp_id: uuid.UUID) -> list[str]:
@@ -62,15 +58,19 @@ def _out(db: Session, e: Employee) -> dict[str, Any]:
     seen = db.scalar(
         select(func.max(AuthSession.last_seen_at)).where(AuthSession.employee_id == e.id)
     )
+    invited = e.password_hash is None
     return StaffOut(
         id=e.id,
         email=e.email,
         display_name=e.display_name,
         active=e.active,
+        status="SUSPENDED" if not e.active else "INVITED" if invited else "ACTIVE",
         roles=_roles(db, e.id),
         mfa_enrolled=e.mfa_enrolled_at is not None,
         locked=bool(e.locked_until and e.locked_until > datetime.now(UTC)),
         last_seen_at=seen,
+        last_login_at=e.last_login_at,
+        invite_expires_at=accounts.open_invite_expiry(db, e.id) if invited else None,
         created_at=e.created_at,
     ).model_dump(mode="json")
 
@@ -95,9 +95,10 @@ def _role(db: Session, p: Principal, code: str) -> Role:
 
 
 def _other_owners(db: Session, p: Principal, exclude: uuid.UUID) -> int:
-    """Active Owner / Admin accounts other than `exclude`. Callers hold the company row lock
-    (taken before any employee row, see patch_staff), so two Owners demoting or disabling each
-    other at once can't both pass the check."""
+    """Active Super Admins other than `exclude` who can actually sign in (an unanswered
+    invitation does not count). Only company-wide grants count. Callers hold the company row
+    lock (taken before any employee row, see patch_staff), so two Super Admins demoting or
+    suspending each other at once can't both pass the check."""
     return (
         db.scalar(
             select(func.count(func.distinct(Employee.id)))
@@ -106,7 +107,9 @@ def _other_owners(db: Session, p: Principal, exclude: uuid.UUID) -> int:
             .where(
                 Employee.company_id == p.company_id,
                 Employee.active.is_(True),
+                Employee.password_hash.is_not(None),
                 Employee.id != exclude,
+                EmployeeRole.warehouse_id.is_(None),
                 Role.code == OWNER,
             )
         )
@@ -115,17 +118,28 @@ def _other_owners(db: Session, p: Principal, exclude: uuid.UUID) -> int:
 
 
 def _weak(email: str, password: str) -> None:
-    if password.strip().lower() == email.strip().lower() or len(set(password)) < 4:
-        raise ApiError(422, "WEAK_PASSWORD", "Choose a less guessable password")
+    if problem := password_problem(email, password):
+        raise ApiError(422, "WEAK_PASSWORD", problem)
 
 
-def _sign_out(db: Session, emp_id: uuid.UUID, reason: str, keep: uuid.UUID | None = None) -> None:
-    q = update(AuthSession).where(
-        AuthSession.employee_id == emp_id, AuthSession.revoked_at.is_(None)
+_sign_out = accounts.sign_out
+
+
+def _send_invite(db: Session, e: Employee, by: uuid.UUID) -> None:
+    s = get_settings()
+    raw, tok = accounts.issue_token(db, e, accounts.INVITE, created_by=by)
+    accounts.send_mail(
+        db,
+        e,
+        subject=f"You're invited to {s.app_name}",
+        body=(
+            f"Hello {e.display_name},\n\nYou have been given an account on {s.app_name}. "
+            f"Open this link to choose your password (it works once and expires in "
+            f"{s.invite_ttl_hours} hours):\n\n{{link}}\n\nThen sign in with {e.email}."
+        ),
+        dedupe_key=f"auth:invite:{tok.id}",
+        secret_link=accounts.link(accounts.INVITE, raw),
     )
-    if keep is not None:
-        q = q.where(AuthSession.id != keep)
-    db.execute(q.values(revoked_at=func.now(), revoked_reason=reason))
 
 
 # ---------------------------------------------------------------- staff
@@ -149,28 +163,44 @@ def create_staff(
     key: idempotency.IdemKey,
     p: Principal = Manage,
 ) -> JSONResponse:
-    safe = _Redacted(**body.model_dump(exclude={"password"}))
-    _weak(body.email, body.password)
+    """Invite someone: the account is created without a password and they get an email link
+    to choose one. Until then they show as Invited and cannot sign in."""
 
     def fn() -> tuple[dict[str, Any], str, dict[str, Any]]:
         email = body.email.strip()
         taken = db.scalar(select(Employee.id).where(func.lower(Employee.email) == email.lower()))
         if taken is not None:
             raise ApiError(409, "EMAIL_TAKEN", "Someone already signs in with this email")
-        e = Employee(
-            company_id=p.company_id,
-            email=email,
-            display_name=body.display_name.strip(),
-            password_hash=hash_password(body.password),
-        )
+        e = Employee(company_id=p.company_id, email=email, display_name=body.display_name.strip())
         db.add(e)
         db.flush()
         db.add(EmployeeRole(employee_id=e.id, role_id=_role(db, p, body.role_code).id))
         db.flush()
         db.refresh(e)
-        return _out(db, e), str(e.id), safe.model_dump(mode="json")
+        _send_invite(db, e, p.employee.id)
+        return _out(db, e), str(e.id), body.model_dump(mode="json")
 
-    return mutate(db, request, p, key, "employee.create", safe, 201, "employee.create", fn)
+    return mutate(db, request, p, key, "employee.create", body, 201, "employee.create", fn)
+
+
+@router.post("/employees/{employee_id}/invite", response_model=StaffOut)
+def resend_invite(
+    employee_id: uuid.UUID, request: Request, db: DbDep, p: Principal = Manage
+) -> dict[str, Any]:
+    """Send a fresh invitation link; earlier links stop working."""
+    e = _target(db, p, employee_id, lock=True)
+    if e.password_hash is not None:
+        raise ApiError(409, "ALREADY_ACCEPTED", "They already set a password")
+    if not e.active:
+        raise ApiError(409, "SUSPENDED", "Reactivate them first")
+    _send_invite(db, e, p.employee.id)
+    audit.record(
+        db, action="employee.invite", success=True, company_id=p.company_id,
+        actor_id=p.employee.id, target_type="employee", target_id=str(e.id),
+        request_id=request.state.request_id,
+    )  # fmt: skip
+    db.commit()
+    return _out(db, e)
 
 
 @router.patch("/employees/{employee_id}", response_model=StaffOut)
@@ -209,6 +239,8 @@ def patch_staff(
                 raise ApiError(422, "LAST_OWNER", "Keep at least one active Owner / Admin")
             e.active = body.active
             revoke = revoke or not body.active
+            if not body.active:
+                accounts.revoke_tokens(db, e.id)  # open invite / reset links stop working
         if revoke:
             _sign_out(db, e.id, "admin_changed")
         db.flush()
@@ -229,7 +261,9 @@ def reset_password(
     _not_self(p, e, "reset the password of")
     _weak(e.email, body.password)
     e.password_hash = hash_password(body.password)
+    e.password_changed_at = datetime.now(UTC)
     e.failed_login_count, e.locked_until = 0, None
+    accounts.revoke_tokens(db, e.id)  # an open invitation is answered by this password
     _sign_out(db, e.id, "password_reset")
     audit.record(
         db, action="employee.password_reset", success=True, company_id=p.company_id,
@@ -244,10 +278,11 @@ def reset_password(
 def reset_mfa(
     employee_id: uuid.UUID, request: Request, db: DbDep, p: Principal = Manage
 ) -> dict[str, Any]:
-    """Lost phone: clear two-step sign-in; they set it up again at their next sign-in."""
+    """Lost phone and recovery codes: turn their two-step sign-in off (they can turn it on again
+    from My account). Signs them out everywhere."""
     e = _target(db, p, employee_id, lock=True)
     _not_self(p, e, "reset two-step sign-in of")
-    e.mfa_secret_enc, e.mfa_enrolled_at, e.mfa_last_step = None, None, None
+    accounts.clear_two_step(db, e)
     _sign_out(db, e.id, "mfa_reset")
     audit.record(
         db, action="employee.mfa_reset", success=True, company_id=p.company_id,
@@ -262,7 +297,9 @@ def reset_mfa(
 
 
 @router.patch("/auth/me", response_model=StaffOut)
-def update_me(body: MyAccountIn, request: Request, db: DbDep, p: PrincipalDep) -> dict[str, Any]:
+def update_me(
+    body: MyAccountIn, request: Request, db: DbDep, p: VerifiedPrincipalDep
+) -> dict[str, Any]:
     e = _target(db, p, p.employee.id, lock=True)
     before = e.display_name
     e.display_name = body.display_name.strip()
@@ -277,14 +314,13 @@ def update_me(body: MyAccountIn, request: Request, db: DbDep, p: PrincipalDep) -
 
 
 @router.post("/auth/password", status_code=204)
-def change_password(body: PasswordChangeIn, request: Request, db: DbDep, p: PrincipalDep) -> None:
+def change_password(
+    body: PasswordChangeIn, request: Request, db: DbDep, p: VerifiedPrincipalDep
+) -> None:
     """Change your own password. Other devices are signed out; this one stays signed in.
 
-    A privileged account must have verified MFA in this session (a stolen password alone must
-    not be enough to lock the real owner out). Wrong current passwords count toward the same
-    lockout as sign-in; reaching it signs the account out everywhere."""
-    if p.mfa_required:
-        raise ApiError(403, "MFA_REQUIRED", "Verify MFA before changing your password")
+    Refused while the sign-in's two-step code is pending. Wrong current passwords count toward
+    the same lockout as sign-in; reaching it signs the account out everywhere."""
     s = get_settings()
     e = _target(db, p, p.employee.id, lock=True)
     if not verify_password(e.password_hash, body.current_password):
@@ -306,10 +342,13 @@ def change_password(body: PasswordChangeIn, request: Request, db: DbDep, p: Prin
         raise ApiError(422, "SAME_PASSWORD", "Choose a new password")
     _weak(e.email, body.new_password)
     e.password_hash = hash_password(body.new_password)
+    e.password_changed_at = datetime.now(UTC)
+    accounts.revoke_tokens(db, e.id, accounts.RESET)
     _sign_out(db, e.id, "password_changed", keep=p.session.id)
     audit.record(
         db, action="employee.password_change", success=True, company_id=p.company_id,
         actor_id=e.id, target_type="employee", target_id=str(e.id),
         request_id=request.state.request_id,
     )  # fmt: skip
+    accounts.send_security_notice(db, e, "Your password was changed", "pw-change")
     db.commit()

@@ -15,6 +15,7 @@ from . import errors
 from .bodylimit import BodySizeLimit
 from .config import get_settings
 from .routes import (
+    account,
     admin,
     auth,
     catalog,
@@ -31,6 +32,7 @@ from .routes import (
     receiving,
     reports,
     scans,
+    security,
     suppliers,
     warehouses,
 )
@@ -168,6 +170,8 @@ def create_app() -> FastAPI:
         payments.router,
         reports.router,
         employees.router,
+        account.router,
+        security.router,
         suppliers.router,
     ):
         app.include_router(r, prefix="/api/v1")

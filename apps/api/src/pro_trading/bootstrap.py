@@ -22,10 +22,10 @@ def sync_permissions(db: Session) -> None:
 def ensure_default_roles(db: Session, company_id: uuid.UUID) -> dict[str, Role]:
     sync_permissions(db)
     roles: dict[str, Role] = {}
-    for code, (name, privileged, perms) in DEFAULT_ROLES.items():
+    for code, (name, _description, perms) in DEFAULT_ROLES.items():
         role = db.scalar(select(Role).where(Role.company_id == company_id, Role.code == code))
         if role is None:
-            role = Role(company_id=company_id, code=code, name=name, privileged=privileged)
+            role = Role(company_id=company_id, code=code, name=name)
             db.add(role)
             db.flush()
         for p in perms:

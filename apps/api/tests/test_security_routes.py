@@ -21,6 +21,11 @@ UNSAFE = {"post", "put", "patch", "delete"}
 ANONYMOUS_OK = {
     ("post", "/api/v1/auth/login"),  # 401/422 without valid credentials
     ("post", "/api/v1/auth/logout"),  # 204: clears the cookie, there is nothing to revoke
+    # Account links: the emailed single-use token is the credential (generic 202 / 400).
+    ("post", "/api/v1/auth/password/forgot"),
+    ("post", "/api/v1/auth/password/reset"),
+    ("post", "/api/v1/auth/invitation/accept"),
+    ("post", "/api/v1/auth/token/inspect"),
 }
 # Scanner bridge routes authenticate the device (Authorization: Device ...), not a session.
 BRIDGE = re.compile(r"^/api/v1/scan-bridge/")
@@ -33,6 +38,14 @@ SELF_SERVICE = {
     ("post", "/api/v1/auth/mfa/verify"),
     ("patch", "/api/v1/auth/me"),
     ("post", "/api/v1/auth/password"),
+    # Two-step sign-in, my sessions and my sign-in history: only ever the caller's own account.
+    ("post", "/api/v1/auth/mfa/enroll/confirm"),
+    ("post", "/api/v1/auth/mfa/disable"),
+    ("post", "/api/v1/auth/mfa/recovery-codes"),
+    ("get", "/api/v1/auth/sessions"),
+    ("post", "/api/v1/auth/sessions/{session_id}/revoke"),
+    ("post", "/api/v1/auth/sessions/revoke-others"),
+    ("get", "/api/v1/auth/activity"),
 }
 
 

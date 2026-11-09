@@ -425,7 +425,7 @@ def test_permissions(owner, setup, make_api, world):
     mgr.enroll_and_verify()
     assert import_csv(mgr, V1_CSV, "PB-m").status_code == 403
 
-    # owner without MFA: privileged grants don't count
+    # owner turned two-step on: a new sign-in has no grants until the code is entered
     o2 = make_api()
     o2.login(world.emails["owner"])
     d = o2.post(f"{P}/price-books/versions", json={"version_code": "PB-n"}, headers=idem())

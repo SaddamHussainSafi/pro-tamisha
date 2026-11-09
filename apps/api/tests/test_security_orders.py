@@ -282,8 +282,8 @@ def test_stock_stream_slot_is_returned_if_the_stream_never_starts(world):
 
     from pro_trading.deps import Grant, Principal
 
-    emp = SimpleNamespace(id=uuid.uuid4(), company_id=world.company_id)
-    p = Principal(emp, SimpleNamespace(id=uuid.uuid4()), [Grant("inventory.read", None, False)])  # type: ignore[arg-type]
+    emp = SimpleNamespace(id=uuid.uuid4(), company_id=world.company_id, mfa_enrolled_at=None)
+    p = Principal(emp, SimpleNamespace(id=uuid.uuid4()), [Grant("inventory.read", None)])  # type: ignore[arg-type]
     with get_sessionmaker()() as db:
         resp = inventory_routes.stock_events(SimpleNamespace(), db, p, timeout=1)  # type: ignore[arg-type]
     assert inventory_routes._streams[emp.id] == 1

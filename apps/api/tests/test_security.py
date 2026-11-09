@@ -157,10 +157,12 @@ def test_mfa_codes_cannot_be_brute_forced(api, world, monkeypatch):
 def test_a_success_resets_the_mfa_counter(api, world, monkeypatch):
     monkeypatch.setattr(get_settings(), "mfa_max_failures", 3)
     api.login(world.emails["finance"])
-    api.post(f"{P}/auth/mfa/enroll")
+    assert api.enroll_and_verify().status_code == 200
+    api.login(world.emails["finance"])
     for _ in range(2):
         assert api.post(f"{P}/auth/mfa/verify", json={"code": "000000"}).status_code == 400
-    assert api.enroll_and_verify().status_code in (200, 409)
+    assert api.verify(api.totp.at(time.time() + 30)).status_code == 200
+    api.login(world.emails["finance"])
     # 2 failures + 1 success: the next wrong code is an ordinary 400, not a lockout
     assert api.post(f"{P}/auth/mfa/verify", json={"code": "000000"}).status_code == 400
 
@@ -217,19 +219,19 @@ def test_logout_with_an_expired_session_clears_the_cookie(api, world, db):
 # ------------------------------------------------------------------ my password
 
 
-def test_privileged_password_change_needs_mfa(api, world):
-    # A stolen Owner password alone could change the password and sign the real Owner out.
-    api.login(world.emails["owner"])
-    r = api.post(
-        f"{P}/auth/password",
-        json={"current_password": PASSWORD, "new_password": "Brand-new-pass-77!"},
-    )
+def test_password_change_waits_for_the_two_step_code(make_api, world):
+    # With two-step on, a stolen password alone must not be enough to change the password.
+    a = make_api()
+    a.login(world.emails["owner"])
+    assert a.enroll_and_verify().status_code == 200
+    b = make_api()
+    b.login(world.emails["owner"])
+    body = {"current_password": PASSWORD, "new_password": "Brand-new-pass-77!"}
+    r = b.post(f"{P}/auth/password", json=body)
     assert r.status_code == 403 and code(r) == "MFA_REQUIRED"
-    assert api.enroll_and_verify().status_code == 200
-    r = api.post(
-        f"{P}/auth/password",
-        json={"current_password": PASSWORD, "new_password": "Brand-new-pass-77!"},
-    )
+    b.totp = a.totp
+    assert b.verify(a.totp.at(time.time() + 30)).status_code == 200
+    r = b.post(f"{P}/auth/password", json=body)
     assert r.status_code == 204, r.text
 
 

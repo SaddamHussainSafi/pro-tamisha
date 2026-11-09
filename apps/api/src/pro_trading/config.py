@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # Wrong MFA codes allowed per employee per window before verification is refused.
     mfa_max_failures: int = Field(default=5, ge=1)
     mfa_window_minutes: int = Field(default=15, ge=1, le=1440)
+    # Invitation and password-reset links (single use; only their SHA-256 is stored).
+    invite_ttl_hours: int = Field(default=72, ge=1, le=336)
+    password_reset_ttl_minutes: int = Field(default=60, ge=10, le=1440)
+    # Reset emails per account per hour (stops mail bombing a known address).
+    password_reset_max_per_hour: int = Field(default=3, ge=1, le=20)
     # Fernet key (urlsafe base64, 32 bytes) used to encrypt TOTP secrets at rest.
     mfa_encryption_key: str = DEV_MFA_KEY
     mfa_issuer: str = "Pro Trading"

@@ -78,6 +78,24 @@ Also fixed with #8: the scan page cache (`_PAGE_CACHE`) is now guarded by a lock
 
 Still a deployment choice: behind a NAT or a proxy that isn't trusted, every user shares one per-IP login allowance. Anyone there can use up the 30 tries in 15 minutes and block sign-in for everyone else. Per-account lockout already lets an insider lock out a known account, so this is not a new class of attack. Run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>` so the real client IP is used.
 
+## User management & authentication module (2026-11-09)
+
+Owner decisions this module follows: six roles (Super Admin, Admin, Sales, Warehouse, Accounting, Viewer) mapped onto the existing role codes with **unchanged access**, a narrow read-only Viewer, a fixed permission matrix, and **two-step sign-in optional for everyone** (built for all roles, the "required for everyone" switch is off).
+
+| Area | What changed | Why it is safe enough / what to watch |
+|---|---|---|
+| Two-step policy | Owner, Manager (Admin) and Finance (Accounting) no longer **must** use MFA (round-1 note "Info: trust-on-first-use"). A password alone now unlocks a Super Admin account until that person turns two-step on. | Owner's explicit instruction. Mitigations: per-account lockout and per-IP throttle are unchanged; a person who turns two-step on gets a code prompt at every sign-in, and turning it on needs the password again, signs out every other session and emails a notice. **Recommend each Super Admin turns it on.** `require_two_step` (off) restores a mandatory rule for everyone when the owner decides. |
+| Pending sign-in | A session that still owes its two-step code holds **no** permissions at all (was: only privileged grants dormant). Self-service (`/auth/password`, `/auth/me`, sessions, two-step management) answers `MFA_REQUIRED` until the code is entered. | Closes the gap where a stolen password could change the password of a two-step account. |
+| Invitations and resets | 256-bit random tokens, only SHA-256 stored (`auth_tokens`), single use, 72 h / 60 min, a new one revokes the older ones, carried in the URL **fragment** (never sent to a server or in a Referer) and removed from the address bar once read. Lock order employee → token. | "Forgot password" always answers 202 with the same text; unknown, suspended and over-limit accounts get no mail. Every request counts toward the per-IP limit (no `undo`), so the limit can't reveal which emails exist. 3 reset mails per account per hour. Bad/used/expired links all give the same 400. |
+| Reset / password change | Revokes every session (reset) or every other session (change), clears lockout, emails a notice. | — |
+| Recovery codes | 10 × 16 symbols (~78 bits), shown once, SHA-256 at rest, single use, replaced as a set; using one is audited and emailed. | — |
+| User administration | `employee.manage`, `feature_flag.manage` and `company.manage` are asserted (at import) to belong to Super Admin only. Warehouse-scoped Super Admin grants can't manage users. | `test_only_super_admin_manages_users_roles_and_security` checks 13 admin routes × 5 roles → 403. |
+| Last Super Admin | Nobody changes their own role or status (`SELF_CHANGE`). `LAST_OWNER` now counts only active, **signed-up** (password set), **company-wide** Super Admins, so an unanswered invitation or a warehouse-scoped grant can't stand in for the last one. | `test_one_super_admin_always_remains`, `test_last_super_admin_rule_counts_only_signed_up_company_wide_admins`. |
+| Bootstrap | `python -m pro_trading.create_super_admin` (hidden prompt or `--password-stdin`; never an argument). Refuses when the company already has an active Super Admin. | No public sign-up route exists; `test_security_routes.py` allowlists only the four link routes as anonymous. |
+| Audit | Sign-ins record IP and user agent (login history), plus every two-step, link, session and account change. Secrets, codes and tokens never reach `detail_redacted` (tested). | IP addresses are personal data: covered by the pending retention decision D-19. |
+
+Not done here: an email provider (D-15, see BLOCKERS), "remember this device", WebAuthn/passkeys, breached-password checks.
+
 ## Checked and OK
 
 - **Tenant isolation:** every route in `catalog`, `customers`, `pricing`, `employees`, `admin`, `warehouses`, `suppliers`, `reports`, `inventory`, `orders`, `invoices`, `payments`, `scans`, `ocr`, `receiving` and `documents`. Body ids are verified per company, warehouse scope is enforced, and list queries filter by company and readable warehouses.
