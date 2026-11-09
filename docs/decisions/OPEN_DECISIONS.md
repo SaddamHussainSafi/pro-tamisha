@@ -22,5 +22,15 @@
 | D-18 | OCR accuracy target and operator review turnaround | 95% quantity-field target in pilot, full review regardless |
 | D-19 | Data retention, audit log retention and Canadian privacy obligations | must approve compliance policy |
 | D-20 | Client's preferred actual application name (Tami vs Tamisha One) | working name **Pro Trading** only |
+| D-21 | Order Connect: who may approve website orders and convert them into draft sales orders | Owner/Admin and Manager approve + convert; Sales may review, reject, mark spam/duplicate only |
+| D-22 | Order Connect public address: same domain as the staff app, or a separate one (e.g. orders.tamishatrading.com) | `PUBLIC_APP_ORIGIN` empty = staff app origin; a separate subdomain is recommended (isolates customer pages from staff cookies); reverse proxy must route `/embed/*` and `/api/*` there |
+| D-23 | Units customers may order in | product's stock unit + BOX/PIECE units with an active packing profile; LB/KG only for products stocked in LB/KG |
+| D-24 | Show prices on the public form? which price book, currency and tax wording | off by default; when on, only the STANDARD rate of the price book in effect, labelled as a guide; prices never taken from the browser |
+| D-25 | Product photos on the public form (source, licensing in `apps/web/public/products/CREDITS.md`) | uses `/products/<SKU>.webp` when present, initials otherwise |
+| D-26 | Captcha service (Cloudflare Turnstile / hCaptcha) on the public form | none: honeypot, minimum fill time, per-IP/per-form hourly limits; spam kept as SPAM for review |
+| D-27 | Website-order retention period and privacy-notice wording (part of D-19) | keep (no automatic erasure), no consent checkbox; both switchable in Order Connect settings |
+| D-28 | Receipt email to customers: wording, sender, provider (D-15) | off; when on, a plain "received, not confirmed, not an invoice" note via the outbox |
+| D-29 | Form publishing rules, duplicate window, reopening rejected/spam | publish needs required Products + a name + a contact; same contact+items within 24 h flagged (not blocked); rejected/spam/duplicate can be reopened |
+| D-30 | Customers created from a website order: group, terms, external ref | created with the submitted name/email/phone, no group, 0 payment-terms days; staff complete it in Customers |
 
 For each decision record approver, date, selected option, affected schema/APIs and test updates in an ADR. Never silently infer legal/financial answers.

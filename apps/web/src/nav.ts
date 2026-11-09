@@ -6,6 +6,8 @@ export type NavItem = {
   icon: IconName;
   to: string;
   module: string | null;
+  /** Live count shown on the entry (see components/OrderConnectLive.tsx). */
+  badge?: "order_connect";
   children?: { label: string; to: string }[];
 };
 export type NavGroup = { title: string | null; items: NavItem[] };
@@ -18,6 +20,20 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Orders", icon: "cart", to: "/orders", module: null },
       { label: "Invoices", icon: "invoices", to: "/invoices", module: null },
       { label: "Payments", icon: "payments", to: "/payments", module: null },
+      {
+        label: "Order Connect",
+        icon: "globe",
+        to: "/order-connect",
+        module: null,
+        badge: "order_connect",
+        children: [
+          { label: "Overview", to: "/order-connect" },
+          { label: "Form builder", to: "/order-connect/forms" },
+          { label: "Submissions", to: "/order-connect/submissions" },
+          { label: "Embed & share", to: "/order-connect/embed" },
+          { label: "Settings", to: "/order-connect/settings" },
+        ],
+      },
     ],
   },
   {

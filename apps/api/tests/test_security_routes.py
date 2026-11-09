@@ -29,6 +29,9 @@ ANONYMOUS_OK = {
 }
 # Scanner bridge routes authenticate the device (Authorization: Device ...), not a session.
 BRIDGE = re.compile(r"^/api/v1/scan-bridge/")
+# Order Connect public form API: anonymous by design, never reads the staff cookie
+# (tests/test_order_connect.py covers its own protections).
+PUBLIC = re.compile(r"^/api/v1/public/")
 
 # A signed-in employee with no role may only use their own account.
 SELF_SERVICE = {
@@ -100,7 +103,13 @@ def test_every_route_needs_a_session(api):
         if (method, path) in ANONYMOUS_OK:
             continue
         r = call(api.c, method, url)
-        want = {401} if not BRIDGE.match(path) else {401, 403, 404, 409, 422}
+        want = (
+            {404, 409, 422, 429}
+            if PUBLIC.match(path)
+            else {401}
+            if not BRIDGE.match(path)
+            else {401, 403, 404, 409, 422}
+        )
         if r.status_code not in want:
             bad.append(f"{method.upper()} {path} -> {r.status_code}")
     assert bad == [], "\n".join(bad)
@@ -112,7 +121,12 @@ def test_every_mutation_needs_the_csrf_token(make_api, world):
     assert owner.enroll_and_verify().status_code == 200
     bad = []
     for method, path, url in operations(owner.c.app):
-        if method not in UNSAFE or (method, path) in ANONYMOUS_OK or BRIDGE.match(path):
+        if (
+            method not in UNSAFE
+            or (method, path) in ANONYMOUS_OK
+            or BRIDGE.match(path)
+            or PUBLIC.match(path)
+        ):
             continue
         r = call(owner.c, method, url)  # cookie only: no X-CSRF-Token, no Origin
         if r.status_code != 403 or r.json()["error"]["code"] != "CSRF_FAILED":
@@ -145,7 +159,7 @@ def nobody(make_api, world):
 def test_an_employee_without_a_role_can_reach_only_their_own_account(nobody):
     leaks = []
     for method, path, url in operations(nobody.c.app):
-        if (method, path) in SELF_SERVICE or BRIDGE.match(path):
+        if (method, path) in SELF_SERVICE or BRIDGE.match(path) or PUBLIC.match(path):
             continue
         r = call(nobody.c, method, url, headers=nobody._h())
         # 403 = refused; 404 = the (random) id is not theirs; 422 = refused before any work.

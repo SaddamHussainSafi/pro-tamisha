@@ -7,6 +7,7 @@ import { NAV_GROUPS, SETTINGS, type NavItem } from "../nav";
 import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
 import { NotificationBell } from "./notifications/NotificationBell";
+import { OrderConnectBadge } from "./OrderConnectLive";
 import { NotificationProvider } from "./notifications/NotificationProvider";
 import { QuickJump } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
@@ -71,6 +72,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       <NavLink to={item.to} end={item.to === "/"} title={item.label} className={({ isActive }) => `${SQUARE} ${isActive ? ON : OFF}`}>
         <Icon name={item.icon} size={22} />
         <span className="sr-only">{item.label}</span>
+        {item.badge && <OrderConnectBadge collapsed />}
       </NavLink>
     );
 
@@ -78,9 +80,10 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   return (
     <>
       <div className="flex items-center gap-1">
-        <NavLink to={item.to} end={item.to === "/"} className={({ isActive }) => `${ROW} min-w-0 flex-1 ${isActive ? ON : OFF}`}>
+        <NavLink to={item.to} end={item.to === "/"} className={({ isActive }) => `${ROW} relative min-w-0 flex-1 ${isActive ? ON : OFF}`}>
           <Icon name={item.icon} size={22} />
           <span className="truncate">{item.label}</span>
+          {item.badge && <OrderConnectBadge collapsed={false} />}
         </NavLink>
         {item.children && (
           <button

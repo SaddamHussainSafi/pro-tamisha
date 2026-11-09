@@ -14,6 +14,8 @@ export default defineConfig({
     proxy: {
       "/api": { target: api, changeOrigin: true, xfwd: true },
       "/health": { target: api, changeOrigin: true, xfwd: true },
+      // Order Connect customer pages (served by the API, framed by the company website).
+      "/embed": { target: api, changeOrigin: true, xfwd: true },
     },
   },
   test: { include: ["src/**/*.test.ts"] },

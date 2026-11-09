@@ -394,7 +394,7 @@ export type Order = {
   warehouse_id: string;
   warehouse_code: string;
   status: OrderStatus;
-  source: "MANUAL" | "SCAN";
+  source: "MANUAL" | "SCAN" | "WEB";
   source_text: string;
   source_snapshot: Record<string, string>[];
   requested_for: string | null;

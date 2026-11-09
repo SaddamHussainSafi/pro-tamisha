@@ -1264,6 +1264,140 @@
         "title": "CompareRow",
         "type": "object"
       },
+      "ConvertIn": {
+        "additionalProperties": false,
+        "description": "Staff-confirmed mapping. The submission's own values stay untouched.",
+        "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ConvertLineIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "new_customer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustomerIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Note",
+            "type": "string"
+          },
+          "requested_for": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested For"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "warehouse_id",
+          "lines"
+        ],
+        "title": "ConvertIn",
+        "type": "object"
+      },
+      "ConvertLineIn": {
+        "properties": {
+          "item_line_no": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Line No"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Qty"
+          },
+          "source_line_text": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Source Line Text",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "unit_code",
+          "qty"
+        ],
+        "title": "ConvertLineIn",
+        "type": "object"
+      },
       "CountDecisionIn": {
         "properties": {
           "reason": {
@@ -2827,6 +2961,118 @@
         "title": "DocumentRetryIn",
         "type": "object"
       },
+      "DomainIn": {
+        "additionalProperties": false,
+        "properties": {
+          "form_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form Id"
+          },
+          "host": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Host",
+            "type": "string"
+          }
+        },
+        "required": [
+          "host"
+        ],
+        "title": "DomainIn",
+        "type": "object"
+      },
+      "DraftIn": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldIn"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Fields",
+            "type": "array"
+          },
+          "intro": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Intro",
+            "type": "string"
+          },
+          "logo_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Id"
+          },
+          "product_scope": {
+            "default": "ALL",
+            "enum": [
+              "ALL",
+              "CATEGORIES",
+              "PRODUCTS"
+            ],
+            "title": "Product Scope",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "scope_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Scope Ids",
+            "type": "array"
+          },
+          "show_prices": {
+            "default": false,
+            "title": "Show Prices",
+            "type": "boolean"
+          },
+          "success_message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Success Message",
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/ThemeIn"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "title",
+          "success_message",
+          "fields"
+        ],
+        "title": "DraftIn",
+        "type": "object"
+      },
       "EmployeeOut": {
         "properties": {
           "company_id": {
@@ -2855,6 +3101,28 @@
           "company_id"
         ],
         "title": "EmployeeOut",
+        "type": "object"
+      },
+      "EraseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "reason"
+        ],
+        "title": "EraseIn",
         "type": "object"
       },
       "FeatureFlagIn": {
@@ -2904,6 +3172,63 @@
         "title": "FeatureFlagOut",
         "type": "object"
       },
+      "FieldIn": {
+        "additionalProperties": false,
+        "properties": {
+          "help_text": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Help Text",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "TEXT",
+              "TEXTAREA",
+              "EMAIL",
+              "PHONE",
+              "DATE",
+              "SELECT",
+              "CHECKBOX",
+              "PRODUCTS"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Options",
+            "type": "array"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "label"
+        ],
+        "title": "FieldIn",
+        "type": "object"
+      },
       "ForgotPasswordIn": {
         "properties": {
           "email": {
@@ -2917,6 +3242,107 @@
           "email"
         ],
         "title": "ForgotPasswordIn",
+        "type": "object"
+      },
+      "FormIn": {
+        "additionalProperties": false,
+        "properties": {
+          "default_warehouse_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Warehouse Id"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "FormIn",
+        "type": "object"
+      },
+      "FormPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "accepting": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepting"
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          },
+          "default_warehouse_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Warehouse Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "standalone_link": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standalone Link"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "FormPatch",
         "type": "object"
       },
       "GrantOut": {
@@ -5279,6 +5705,22 @@
         "title": "MyAccountIn",
         "type": "object"
       },
+      "NoteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "NoteIn",
+        "type": "object"
+      },
       "NotificationOut": {
         "properties": {
           "archived": {
@@ -6925,7 +7367,8 @@
             "default": "MANUAL",
             "enum": [
               "MANUAL",
-              "SCAN"
+              "SCAN",
+              "WEB"
             ],
             "title": "Source",
             "type": "string"
@@ -7264,7 +7707,8 @@
           "source": {
             "enum": [
               "MANUAL",
-              "SCAN"
+              "SCAN",
+              "WEB"
             ],
             "title": "Source",
             "type": "string"
@@ -10041,6 +10485,21 @@
         "title": "ProductSummary",
         "type": "object"
       },
+      "PublishIn": {
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "title": "PublishIn",
+        "type": "object"
+      },
       "QtyLineIn": {
         "properties": {
           "qty": {
@@ -11794,6 +12253,76 @@
         "title": "SessionOut",
         "type": "object"
       },
+      "SettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "ack_email": {
+            "default": false,
+            "title": "Ack Email",
+            "type": "boolean"
+          },
+          "consent_required": {
+            "default": false,
+            "title": "Consent Required",
+            "type": "boolean"
+          },
+          "consent_text": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Consent Text",
+            "type": "string"
+          },
+          "form_limit_per_hour": {
+            "default": 300,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Form Limit Per Hour",
+            "type": "integer"
+          },
+          "ip_limit_per_hour": {
+            "default": 20,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Ip Limit Per Hour",
+            "type": "integer"
+          },
+          "min_fill_seconds": {
+            "default": 3,
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "Min Fill Seconds",
+            "type": "integer"
+          },
+          "notify_staff": {
+            "default": true,
+            "title": "Notify Staff",
+            "type": "boolean"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 30.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          },
+          "version": {
+            "minimum": 0.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "SettingsIn",
+        "type": "object"
+      },
       "ShipmentDetail": {
         "properties": {
           "awb_no": {
@@ -12732,6 +13261,40 @@
         "title": "StaffPatchIn",
         "type": "object"
       },
+      "StatusIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Note",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "NEW",
+              "REVIEWING",
+              "APPROVED",
+              "REJECTED",
+              "DUPLICATE",
+              "SPAM"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "status"
+        ],
+        "title": "StatusIn",
+        "type": "object"
+      },
       "StockCheckOut": {
         "properties": {
           "available_qty": {
@@ -13351,6 +13914,29 @@
           "reason"
         ],
         "title": "SupplierPaymentVoidIn",
+        "type": "object"
+      },
+      "ThemeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "accent": {
+            "default": "#1B7A30",
+            "maxLength": 7,
+            "title": "Accent",
+            "type": "string"
+          },
+          "radius": {
+            "default": "small",
+            "enum": [
+              "none",
+              "small",
+              "large"
+            ],
+            "title": "Radius",
+            "type": "string"
+          }
+        },
+        "title": "ThemeIn",
         "type": "object"
       },
       "TokenInspectIn": {
@@ -19105,6 +19691,1196 @@
         ]
       }
     },
+    "/api/v1/order-connect/badge": {
+      "get": {
+        "description": "Sidebar count: this employee's unread website-order alerts.",
+        "operationId": "badge_api_v1_order_connect_badge_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Badge Api V1 Order Connect Badge Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Badge",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/domains": {
+      "get": {
+        "operationId": "list_domains_api_v1_order_connect_domains_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "form_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Form Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Domains Api V1 Order Connect Domains Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Domains",
+        "tags": [
+          "order-connect"
+        ]
+      },
+      "post": {
+        "operationId": "add_domain_api_v1_order_connect_domains_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Domain",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/domains/{domain_id}": {
+      "delete": {
+        "operationId": "remove_domain_api_v1_order_connect_domains__domain_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Domain",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/forms": {
+      "get": {
+        "operationId": "list_forms_api_v1_order_connect_forms_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Archived",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Forms Api V1 Order Connect Forms Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Forms",
+        "tags": [
+          "order-connect"
+        ]
+      },
+      "post": {
+        "operationId": "create_form_api_v1_order_connect_forms_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Form",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/forms/{form_id}": {
+      "get": {
+        "operationId": "read_form_api_v1_order_connect_forms__form_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Form Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read Form Api V1 Order Connect Forms  Form Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Form",
+        "tags": [
+          "order-connect"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_form_api_v1_order_connect_forms__form_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Form Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Form",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/forms/{form_id}/draft": {
+      "put": {
+        "description": "Replace the draft's content (revision 0 = start a draft from the published version).",
+        "operationId": "save_draft_api_v1_order_connect_forms__form_id__draft_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Form Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Draft",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/forms/{form_id}/embed": {
+      "get": {
+        "operationId": "embed_info_api_v1_order_connect_forms__form_id__embed_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Form Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Embed Info Api V1 Order Connect Forms  Form Id  Embed Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Embed Info",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/forms/{form_id}/preview-config": {
+      "get": {
+        "description": "The draft as customers would see it (same builder as the public config, no token).",
+        "operationId": "preview_config_api_v1_order_connect_forms__form_id__preview_config_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Form Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Config Api V1 Order Connect Forms  Form Id  Preview Config Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Config",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/forms/{form_id}/publish": {
+      "post": {
+        "operationId": "publish_form_api_v1_order_connect_forms__form_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Form Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Form",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/logos": {
+      "post": {
+        "description": "Raw PNG/JPEG/WebP body (\u2264 1 MB). Stored re-encoded as PNG.",
+        "operationId": "upload_logo_api_v1_order_connect_logos_post",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Upload Logo",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/overview": {
+      "get": {
+        "operationId": "overview_api_v1_order_connect_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Overview Api V1 Order Connect Overview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/settings": {
+      "get": {
+        "operationId": "get_settings_route_api_v1_order_connect_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Settings Route Api V1 Order Connect Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings Route",
+        "tags": [
+          "order-connect"
+        ]
+      },
+      "put": {
+        "operationId": "put_settings_api_v1_order_connect_settings_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Settings",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions": {
+      "get": {
+        "operationId": "list_submissions_api_v1_order_connect_submissions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(OPEN|ALL|NEW|REVIEWING|APPROVED|CONVERTED|REJECTED|DUPLICATE|SPAM)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "form_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Form Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Submissions Api V1 Order Connect Submissions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Submissions",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}": {
+      "get": {
+        "operationId": "read_submission_api_v1_order_connect_submissions__submission_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read Submission Api V1 Order Connect Submissions  Submission Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Submission",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}/convert": {
+      "post": {
+        "description": "APPROVED submission -> one DRAFT sales order. Locked, idempotent, and the database\nrefuses a second order for the same submission (unique sales_order_id).",
+        "operationId": "convert_api_v1_order_connect_submissions__submission_id__convert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Convert",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}/erase": {
+      "post": {
+        "operationId": "erase_personal_data_api_v1_order_connect_submissions__submission_id__erase_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EraseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Erase Personal Data",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}/matches": {
+      "get": {
+        "operationId": "matches_api_v1_order_connect_submissions__submission_id__matches_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Matches Api V1 Order Connect Submissions  Submission Id  Matches Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Matches",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}/notes": {
+      "post": {
+        "operationId": "add_note_api_v1_order_connect_submissions__submission_id__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Note",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}/read": {
+      "post": {
+        "description": "Opening a submission clears this employee's alerts for it (others keep theirs).",
+        "operationId": "mark_read_api_v1_order_connect_submissions__submission_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
+    "/api/v1/order-connect/submissions/{submission_id}/status": {
+      "post": {
+        "operationId": "change_status_api_v1_order_connect_submissions__submission_id__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Status",
+        "tags": [
+          "order-connect"
+        ]
+      }
+    },
     "/api/v1/payments": {
       "get": {
         "operationId": "list_payments_api_v1_payments_get",
@@ -21986,6 +23762,143 @@
         "summary": "Weight Calc",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/api/v1/public/logos/{logo_id}": {
+      "get": {
+        "operationId": "logo_api_v1_public_logos__logo_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "logo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Logo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logo",
+        "tags": [
+          "order-connect-public"
+        ]
+      }
+    },
+    "/api/v1/public/order-forms/{public_id}": {
+      "get": {
+        "description": "The published form, its catalog slice (no stock, no customer prices) and a signed token.",
+        "operationId": "public_form_api_v1_public_order_forms__public_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "title": "Public Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 260,
+              "title": "Host",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Public Form Api V1 Public Order Forms  Public Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Form",
+        "tags": [
+          "order-connect-public"
+        ]
+      }
+    },
+    "/api/v1/public/order-forms/{public_id}/submissions": {
+      "post": {
+        "operationId": "submit_api_v1_public_order_forms__public_id__submissions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "title": "Public Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit",
+        "tags": [
+          "order-connect-public"
         ]
       }
     },

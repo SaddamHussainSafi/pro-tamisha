@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_MFA_KEY = "dev-only-insecure-key-change-me-000000000000="
 DEV_SCAN_KEY = "dev-only-scan-capability-key-change-me"
+DEV_ORDER_CONNECT_KEY = "dev-only-order-connect-key-change-me"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
@@ -81,6 +82,16 @@ class Settings(BaseSettings):
     # password and no MFA. Empty = off. The app refuses to start with it set in staging/production
     # or with a non-localhost FRONTEND_ORIGIN, and the route only answers loopback requests.
     dev_auto_login_email: str = ""
+    # Order Connect (public website order forms). PUBLIC_APP_ORIGIN serves /embed/{id} and the
+    # public form API (empty = FRONTEND_ORIGIN). ORDER_CONNECT_KEY signs form-load tokens and
+    # keys the stored IP hashes; it never reaches the browser.
+    public_app_origin: str = ""
+    order_connect_key: str = DEV_ORDER_CONNECT_KEY
+    order_connect_max_body_bytes: int = Field(default=64 * 1024, ge=4 * 1024, le=512 * 1024)
+
+    @property
+    def public_origin(self) -> str:
+        return (self.public_app_origin or self.frontend_origin).rstrip("/")
 
     @property
     def is_production_like(self) -> bool:
@@ -124,6 +135,10 @@ class Settings(BaseSettings):
             problems.append("COOKIE_SECURE must be true")
         if not self.frontend_origin.startswith("https://"):
             problems.append("FRONTEND_ORIGIN must be https")
+        if self.order_connect_key == DEV_ORDER_CONNECT_KEY or len(self.order_connect_key) < 32:
+            problems.append("ORDER_CONNECT_KEY is the dev placeholder or shorter than 32 chars")
+        if not self.public_origin.startswith("https://"):
+            problems.append("PUBLIC_APP_ORIGIN must be https")
         if self.ocr_provider == "fake":
             problems.append("OCR_PROVIDER=fake is for dev/test only")
         if self.drive_fault:

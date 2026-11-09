@@ -362,7 +362,7 @@ export function OrderPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card space-y-2 p-6" aria-labelledby="src-h">
           <h2 id="src-h" className="font-semibold">Original request</h2>
-          <p className="text-xs text-ink-muted">Kept exactly as captured ({o.source === "SCAN" ? "scanned" : "typed"} by {o.created_by_name ?? "system"}, {when(o.created_at)}). It never changes.</p>
+          <p className="text-xs text-ink-muted">Kept exactly as captured ({o.source === "SCAN" ? "scanned" : o.source === "WEB" ? "sent from the website, converted" : "typed"} by {o.created_by_name ?? "system"}, {when(o.created_at)}). It never changes.</p>
           {o.source_text ? <pre className="whitespace-pre-wrap rounded bg-canvas p-3 text-sm">{o.source_text}</pre> : <p className="text-sm text-ink-muted">No free text.</p>}
           <ul className="text-sm">
             {o.source_snapshot.map((s) => <li key={s.line_no}><span className="num">{s.line_no}.</span> {s.sku} — {qtyText(s.qty ?? "0")} {s.unit_code}{s.text && <span className="text-ink-muted"> (“{s.text}”)</span>}</li>)}

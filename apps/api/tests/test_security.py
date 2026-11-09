@@ -39,6 +39,7 @@ def _prod(**kw: Any) -> Settings:
         "app_env": "production",
         "mfa_encryption_key": "q0f5L2m9ZPZ0g3W9H3nmVvG7Pq0V8k1oJ5sQ0yYy7Uk=",
         "scan_capability_key": "x" * 48,
+        "order_connect_key": "y" * 48,
         "cookie_secure": True,
         "frontend_origin": "https://erp.example.test",
         "ocr_provider": "tesseract",
@@ -62,6 +63,9 @@ def test_production_settings_accept_real_values():
         ({"frontend_origin": "http://erp.example.test"}, "https"),
         ({"ocr_provider": "fake"}, "OCR_PROVIDER"),
         ({"drive_fault": "timeout"}, "DRIVE_FAULT"),
+        ({"order_connect_key": "dev-only-order-connect-key-change-me"}, "ORDER_CONNECT_KEY"),
+        ({"order_connect_key": "short"}, "ORDER_CONNECT_KEY"),
+        ({"public_app_origin": "http://orders.example.test"}, "PUBLIC_APP_ORIGIN"),
     ],
 )
 def test_production_settings_refuse_dev_placeholders(override, needle):

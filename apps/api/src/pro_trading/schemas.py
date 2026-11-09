@@ -741,7 +741,7 @@ class OrderLineIn(BaseModel):
 class OrderIn(BaseModel):
     customer_id: uuid.UUID
     warehouse_id: uuid.UUID
-    source: Literal["MANUAL", "SCAN"] = "MANUAL"
+    source: Literal["MANUAL", "SCAN", "WEB"] = "MANUAL"
     source_text: str = Field(default="", max_length=10_000)
     requested_for: datetime | None = None
     note: str = Field(default="", max_length=1000)
@@ -824,7 +824,7 @@ class OrderOut(BaseModel):
     warehouse_id: uuid.UUID
     warehouse_code: str
     status: OrderStatus
-    source: Literal["MANUAL", "SCAN"]
+    source: Literal["MANUAL", "SCAN", "WEB"]
     source_text: str
     source_snapshot: list[dict[str, str]]
     requested_for: datetime | None

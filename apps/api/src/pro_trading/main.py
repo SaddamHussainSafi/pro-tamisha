@@ -27,9 +27,11 @@ from .routes import (
     invoices,
     notifications,
     ocr,
+    order_connect,
     orders,
     payments,
     pricing,
+    public_orders,
     receiving,
     reports,
     scans,
@@ -68,6 +70,9 @@ API_CSP = (
 
 # Interactive API docs (development only) load Swagger/ReDoc from a CDN with inline script.
 DOCS_PATHS = ("/docs", "/docs/oauth2-redirect", "/redoc")
+# Order Connect: framable customer pages, and the anonymous form API they call.
+EMBED_PREFIX = "/embed/"
+PUBLIC_API_PREFIX = "/api/v1/public/"
 
 
 def _security_headers(resp: Response, rid: str, https: bool, path: str = "") -> None:
@@ -75,7 +80,8 @@ def _security_headers(resp: Response, rid: str, https: bool, path: str = "") -> 
     h["X-Request-Id"] = rid
     h["X-Content-Type-Options"] = "nosniff"
     h["Referrer-Policy"] = "same-origin"
-    h["X-Frame-Options"] = "SAMEORIGIN"
+    if not path.startswith(EMBED_PREFIX):  # embed pages are framed per their own CSP
+        h["X-Frame-Options"] = "SAMEORIGIN"
     h["Cross-Origin-Opener-Policy"] = "same-origin"
     if path not in DOCS_PATHS:  # those routes don't exist in staging/production
         h.setdefault("Content-Security-Policy", API_CSP)
@@ -117,8 +123,14 @@ def create_app() -> FastAPI:
         # Browsers also label every request with Sec-Fetch-Site; refuse cross-site ones even
         # when an old browser or a privacy extension drops the Origin header.
         origin = request.headers.get("origin")
+        # The public order-form API is also called from PUBLIC_APP_ORIGIN (the embed page).
+        origins = (
+            (s.frontend_origin, s.public_origin)
+            if request.url.path.startswith(PUBLIC_API_PREFIX)
+            else (s.frontend_origin,)
+        )
         if request.method not in ("GET", "HEAD", "OPTIONS") and (
-            (origin is not None and origin != s.frontend_origin)
+            (origin is not None and origin not in origins)
             or request.headers.get("sec-fetch-site") == "cross-site"
         ):
             resp: Response = JSONResponse(
@@ -154,6 +166,7 @@ def create_app() -> FastAPI:
     app.add_middleware(BodySizeLimit, max_bytes=s.max_request_bytes)
 
     app.include_router(health.router)  # probes at /health/* (no auth, outside API version)
+    app.include_router(public_orders.pages)  # /embed/* customer order form pages
     for r in (
         auth.router,
         warehouses.router,
@@ -175,6 +188,8 @@ def create_app() -> FastAPI:
         security.router,
         suppliers.router,
         notifications.router,
+        order_connect.router,
+        public_orders.router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app

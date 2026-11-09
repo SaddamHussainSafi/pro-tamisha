@@ -19,6 +19,8 @@ const chunks = {
   newInvoice: () => import("./pages/NewInvoice"),
   notifications: () => import("./pages/Notifications"),
   ocrReview: () => import("./pages/OcrReview"),
+  orderConnect: () => import("./pages/OrderConnect"),
+  orderConnectBuilder: () => import("./pages/OrderConnectBuilder"),
   orders: () => import("./pages/Orders"),
   payments: () => import("./pages/Payments"),
   picking: () => import("./pages/Picking"),
@@ -49,6 +51,13 @@ const MfaPage = page(chunks.mfa, (m) => m.MfaPage);
 const NewInvoicePage = page(chunks.newInvoice, (m) => m.NewInvoicePage);
 const NotificationCenterPage = page(chunks.notifications, (m) => m.NotificationCenterPage);
 const OcrReviewPage = page(chunks.ocrReview, (m) => m.OcrReviewPage);
+const OcOverviewPage = page(chunks.orderConnect, (m) => m.OcOverviewPage);
+const OcSubmissionsPage = page(chunks.orderConnect, (m) => m.OcSubmissionsPage);
+const OcSubmissionPage = page(chunks.orderConnect, (m) => m.OcSubmissionPage);
+const OcEmbedPage = page(chunks.orderConnect, (m) => m.OcEmbedPage);
+const OcSettingsPage = page(chunks.orderConnect, (m) => m.OcSettingsPage);
+const OcFormsPage = page(chunks.orderConnectBuilder, (m) => m.OcFormsPage);
+const OcBuilderPage = page(chunks.orderConnectBuilder, (m) => m.OcBuilderPage);
 const OrdersPage = page(chunks.orders, (m) => m.OrdersPage);
 const OrderPage = page(chunks.orders, (m) => m.OrderPage);
 const NewOrderPage = page(chunks.orders, (m) => m.NewOrderPage);
@@ -135,6 +144,13 @@ export function App() {
           <Route path="orders" element={<OrdersPage />} />
           <Route path="orders/new" element={<NewOrderPage />} />
           <Route path="orders/:id" element={<OrderPage />} />
+          <Route path="order-connect" element={<OcOverviewPage />} />
+          <Route path="order-connect/forms" element={<OcFormsPage />} />
+          <Route path="order-connect/forms/:id" element={<OcBuilderPage />} />
+          <Route path="order-connect/submissions" element={<OcSubmissionsPage />} />
+          <Route path="order-connect/submissions/:id" element={<OcSubmissionPage />} />
+          <Route path="order-connect/embed" element={<OcEmbedPage />} />
+          <Route path="order-connect/settings" element={<OcSettingsPage />} />
           <Route path="picking" element={<PickingPage />} />
           <Route path="picking/:id" element={<PickSheetPage />} />
           <Route path="picking/:id/invoice" element={<IssueInvoicePage />} />

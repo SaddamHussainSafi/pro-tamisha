@@ -47,6 +47,10 @@ PERMISSIONS: Final[dict[str, str]] = {
     "document.manage": "File signed delivery proofs and retry Drive sync",
     "supplier.ledger.read": "View supplier ledgers: billed, paid, returned",
     "supplier_payment.record": "Record and void payments made to suppliers",
+    "order_connect.read": "View website order forms and submissions; get submission alerts",
+    "order_connect.manage": "Build/publish order forms, allowed websites, settings, erasure",
+    "order_connect.review": "Move submissions through review (reviewing, reject, spam, duplicate)",
+    "order_connect.approve": "Approve submissions and convert them into draft sales orders",
 }
 
 ALL: Final = frozenset(PERMISSIONS)
@@ -102,6 +106,10 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
                 "document.read",
                 "document.manage",
                 "supplier.ledger.read",
+                "order_connect.read",
+                "order_connect.manage",
+                "order_connect.review",
+                "order_connect.approve",
             }
         ),
     ),
@@ -124,6 +132,8 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
                 "payment.record",
                 "document.read",
                 "document.manage",
+                "order_connect.read",
+                "order_connect.review",
             }
         ),
     ),
