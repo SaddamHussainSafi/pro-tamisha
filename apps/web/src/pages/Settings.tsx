@@ -333,7 +333,7 @@ function Users() {
               {!adding && (
                 <button
                   type="button"
-                  className="btn-accent"
+                  className="btn-primary"
                   onClick={() => {
                     setAdding(true);
                     setF((x) => ({ ...x, password: tempPassword() }));

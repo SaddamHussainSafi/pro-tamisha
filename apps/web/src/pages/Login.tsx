@@ -1,17 +1,19 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
+import { returnTo } from "../lib/returnTo";
 import { Wordmark } from "../components/Wordmark";
 
 export function LoginPage() {
   const { status, session, setSession } = useAuth();
+  const loc = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (status === "authenticated" && session) return <Navigate to={session.mfa_required ? "/mfa" : "/"} replace />;
+  if (status === "authenticated" && session) return <Navigate to={session.mfa_required ? "/mfa" : returnTo(loc.state)} replace state={loc.state} />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -36,7 +38,7 @@ export function LoginPage() {
 
   return (
     <main className="grid min-h-full place-items-center p-6">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm animate-enter">
         <div className="mb-6 flex justify-center">
           <Wordmark />
         </div>

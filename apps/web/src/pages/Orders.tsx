@@ -20,7 +20,7 @@ import { AMENDMENT_LABEL, lineAmount, ORDER_STATUS, ordersMessage, PICK_STATUS }
 import { rateText } from "../lib/pricingErrors";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
@@ -96,23 +96,29 @@ export function OrdersPage() {
         actions={has(session, "sales_order.manage") && <Link className="btn-primary" to="/orders/new">New order</Link>}
       />
       <FilterBar search={search} onSearch={setSearch} options={VIEWS} value={view} onChange={setView} placeholder="Search order or customer" />
-      {error ? (
-        <ErrorState title="Couldn't load orders" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={7} />
-      ) : (
-        <>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            rowKey={(r) => r.id}
-            caption={`Sales orders (${total})`}
-            onOpen={(r) => nav(`/orders/${r.id}`)}
-            empty={<EmptyState title="No orders here" hint="Try another filter, or create a new order." />}
-          />
-          {cursor && <button className="btn-ghost" onClick={() => void load(cursor)}>Load more</button>}
-        </>
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load orders" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={7} />
+        ) : (
+          <>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              caption={`Sales orders (${total})`}
+              onOpen={(r) => nav(`/orders/${r.id}`)}
+              empty={<EmptyState title="No orders here" hint="Try another filter, or create a new order." />}
+            />
+            {cursor && (
+              <div className="flex justify-center border-t border-line p-4">
+                <button className="btn-ghost" onClick={() => void load(cursor)}>Load more</button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -296,7 +302,7 @@ export function OrderPage() {
 
   if (!session) return null;
   if (loadErr) return <ErrorState title="Couldn't load this order" onRetry={() => void load()} />;
-  if (!o) return <LoadingRows cols={6} />;
+  if (!o) return <PageSkeleton />;
   const manage = canInWarehouse(session, "sales_order.manage", o.warehouse_id);
   const close = canInWarehouse(session, "sales_order.close", o.warehouse_id);
   const open = ["CONFIRMED", "PICKING", "PARTIALLY_FULFILLED"].includes(o.status);

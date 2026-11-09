@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { dec, qty } from "../lib/decimal";
 import { amountIn, amountProblem, balanceWords, PAY_METHOD, supplierMessage } from "../lib/suppliers";
 import { DataGrid, type Column } from "../ui/DataGrid";
-import { CardTitle, ConfirmDialog, EmptyState, ErrorState, KpiCard, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { CardTitle, ConfirmDialog, EmptyState, ErrorState, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 type Msg = { tone: "error" | "ok"; text: string } | null;
 const link = "font-medium text-brand-primary hover:underline";
@@ -278,7 +278,7 @@ export function SupplierDetailPage() {
   if (!session) return null;
   if (!allowed) return <NoAccess title="Supplier" />;
   if (err) return <ErrorState title={err} onRetry={() => void load()} />;
-  if (!led) return <LoadingRows cols={5} />;
+  if (!led) return <PageSkeleton />;
   const tab = ["ledger", "shipments", "payments"].includes(params.get("tab") ?? "") ? (params.get("tab") as string) : "ledger";
   const tabs = [
     { key: "ledger", label: "Ledger" },
@@ -372,7 +372,7 @@ export function SupplierDetailPage() {
         }
         actions={
           canRecord && !recording ? (
-            <button type="button" className="btn-accent" onClick={() => setRecording(true)}>
+            <button type="button" className="btn-primary" onClick={() => setRecording(true)}>
               Record payment
             </button>
           ) : undefined
@@ -473,7 +473,7 @@ export function SupplierPaymentsPage() {
         subtitle="Money we paid suppliers, newest first. Each supplier's page shows what they billed and what is still owed."
         actions={
           canRecord && !recording ? (
-            <button type="button" className="btn-accent" onClick={() => setRecording(true)}>
+            <button type="button" className="btn-primary" onClick={() => setRecording(true)}>
               Record payment
             </button>
           ) : undefined
@@ -491,21 +491,23 @@ export function SupplierPaymentsPage() {
           }}
         />
       )}
-      {error ? (
-        <ErrorState title="Couldn't load supplier payments" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={6} />
-      ) : (
-        <PaymentsGrid
-          rows={rows}
-          canRecord={canRecord}
-          showSupplier
-          onVoided={(m) => {
-            setMsg(m);
-            void load();
-          }}
-        />
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load supplier payments" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={6} />
+        ) : (
+          <PaymentsGrid
+            rows={rows}
+            canRecord={canRecord}
+            showSupplier
+            onVoided={(m) => {
+              setMsg(m);
+              void load();
+            }}
+          />
+        )}
+      </section>
     </div>
   );
 }

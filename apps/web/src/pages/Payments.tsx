@@ -18,7 +18,7 @@ import { useAuth } from "../auth";
 import { cad, dec } from "../lib/decimal";
 import { checkPlan, INVOICE_STATE, METHOD, money2, moneyOrNull, PAYMENT_STATUS, paymentMessage, REF_LABEL, suggestAllocation } from "../lib/payments";
 import { DataGrid, type Column } from "../ui/DataGrid";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const money = (v: string) => cad(dec(v));
@@ -183,28 +183,30 @@ export function PaymentsPage() {
       </div>
       {recording && <RecordPayment onCancel={() => setRecording(false)} />}
       <FilterBar search={q} onSearch={setQ} options={views} value={view} onChange={setView} placeholder="Payment no., reference or customer" />
-      {error ? (
-        <ErrorState title="Couldn't load payments" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={8} />
-      ) : (
-        <>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            rowKey={(r) => r.id}
-            caption={`Payments (${page?.total ?? rows.length})`}
-            empty={<EmptyState title="No payments here" hint="Record a payment when a customer tells you they paid." />}
-          />
-          {page?.next_cursor && (
-            <div className="flex justify-center">
-              <button className="btn-ghost" onClick={() => void load(page.next_cursor ?? undefined)}>
-                Load more
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load payments" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={8} />
+        ) : (
+          <>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              caption={`Payments (${page?.total ?? rows.length})`}
+              empty={<EmptyState title="No payments here" hint="Record a payment when a customer tells you they paid." />}
+            />
+            {page?.next_cursor && (
+              <div className="flex justify-center border-t border-line p-4">
+                <button className="btn-ghost" onClick={() => void load(page.next_cursor ?? undefined)}>
+                  Load more
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -386,7 +388,7 @@ export function PaymentDetailPage() {
   if (!session) return null;
   if (!(has(session, "payment.record") || has(session, "payment.verify"))) return <NoAccess title="Payment" />;
   if (loadErr) return <ErrorState title="Couldn't load this payment" onRetry={() => void load()} />;
-  if (!pay) return <LoadingRows cols={4} />;
+  if (!pay) return <PageSkeleton />;
   const canVerify = has(session, "payment.verify");
   const done = (p: Payment, text: string) => {
     setPay(p);
@@ -882,9 +884,13 @@ export function ReceivablesPage() {
         }
       />
       {error ? (
-        <ErrorState title="Couldn't load receivables" onRetry={() => void load()} />
+        <div className="card">
+          <ErrorState title="Couldn't load receivables" onRetry={() => void load()} />
+        </div>
       ) : !data ? (
-        <LoadingRows cols={6} />
+        <div className="card overflow-clip">
+          <LoadingRows cols={6} />
+        </div>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -898,13 +904,15 @@ export function ReceivablesPage() {
             />
             <KpiCard label="Reported, not confirmed" value={money(data.reported_pending)} tone="warning" note="Check the bank" />
           </div>
-          <DataGrid
-            rows={data.customers}
-            columns={columns}
-            rowKey={(r) => r.customer_id}
-            caption={`Customers with a balance (${data.customers.length})`}
-            empty={<EmptyState title="Nothing is owed" hint="Every issued invoice is paid." />}
-          />
+          <section className="card overflow-clip">
+            <DataGrid
+              rows={data.customers}
+              columns={columns}
+              rowKey={(r) => r.customer_id}
+              caption={`Customers with a balance (${data.customers.length})`}
+              empty={<EmptyState title="Nothing is owed" hint="Every issued invoice is paid." />}
+            />
+          </section>
           <section className="card space-y-2 p-6 text-sm" aria-labelledby="pay-terms">
             <h2 id="pay-terms" className="font-semibold">
               Reminders and payment instructions

@@ -51,21 +51,44 @@
   --text-lg--line-height: 1.75rem;
   --text-xl: 1.5rem;
   --text-xl--line-height: 2rem;
+
+  /* Motion: short and calm. Everything below is switched off for prefers-reduced-motion. */
+  --ease-calm: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-enter: pt-enter 200ms var(--ease-calm) backwards;
+  --animate-fade: pt-fade 160ms ease-out backwards;
+  --animate-drawer: pt-drawer 220ms var(--ease-calm) backwards;
+  --animate-pop: pt-pop 180ms var(--ease-calm) backwards;
+  @keyframes pt-enter { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes pt-fade { from { opacity: 0; } }
+  @keyframes pt-drawer { from { transform: translateX(-100%); } }
+  @keyframes pt-pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 }
 
 html, body, #root { height: 100%; }
 body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: "cv11", "ss01"; }
 .num { font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid var(--color-brand-primary); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* In the base layer so a component's own focus style (inputs: border + soft ring) wins. */
+@layer base {
+  :focus-visible { outline: 2px solid var(--color-brand-primary); outline-offset: 2px; }
+  h1, h2, h3 { text-wrap: balance; }
+}
+/* The page scrolls inside <main>: keep its scrollbar space so content never jumps sideways
+   when a list finishes loading and the page becomes scrollable. */
+#main { scrollbar-gutter: stable; }
+dialog[open] { animation: var(--animate-pop); }
+dialog[open]::backdrop { animation: var(--animate-fade); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, ::backdrop { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
 
 @utility card { @apply bg-card rounded-[var(--radius-card)] shadow-[0_1px_2px_rgb(24_24_27/0.04)]; }
-@utility btn { @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50; }
+@utility btn { @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-colors duration-150 select-none active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0; }
 @utility btn-primary { @apply btn bg-brand-secondary text-white hover:bg-ink/85; }
 @utility btn-accent { @apply btn bg-brand-primary text-white hover:bg-brand-primary-hover; }
 @utility btn-ghost { @apply btn border border-line bg-card text-ink hover:bg-subtle; }
-@utility icon-btn { @apply grid size-11 shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-card text-ink transition-colors duration-200 hover:bg-subtle; }
-@utility input { @apply w-full rounded-[var(--radius-ctl)] border border-line bg-card px-4 py-2.5 text-sm text-ink transition-colors duration-200 placeholder:text-ink-muted focus:border-brand-primary focus:outline-none; }
+@utility icon-btn { @apply grid size-11 shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-card text-ink transition-colors duration-150 hover:bg-subtle active:translate-y-px; }
+/* Focused fields get the brand border plus a soft outline ring (an outline, not a shadow). */
+@utility input { @apply w-full rounded-[var(--radius-ctl)] border border-line bg-card px-4 py-2.5 text-sm text-ink transition-[border-color,outline-color] duration-150 outline-3 outline-offset-0 outline-transparent placeholder:text-ink-muted hover:border-brand-gray/60 focus:border-brand-primary focus:outline-brand-accent/20 disabled:cursor-not-allowed disabled:bg-subtle; }
 @utility label { @apply mb-1.5 block text-sm font-medium text-ink; }
 @utility alert-danger { @apply rounded-[var(--radius-ctl)] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger; }
 @utility alert-warning { @apply rounded-[var(--radius-ctl)] border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-ink; }
@@ -74,6 +97,8 @@ body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: "
 @utility th { @apply sticky top-0 z-10 border-b border-line bg-subtle px-5 py-3.5 text-left text-sm font-medium text-ink-muted; }
 @utility td { @apply border-b border-line px-5 py-4 text-sm; }
 @utility kicker { @apply text-sm font-medium text-ink-muted; }
+/* Loading placeholders: same size as what replaces them, so nothing jumps when data arrives. */
+@utility skeleton { @apply animate-pulse rounded-full bg-line/80; }
 
 /* Striped bars and tracks from the reference charts. */
 @utility hatch { background: repeating-linear-gradient(135deg, var(--color-line) 0 7px, var(--color-subtle) 7px 14px); }

@@ -164,26 +164,28 @@ export function DocumentsPage() {
           </select>
         </label>
       </div>
-      {error ? (
-        <ErrorState title="Couldn't load documents" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={7} />
-      ) : (
-        <>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            rowKey={(r) => r.id}
-            caption={`Documents (${page?.total ?? rows.length})`}
-            empty={<EmptyState title="No documents yet" hint="Issued invoices, uploaded scans and supplier documents appear here automatically." />}
-          />
-          {page?.next_cursor && (
-            <div className="flex justify-center">
-              <button className="btn-ghost" onClick={() => void load(page.next_cursor ?? undefined)}>Load more</button>
-            </div>
-          )}
-        </>
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load documents" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={7} />
+        ) : (
+          <>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              caption={`Documents (${page?.total ?? rows.length})`}
+              empty={<EmptyState title="No documents yet" hint="Issued invoices, uploaded scans and supplier documents appear here automatically." />}
+            />
+            {page?.next_cursor && (
+              <div className="flex justify-center border-t border-line p-4">
+                <button className="btn-ghost" onClick={() => void load(page.next_cursor ?? undefined)}>Load more</button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

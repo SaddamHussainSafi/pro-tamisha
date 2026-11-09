@@ -7,7 +7,7 @@ import { qtyText, wholeOnly } from "../lib/inventory";
 import { ordersMessage, PICK_STATUS, pickOutcome, SHORTAGE_LABEL } from "../lib/orders";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 import { ReasonDialog } from "./Orders";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
@@ -59,20 +59,22 @@ export function PickingPage() {
     <div className="space-y-5">
       <PageHeader title="Picking" subtitle="Scan or type a sheet code to open it. Record what was actually packed." />
       <FilterBar search={code} onSearch={setCode} options={QUEUES} value={queue} onChange={setQueue} placeholder="Sheet code (scan QR)" />
-      {error ? (
-        <ErrorState title="Couldn't load picking sheets" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={7} />
-      ) : (
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          rowKey={(r) => r.id}
-          caption={`Picking sheets (${rows.length})`}
-          onOpen={(r) => nav(`/picking/${r.id}`)}
-          empty={<EmptyState title="Nothing in this queue" hint="Sheets appear when an order's picking sheet is printed." />}
-        />
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load picking sheets" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={7} />
+        ) : (
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            rowKey={(r) => r.id}
+            caption={`Picking sheets (${rows.length})`}
+            onOpen={(r) => nav(`/picking/${r.id}`)}
+            empty={<EmptyState title="Nothing in this queue" hint="Sheets appear when an order's picking sheet is printed." />}
+          />
+        )}
+      </section>
     </div>
   );
 }
@@ -138,7 +140,7 @@ export function PickSheetPage() {
 
   if (!session) return null;
   if (loadErr) return <ErrorState title="Couldn't load this picking sheet" onRetry={() => void load()} />;
-  if (!p) return <LoadingRows cols={5} />;
+  if (!p) return <PageSkeleton />;
   const canRecord = canInWarehouse(session, "pick.record", p.warehouse_id) && ["CREATED", "IN_PROGRESS", "NEEDS_CORRECTION"].includes(p.status);
   const canVerify = canInWarehouse(session, "pick.verify", p.warehouse_id) && p.status === "SUBMITTED";
   const canClose = canInWarehouse(session, "sales_order.close", p.warehouse_id);

@@ -34,7 +34,7 @@ export function NumericInput({
     <div className={className}>
       <label htmlFor={id} className={hideLabel ? "sr-only" : "label"}>{label}</label>
       <div
-        className={`flex items-center rounded-[var(--radius-ctl)] bg-card focus-within:border-brand-primary ${
+        className={`flex items-center rounded-[var(--radius-ctl)] bg-card outline-3 outline-offset-0 outline-transparent transition-[border-color,outline-color] duration-150 focus-within:border-brand-primary focus-within:outline-brand-accent/20 ${
           invalid ? "border-2 border-danger" : low ? "border-2 border-warning" : "border border-line"
         }`}
       >

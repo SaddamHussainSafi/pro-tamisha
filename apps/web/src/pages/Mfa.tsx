@@ -1,19 +1,21 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
+import { returnTo } from "../lib/returnTo";
 import { Wordmark } from "../components/Wordmark";
 
 export function MfaPage() {
   const { status, session, setSession, logout } = useAuth();
+  const loc = useLocation();
   const [uri, setUri] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (status !== "authenticated" || !session) return <Navigate to="/login" replace />;
-  if (!session.mfa_required) return <Navigate to="/" replace />;
+  if (status !== "authenticated" || !session) return <Navigate to="/login" replace state={loc.state} />;
+  if (!session.mfa_required) return <Navigate to={returnTo(loc.state)} replace />;
 
   async function enroll() {
     setError(null);
@@ -48,7 +50,7 @@ export function MfaPage() {
 
   return (
     <main className="grid min-h-full place-items-center p-6">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm animate-enter">
         <div className="mb-6 flex justify-center"><Wordmark /></div>
         <div className="card space-y-4 p-6">
           <div>

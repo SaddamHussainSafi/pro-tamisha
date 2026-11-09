@@ -2,16 +2,45 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 /** Responsive card grid used for master data (products, customers, suppliers, …). */
+const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+
 export function CardGrid<T>({ items, keyOf, caption, empty, render }: { items: T[]; keyOf: (t: T) => string; caption: string; empty: ReactNode; render: (t: T) => ReactNode }) {
   if (!items.length) return <div className="card">{empty}</div>;
   return (
-    <ul aria-label={caption} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <ul aria-label={caption} className={GRID}>
       {items.map((t) => (
         <li key={keyOf(t)} className="flex">
           {render(t)}
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Card-shaped placeholders in the same grid, so the page keeps its shape while loading. */
+export function CardGridSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading">
+      <ul className={GRID} aria-hidden>
+        {Array.from({ length: count }, (_, i) => (
+          <li key={i} className="card flex flex-col gap-4 p-6">
+            <div className="flex items-center gap-3">
+              <div className="skeleton size-12 rounded-ctl" />
+              <div className="flex-1 space-y-2">
+                <div className="skeleton h-4 w-2/3" />
+                <div className="skeleton h-3 w-1/3" />
+              </div>
+            </div>
+            <div className="space-y-2.5">
+              <div className="skeleton h-3 w-full" />
+              <div className="skeleton h-3 w-5/6" />
+              <div className="skeleton h-3 w-2/3" />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <span className="sr-only">Loading…</span>
+    </div>
   );
 }
 
@@ -50,7 +79,7 @@ export function EntityCard({
   dim?: boolean;
 }) {
   return (
-    <article className={`card relative flex w-full flex-col gap-4 p-6 outline outline-1 outline-transparent transition-colors hover:outline-line ${dim ? "opacity-75" : ""}`}>
+    <article className={`card relative flex w-full flex-col gap-4 p-6 outline outline-1 outline-transparent transition-colors duration-150 ${to ? "hover:outline-brand-gray/50 has-[a:focus-visible]:outline-brand-primary" : ""} ${dim ? "opacity-75" : ""}`}>
       <header className="flex items-start gap-3">
         {media}
         <div className="min-w-0 flex-1">

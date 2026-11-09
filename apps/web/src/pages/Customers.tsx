@@ -7,10 +7,10 @@ import { buildCreate, buildPatch, customerMessage, EMPTY_FORM, formFrom, formPro
 import { ORDER_STATUS } from "../lib/orders";
 import { INVOICE_STATE } from "../lib/payments";
 import { DataGrid, type Column } from "../ui/DataGrid";
-import { CardGrid, EntityCard } from "../ui/CardGrid";
+import { CardGrid, CardGridSkeleton, EntityCard } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
 import { useViewMode } from "../lib/viewMode";
-import { Avatar, CardTitle, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { Avatar, CardTitle, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 type Status = "active" | "inactive" | "all";
 const STATUS_OPTIONS: { value: Status; label: string }[] = [
@@ -262,7 +262,7 @@ export function CustomersPage() {
           <>
             <ViewToggle value={view} onChange={setView} />
             {canManage && !creating && (
-              <button type="button" className="btn-accent" onClick={() => setCreating(true)}>
+              <button type="button" className="btn-primary" onClick={() => setCreating(true)}>
                 New customer
               </button>
             )}
@@ -299,9 +299,9 @@ export function CustomersPage() {
 
       <FilterBar search={search} onSearch={setSearch} options={STATUS_OPTIONS} value={status} onChange={setStatus} placeholder="Search name or reference">
         {groups.length > 0 && (
-          <label>
+          <label className="min-w-0 flex-1 sm:flex-none">
             <span className="sr-only">Filter by group</span>
-            <select className="input w-48 rounded-full py-2" value={group} onChange={(e) => setGroup(e.target.value)}>
+            <select className="input w-full rounded-full py-2 sm:w-48" value={group} onChange={(e) => setGroup(e.target.value)}>
               <option value="">All groups</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -314,9 +314,17 @@ export function CustomersPage() {
       </FilterBar>
 
       {loadError ? (
-        <ErrorState title="Couldn't load customers" onRetry={() => void load()} />
+        <div className="card">
+          <ErrorState title="Couldn't load customers" onRetry={() => void load()} />
+        </div>
       ) : rows === null ? (
-        <LoadingRows cols={6} />
+        view === "grid" ? (
+          <CardGridSkeleton />
+        ) : (
+          <div className="card overflow-clip">
+            <LoadingRows cols={6} />
+          </div>
+        )
       ) : view === "grid" ? (
         <CardGrid
           items={rows}
@@ -359,14 +367,16 @@ export function CustomersPage() {
           }}
         />
       ) : (
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          rowKey={(c) => c.id}
-          caption={`Customers (${rows.length})`}
-          onOpen={(c) => navigate(`/customers/${c.id}`)}
-          empty={<EmptyState title={q || group ? "No customers match" : "No customers yet"} hint={q || group ? "Try another search or group." : undefined} />}
-        />
+        <section className="card overflow-clip">
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            rowKey={(c) => c.id}
+            caption={`Customers (${rows.length})`}
+            onOpen={(c) => navigate(`/customers/${c.id}`)}
+            empty={<EmptyState title={q || group ? "No customers match" : "No customers yet"} hint={q || group ? "Try another search or group." : undefined} />}
+          />
+        </section>
       )}
 
       <Groups groups={groups} canManage={canManage} onAdded={loadGroups} />
@@ -469,7 +479,7 @@ export function CustomerDetailPage() {
   if (!session) return null;
   if (!allowed) return <NoAccess />;
   if (loadError) return <ErrorState title="Couldn't load this customer" detail={loadError} onRetry={() => void load()} />;
-  if (!c) return <LoadingRows cols={4} />;
+  if (!c) return <PageSkeleton />;
 
   const tabs = [
     { key: "details", label: "Details" },

@@ -35,12 +35,13 @@ export function SampleBanner({ children }: { children?: ReactNode }) {
 }
 
 /* ---------- PageHeader ---------- */
+// One title, one muted line, and the screen's actions on the right (the primary one last).
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[38px]">{title}</h1>
-        {subtitle && <p className="mt-1.5 text-base text-ink-muted">{subtitle}</p>}
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+      <div className="min-w-0 max-w-3xl">
+        <h1 className="text-[28px] font-semibold leading-tight tracking-tight sm:text-[34px]">{title}</h1>
+        {subtitle && <p className="mt-1 text-base text-ink-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
     </div>
@@ -50,9 +51,10 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 /* ---------- Card title row with the round "open" arrow from the references ---------- */
 export function CardTitle({ id, title, to, action }: { id?: string; title: ReactNode; to?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <h2 id={id} className="text-xl font-semibold tracking-tight">{title}</h2>
-      <div className="flex items-center gap-2">
+    // The title keeps at least 10rem; wide action rows (filters, CSV) drop below it on phones.
+    <div className="flex flex-wrap items-center gap-3">
+      <h2 id={id} className="min-w-[10rem] flex-1 text-xl font-semibold tracking-tight">{title}</h2>
+      <div className="ml-auto flex flex-wrap items-center gap-2">
         {action}
         {to && (
           <Link to={to} className="icon-btn size-12" aria-label={`Open ${typeof title === "string" ? title : "details"}`}>
@@ -103,11 +105,12 @@ export function KpiCard({
 }) {
   if (accent)
     return (
-      <div className={`flex flex-col justify-between gap-6 rounded-card bg-brand-primary p-6 text-white ${icon ? "min-h-[200px]" : ""}`}>
+      <div className={`flex flex-col justify-between gap-4 rounded-card bg-brand-primary p-6 text-white sm:gap-6 ${icon ? "sm:min-h-[200px]" : ""}`}>
+        {/* The icon tile shows from sm up; phones get a shorter card (note on top, then label + figure). */}
         {icon && (
-          <div className="flex items-start justify-between gap-3">
-            <span className="grid size-14 place-items-center rounded-ctl bg-white/15"><Icon name={icon} size={28} /></span>
-            {note && <span className="pt-1 text-sm font-medium text-white">{note}</span>}
+          <div className={`items-start justify-between gap-3 ${note ? "flex" : "hidden sm:flex"}`}>
+            <span className="hidden size-14 place-items-center rounded-ctl bg-white/15 sm:grid"><Icon name={icon} size={28} /></span>
+            {note && <span className="ml-auto pt-1 text-right text-sm font-medium text-white">{note}</span>}
           </div>
         )}
         <div className="min-w-0">
@@ -122,11 +125,11 @@ export function KpiCard({
     );
   const noteEl = note && <span className={`text-sm ${NOTE_TEXT[tone ?? "neutral"]}`}>{note}</span>;
   return (
-    <div className={`card flex flex-col justify-between gap-6 p-6 ${icon ? "min-h-[200px]" : ""}`}>
+    <div className={`card flex flex-col justify-between gap-4 p-6 sm:gap-6 ${icon ? "sm:min-h-[200px]" : ""}`}>
       {icon && (
-        <div className="flex items-start justify-between gap-3">
-          <span className="grid size-14 place-items-center rounded-ctl bg-brand-accent/10 text-brand-primary"><Icon name={icon} size={28} /></span>
-          {noteEl && <span className="pt-1 text-right">{noteEl}</span>}
+        <div className={`items-start justify-between gap-3 ${noteEl ? "flex" : "hidden sm:flex"}`}>
+          <span className="hidden size-14 place-items-center rounded-ctl bg-brand-accent/10 text-brand-primary sm:grid"><Icon name={icon} size={28} /></span>
+          {noteEl && <span className="ml-auto pt-1 text-right">{noteEl}</span>}
         </div>
       )}
       <div className="min-w-0">
@@ -295,7 +298,7 @@ export function Progress({ label, value, max, display }: { label: string; value:
         <span className="num text-sm font-semibold">{display}</span>
       </div>
       <div className="hatch mt-2.5 h-4 overflow-hidden rounded-full" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-valuetext={display}>
-        <div className="h-full rounded-full bg-brand-accent" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full bg-brand-accent transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -332,26 +335,28 @@ export function FilterBar<T extends string>({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status filter">
+      <div className="flex min-w-0 flex-wrap gap-1.5" role="group" aria-label="Status filter">
         {options.map((o) => (
           <button
             key={o.value}
             type="button"
             aria-pressed={value === o.value}
             onClick={() => onChange(o.value)}
-            className={`chip cursor-pointer px-3.5 py-1.5 text-[13px] ${value === o.value ? "border-brand-secondary bg-brand-secondary text-white" : "border-line bg-card text-ink hover:bg-subtle"}`}
+            className={`chip cursor-pointer px-3.5 py-1.5 text-[13px] transition-colors duration-150 ${value === o.value ? "border-brand-secondary bg-brand-secondary text-white" : "border-line bg-card text-ink hover:border-brand-gray/60 hover:bg-subtle"}`}
           >
             {o.label}
             {o.count !== undefined && <span className="num opacity-80">{o.count}</span>}
           </button>
         ))}
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      {/* Full width on phones (search grows, filters wrap); pinned right from sm up. */}
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
         {children}
-        <label className="relative">
+        <label className="relative min-w-0 flex-1 sm:flex-none">
           <span className="sr-only">{placeholder}</span>
           <Icon name="search" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
-          <input className="input w-60 max-w-full rounded-full py-2 pl-10" type="search" value={search} placeholder={placeholder} onChange={(e) => onSearch(e.target.value)} />
+          {/* data-page-search: the "/" shortcut focuses this field. */}
+          <input data-page-search className="input w-full rounded-full py-2 pl-10 sm:w-64" type="search" value={search} placeholder={placeholder} onChange={(e) => onSearch(e.target.value)} />
         </label>
       </div>
     </div>
@@ -359,12 +364,13 @@ export function FilterBar<T extends string>({
 }
 
 /* ---------- Empty / Error / Loading ---------- */
-export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
+export function EmptyState({ title, hint, action, icon = "inbox" }: { title: string; hint?: string; action?: ReactNode; icon?: IconName }) {
   return (
     <div className="grid place-items-center gap-2 px-6 py-12 text-center">
+      <span aria-hidden className="mb-1 grid size-12 place-items-center rounded-full bg-subtle text-ink-muted"><Icon name={icon} size={22} /></span>
       <div className="font-medium">{title}</div>
       {hint && <p className="max-w-sm text-sm text-ink-muted">{hint}</p>}
-      {action}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   );
 }
@@ -380,14 +386,41 @@ export function ErrorState({ title, detail, onRetry }: { title: string; detail?:
   );
 }
 
-export function LoadingRows({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
+// Table-shaped placeholder (header strip + rows at the real row height) so a list does not jump
+// when its data arrives. Put it where the table will be, inside the same card.
+const BAR_W = ["w-3/5", "w-4/5", "w-2/5", "w-3/4", "w-1/2", "w-2/3"];
+export function LoadingRows({ rows = 6, cols = 5 }: { rows?: number; cols?: number }) {
+  const grid = { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
   return (
-    <div role="status" aria-busy="true" aria-label="Loading" className="space-y-3 p-4">
+    <div role="status" aria-busy="true" aria-label="Loading" className="overflow-hidden">
+      <div className="grid gap-5 border-b border-line bg-subtle px-5 py-[1.15rem]" style={grid} aria-hidden>
+        {Array.from({ length: cols }, (_, c) => <div key={c} className="skeleton h-3 w-1/2" />)}
+      </div>
       {Array.from({ length: rows }, (_, r) => (
-        <div key={r} className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {Array.from({ length: cols }, (_, c) => <div key={c} className="h-4 animate-pulse rounded-full bg-line" />)}
+        <div key={r} className="grid gap-5 border-b border-line px-5 py-5 last:border-b-0" style={grid} aria-hidden>
+          {Array.from({ length: cols }, (_, c) => <div key={c} className={`skeleton h-3.5 ${BAR_W[(r + c) % BAR_W.length]}`} />)}
         </div>
       ))}
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
+}
+
+/** Whole-page placeholder: title, a line of filters and a card. Used while a screen or record loads. */
+export function PageSkeleton({ label = "Loading" }: { label?: string }) {
+  return (
+    <div role="status" aria-busy="true" aria-label={label} className="space-y-5">
+      <div className="space-y-3 pt-1" aria-hidden>
+        <div className="skeleton h-8 w-56 sm:h-9" />
+        <div className="skeleton h-4 w-full max-w-md" />
+      </div>
+      <div className="flex gap-2" aria-hidden>
+        {[16, 20, 14].map((w) => <div key={w} className="skeleton h-8" style={{ width: `${w * 0.275}rem` }} />)}
+      </div>
+      <div className="card overflow-hidden" aria-hidden>
+        <LoadingRows rows={5} cols={4} />
+      </div>
+      <span className="sr-only">{label}…</span>
     </div>
   );
 }

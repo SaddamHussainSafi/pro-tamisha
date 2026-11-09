@@ -21,7 +21,7 @@ import { useAuth } from "../auth";
 import { inventoryMessage, MOVEMENT_LABEL, qtyText, signed, stockUnits, wholeOnly } from "../lib/inventory";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip, type Tone } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip, type Tone } from "../ui/primitives";
 
 const LOT: Record<LotStatus, { tone: Tone; label: string }> = {
   SALEABLE: { tone: "success", label: "Saleable" },
@@ -343,7 +343,7 @@ function CountsTab({ tick, onChanged }: { tick: number; onChanged: () => void })
   }
 
   if (error) return <div className="card"><ErrorState title="Couldn't load counts" onRetry={() => void load()} /></div>;
-  if (rows === null) return <div className="card"><LoadingRows cols={5} /></div>;
+  if (rows === null) return <div className="card overflow-clip"><LoadingRows cols={5} /></div>;
   if (rows.length === 0) return <div className="card"><EmptyState title="No counts yet" hint="Record a physical count to correct stock against the shelf." /></div>;
   return (
     <div className="space-y-3">
@@ -698,7 +698,7 @@ export function LotPage() {
 
   if (!session) return null;
   if (loadFailed) return <div className="card"><ErrorState title="Couldn't load this lot" detail="It may be in a warehouse you can't access." onRetry={() => void load()} /></div>;
-  if (!lot) return <div className="card"><LoadingRows cols={4} /></div>;
+  if (!lot) return <PageSkeleton />;
   const canAdjust = canInWarehouse(session, "inventory.adjust", lot.warehouse_id);
   const canReverse = canInWarehouse(session, "inventory.reverse", lot.warehouse_id);
   const units = lot.balances.map((b) => b.unit_code);

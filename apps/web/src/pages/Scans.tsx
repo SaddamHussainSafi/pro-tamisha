@@ -8,7 +8,7 @@ import { DataGrid, type Column } from "../ui/DataGrid";
 import { OcrReviewPage, ReviewQueue, ScanReading } from "./OcrReview";
 import { OCR_STATUS } from "../lib/ocr";
 import { Icon, type IconName } from "../ui/Icon";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const when = (iso: string | null) =>
@@ -133,27 +133,29 @@ function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
     <div className="space-y-5">
       {createWh.length > 0 && <ScanStudio warehouses={createWh} onChanged={() => void load()} />}
       <FilterBar search={q} onSearch={setQ} options={VIEWS} value={view} onChange={setView} placeholder="Scan no. or file name" />
-      {error ? (
-        <ErrorState title="Couldn't load scans" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={7} />
-      ) : (
-        <>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            rowKey={(r) => r.id}
-            caption={`Scans (${total})`}
-            onOpen={(r) => nav(`/scan/${r.id}`)}
-            empty={<EmptyState title="No scans yet" hint="Scan a document from the office scanner, or upload a PDF or photo." />}
-          />
-          {next && (
-            <div className="flex justify-center">
-              <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>
-            </div>
-          )}
-        </>
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load scans" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={7} />
+        ) : (
+          <>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              caption={`Scans (${total})`}
+              onOpen={(r) => nav(`/scan/${r.id}`)}
+              empty={<EmptyState title="No scans yet" hint="Scan a document from the office scanner, or upload a PDF or photo." />}
+            />
+            {next && (
+              <div className="flex justify-center border-t border-line p-4">
+                <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -739,13 +741,15 @@ function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={showRevoked} onChange={(e) => setShowRevoked(e.target.checked)} /> Show revoked scanners
       </label>
-      {error ? (
-        <ErrorState title="Couldn't load scanners" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={7} />
-      ) : (
-        <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} caption={`Scanners (${rows.length})`} empty={<EmptyState title="No scanners yet" hint="Add the office scanner PC above to scan straight into Pro Trading." />} />
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load scanners" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={7} />
+        ) : (
+          <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} caption={`Scanners (${rows.length})`} empty={<EmptyState title="No scanners yet" hint="Add the office scanner PC above to scan straight into Pro Trading." />} />
+        )}
+      </section>
       {rows?.some((r) => r.detected_scanners) && (
         <section className="card space-y-3 p-6" aria-labelledby="found-h">
           <h2 id="found-h" className="text-base font-semibold">Scanners found on the office PC</h2>
@@ -850,7 +854,7 @@ export function ScanJobPage() {
   }, [job, load]);
 
   if (error && !job) return <ErrorState title="Couldn't load this scan" detail={error} onRetry={() => void load()} />;
-  if (!job) return <LoadingRows rows={3} cols={2} />;
+  if (!job) return <PageSkeleton />;
   const url = job.document_id ? scanDocumentUrl(job.document_id) : null;
   const inline = job.document_mime === "application/pdf" || job.document_mime === "image/png" || job.document_mime === "image/jpeg";
   return (

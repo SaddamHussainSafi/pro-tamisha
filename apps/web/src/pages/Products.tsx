@@ -21,7 +21,7 @@ import { dec, mul, cad, qty } from "../lib/decimal";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
-import { CardGrid, EntityCard, Tile } from "../ui/CardGrid";
+import { CardGrid, CardGridSkeleton, EntityCard, Tile } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
 import { useViewMode } from "../lib/viewMode";
 import { caseSizeText, priceBooks } from "../lib/caseSizes";
@@ -156,12 +156,14 @@ export function ProductsPage() {
         onChange={setStatus}
       >
         <label className="sr-only" htmlFor="cat-filter">Category</label>
-        <select id="cat-filter" className="input w-44 py-1.5" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <select id="cat-filter" className="input min-w-0 flex-1 rounded-full py-2 sm:w-48 sm:flex-none" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">All categories</option>
           {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </FilterBar>
-      {view === "grid" && !loadError && rows !== null ? (
+      {view === "grid" && !loadError && rows === null ? (
+        <CardGridSkeleton />
+      ) : view === "grid" && !loadError && rows !== null ? (
         <>
           <CardGrid
             items={rows}
@@ -186,17 +188,19 @@ export function ProductsPage() {
                     { label: "Sold by", value: UNIT_SHORT[r.stock_unit] },
                   ]}
                   chips={
-                    <>
-                      <StatusChip tone={r.active ? "success" : "neutral"}>{r.active ? "Active" : "Inactive"}</StatusChip>
-                      {r.tracks_expiry && <StatusChip tone="info">Expiry tracked</StatusChip>}
-                    </>
+                    !r.active || r.tracks_expiry ? (
+                      <>
+                        {!r.active && <StatusChip tone="neutral">Inactive</StatusChip>}
+                        {r.tracks_expiry && <StatusChip tone="info">Expiry tracked</StatusChip>}
+                      </>
+                    ) : undefined
                   }
                 />
               );
             }}
           />
           {next && (
-            <div className="text-center">
+            <div className="flex justify-center pt-1">
               <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>
             </div>
           )}

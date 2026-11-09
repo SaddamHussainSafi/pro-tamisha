@@ -22,7 +22,7 @@ import { dec } from "../lib/decimal";
 import { pricingMessage, rateText, scopeLabel } from "../lib/pricingErrors";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip, type Tone } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip, type Tone } from "../ui/primitives";
 
 const UNITS: UnitCode[] = ["LB", "KG", "BOX", "PIECE"];
 const UNIT_LABEL: Record<UnitCode, string> = { LB: "per lb", KG: "per kg", BOX: "per box", PIECE: "per piece" };
@@ -490,7 +490,7 @@ export function PriceVersionPage() {
 
   if (!session) return null;
   if (notFound) return <ErrorState title="Price book not found" detail="It may have been discarded." />;
-  if (!v) return <LoadingRows cols={5} />;
+  if (!v) return <PageSkeleton />;
   const canDraft = hasCompanyWide(session, "price.draft");
   const canApprove = hasCompanyWide(session, "price.approve");
   const editable = v.status === "DRAFT" && canDraft;

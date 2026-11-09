@@ -8,7 +8,7 @@ import { EMAIL_STATUS } from "../lib/invoices";
 import { ORDER_STATUS } from "../lib/orders";
 import { Icon } from "../ui/Icon";
 import { OverviewPanels } from "./OverviewPanels";
-import { Avatar, BarChart, CardTitle, DonutChart, EmptyState, KpiCard, LoadingRows, Progress, StatusChip, Trend } from "../ui/primitives";
+import { Avatar, BarChart, CardTitle, DonutChart, EmptyState, KpiCard, Progress, StatusChip, Trend } from "../ui/primitives";
 
 // Every figure here comes from the API. Payments are not built yet, so nothing claims "paid" or "overdue".
 type Data = { inv: Page<InvoiceSummary> | null; ord: Page<OrderSummary> | null; shp: Page<Shipment> | null };
@@ -77,12 +77,12 @@ export function OverviewPage() {
         <div className="flex flex-wrap items-center gap-3">
           <Link to="/scan" className="btn-ghost border-transparent py-3"><Icon name="scan" />Scan</Link>
           <Link to="/receiving" className="btn-ghost border-transparent py-3"><Icon name="receiving" />Receive</Link>
-          <Link to="/orders/new" className="btn-accent px-6 py-3"><Icon name="plus" />New order</Link>
+          <Link to="/orders/new" className="btn-primary px-6 py-3"><Icon name="plus" />New order</Link>
         </div>
       </section>
 
       {!data ? (
-        <div className="card"><LoadingRows rows={6} cols={4} /></div>
+        <OverviewSkeleton />
       ) : (
         <>
           <section aria-label="Key figures" className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${KPI_COLS[kpis] ?? "xl:grid-cols-4"}`}>
@@ -200,6 +200,34 @@ export function OverviewPage() {
           <OverviewPanels orders={orders} />
         </>
       )}
+    </div>
+  );
+}
+
+/** Same shape as the loaded overview (four figures, then the two charts), so it doesn't jump in. */
+function OverviewSkeleton() {
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading" className="space-y-7">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4" aria-hidden>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="card flex min-h-[200px] flex-col justify-between p-6">
+            <div className="skeleton size-14 rounded-ctl" />
+            <div className="space-y-3">
+              <div className="skeleton h-4 w-1/2" />
+              <div className="skeleton h-8 w-2/3" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12" aria-hidden>
+        <div className="card h-[30rem] p-6 xl:col-span-8">
+          <div className="skeleton h-6 w-40" />
+        </div>
+        <div className="card h-[30rem] p-6 xl:col-span-4">
+          <div className="skeleton h-6 w-40" />
+        </div>
+      </div>
+      <span className="sr-only">Loading…</span>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { EMAIL_STATUS, invoiceMessage, toWeightRows, weightTotals, type WeightDr
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { InvoiceFiles } from "./Documents";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const money = (v: string) => cad(dec(v));
@@ -75,34 +75,36 @@ export function InvoicesPage() {
         subtitle="Issued invoices never change. Prices and PDFs stay exactly as issued."
         actions={
           session && (has(session, "invoice.prepare") || has(session, "invoice.issue")) ? (
-            <Link className="btn-accent" to="/invoices/new">
+            <Link className="btn-primary" to="/invoices/new">
               Create invoice
             </Link>
           ) : undefined
         }
       />
       <FilterBar search={q} onSearch={setQ} options={VIEWS} value={view} onChange={setView} placeholder="Invoice no., order no. or customer" />
-      {error ? (
-        <ErrorState title="Couldn't load invoices" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={7} />
-      ) : (
-        <>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            rowKey={(r) => r.id}
-            caption={`Invoices (${total})`}
-            onOpen={(r) => nav(`/invoices/${r.id}`)}
-            empty={<EmptyState title="No invoices yet" hint="Invoices are issued from a verified picking sheet." action={<Link className="btn-ghost" to="/picking">Open picking</Link>} />}
-          />
-          {next && (
-            <div className="flex justify-center">
-              <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>
-            </div>
-          )}
-        </>
-      )}
+      <section className="card overflow-clip">
+        {error ? (
+          <ErrorState title="Couldn't load invoices" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={7} />
+        ) : (
+          <>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              caption={`Invoices (${total})`}
+              onOpen={(r) => nav(`/invoices/${r.id}`)}
+              empty={<EmptyState title="No invoices yet" hint="Invoices are issued from a verified picking sheet." action={<Link className="btn-ghost" to="/picking">Open picking</Link>} />}
+            />
+            {next && (
+              <div className="flex justify-center border-t border-line p-4">
+                <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -173,7 +175,7 @@ export function InvoicePage() {
 
   if (!session) return null;
   if (loadErr) return <ErrorState title="Couldn't load this invoice" onRetry={() => void load()} />;
-  if (!inv) return <LoadingRows cols={5} />;
+  if (!inv) return <PageSkeleton />;
   const canEmail =
     (canInWarehouse(session, "invoice.issue", inv.warehouse_id) || canInWarehouse(session, "invoice.prepare", inv.warehouse_id)) &&
     inv.email_status !== "QUEUED";
@@ -328,7 +330,7 @@ export function IssueInvoicePage() {
   }
   if (loadErr === "state") return <ErrorState title="This picking sheet isn't verified yet" detail="A supervisor must verify the pick first." onRetry={() => nav(`/picking/${id}`)} />;
   if (loadErr) return <ErrorState title="Couldn't load this picking sheet" onRetry={() => window.location.reload()} />;
-  if (!pick || !pv) return <LoadingRows cols={5} />;
+  if (!pick || !pv) return <PageSkeleton />;
   const canIssue = canInWarehouse(session, "invoice.issue", pick.warehouse_id);
   const weighable = pick.lines.filter((l) => pv.weighable_pick_line_ids.includes(l.id));
   const weightsReady = weighable.every((l) => {

@@ -4,7 +4,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
   timeout: 30_000,
-  use: { baseURL: "http://localhost:5173", viewport: { width: 1440, height: 900 } },
+  // Reduced motion: axe and screenshots see final colours, not a frame of the page fade-in.
+  use: { baseURL: "http://localhost:5173", viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" },
   webServer: [
     {
       command: "cd ../api && uv run uvicorn --app-dir src pro_trading.main:app --port 8000",

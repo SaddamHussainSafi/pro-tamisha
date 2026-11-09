@@ -17,7 +17,7 @@ import {
 import { useAuth } from "../auth";
 import { amountIn, balanceWords } from "../lib/suppliers";
 import { useViewMode } from "../lib/viewMode";
-import { CardGrid, EntityCard, Tile } from "../ui/CardGrid";
+import { CardGrid, CardGridSkeleton, EntityCard, Tile } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
 import { stockUnits, qtyText } from "../lib/inventory";
 import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
@@ -25,7 +25,7 @@ import { ACCEPT, checkFile, fileSize } from "../lib/scans";
 import { Icon } from "../ui/Icon";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 import { ReasonDialog } from "./Orders";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
@@ -124,20 +124,22 @@ export function ReceivingPage() {
       />
       {creating && <NewShipment warehouses={recordable} onCancel={() => setCreating(false)} onCreated={(s) => nav(`/receiving/${s.id}`)} />}
       <FilterBar search={search} onSearch={setSearch} options={VIEWS} value={view} onChange={setView} placeholder="Search shipment, invoice, waybill" />
-      {loadError ? (
-        <ErrorState title="Couldn't load shipments" onRetry={() => void load()} />
-      ) : rows === null ? (
-        <LoadingRows cols={8} />
-      ) : (
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          rowKey={(s) => s.id}
-          caption="Supplier shipments"
-          onOpen={(s) => nav(`/receiving/${s.id}`)}
-          empty={<EmptyState title="No shipments here" hint={view === "active" ? "Start one with New shipment when a delivery arrives." : undefined} />}
-        />
-      )}
+      <section className="card overflow-clip">
+        {loadError ? (
+          <ErrorState title="Couldn't load shipments" onRetry={() => void load()} />
+        ) : rows === null ? (
+          <LoadingRows cols={8} />
+        ) : (
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            rowKey={(s) => s.id}
+            caption="Supplier shipments"
+            onOpen={(s) => nav(`/receiving/${s.id}`)}
+            empty={<EmptyState title="No shipments here" hint={view === "active" ? "Start one with New shipment when a delivery arrives." : undefined} />}
+          />
+        )}
+      </section>
     </div>
   );
 }
@@ -271,7 +273,7 @@ export function ShipmentPage() {
 
   if (!session) return null;
   if (loadError) return <ErrorState title="Couldn't load this shipment" detail={loadError} onRetry={() => void load()} />;
-  if (!s) return <LoadingRows cols={5} />;
+  if (!s) return <PageSkeleton />;
 
   const canRecord = canInWarehouse(session, "grn.record", s.warehouse_id);
   const canApprove = canInWarehouse(session, "grn.approve", s.warehouse_id);
@@ -1037,9 +1039,17 @@ export function SuppliersPage() {
         </form>
       )}
       {loadError ? (
-        <ErrorState title="Couldn't load suppliers" onRetry={() => void load()} />
+        <div className="card">
+          <ErrorState title="Couldn't load suppliers" onRetry={() => void load()} />
+        </div>
       ) : rows === null ? (
-        <LoadingRows cols={6} />
+        view === "grid" ? (
+          <CardGridSkeleton />
+        ) : (
+          <div className="card overflow-clip">
+            <LoadingRows cols={6} />
+          </div>
+        )
       ) : view === "grid" ? (
         <CardGrid
           items={rows}
@@ -1078,7 +1088,9 @@ export function SuppliersPage() {
           }}
         />
       ) : (
-        <DataGrid rows={rows} columns={columns} rowKey={(v) => v.id} caption="Suppliers" empty={<EmptyState title="No suppliers yet" />} />
+        <section className="card overflow-clip">
+          <DataGrid rows={rows} columns={columns} rowKey={(v) => v.id} caption="Suppliers" empty={<EmptyState title="No suppliers yet" />} />
+        </section>
       )}
       {editing && (
         <form className="card grid gap-3 p-6 md:grid-cols-5 md:items-end" aria-label={`Edit ${editing.code}`} onSubmit={save}>

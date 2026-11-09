@@ -22,8 +22,9 @@ import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMe
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { Icon } from "../ui/Icon";
-import { ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 import { ReasonDialog } from "./Orders";
+import { useDebounced } from "../lib/useDebounced";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const when = (iso: string | null) =>
@@ -69,18 +70,19 @@ export function ReviewQueue({ warehouses }: { warehouses: Warehouse[] }) {
   const nav = useNavigate();
   const [view, setView] = useState<View>("todo");
   const [q, setQ] = useState("");
+  const query = useDebounced(q.trim());
   const [rows, setRows] = useState<OcrExtraction[] | null>(null);
   const [acc, setAcc] = useState<OcrAccuracy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
-      const r = await api.ocrExtractions({ status: VIEW_STATUS[view], q: q.trim() || undefined, limit: 100 });
+      const r = await api.ocrExtractions({ status: VIEW_STATUS[view], q: query || undefined, limit: 100 });
       setRows(r.items);
       setError(null);
     } catch (e) {
       setError(ocrMessage(e));
     }
-  }, [view, q]);
+  }, [view, query]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -124,20 +126,22 @@ export function ReviewQueue({ warehouses }: { warehouses: Warehouse[] }) {
         <OrderSheetCard warehouses={warehouses} />
       </div>
       <FilterBar search={q} onSearch={setQ} options={VIEWS} value={view} onChange={setView} placeholder="Scan no. or customer" />
-      {error && !rows ? (
-        <ErrorState title="Couldn't load scans to review" detail={error} onRetry={() => void load()} />
-      ) : !rows ? (
-        <LoadingRows rows={4} cols={6} />
-      ) : (
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          rowKey={(r) => r.id}
-          caption="Scanned orders to review"
-          onOpen={(r) => nav(`/scan/review/${r.id}`)}
-          empty={<EmptyState title={view === "todo" ? "Nothing to review" : "No scans here"} hint="Scanned sales orders are read automatically and appear here for checking." />}
-        />
-      )}
+      <section className="card overflow-clip">
+        {error && !rows ? (
+          <ErrorState title="Couldn't load scans to review" detail={error} onRetry={() => void load()} />
+        ) : !rows ? (
+          <LoadingRows rows={4} cols={6} />
+        ) : (
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            rowKey={(r) => r.id}
+            caption="Scanned orders to review"
+            onOpen={(r) => nav(`/scan/review/${r.id}`)}
+            empty={<EmptyState title={view === "todo" ? "Nothing to review" : "No scans here"} hint="Scanned sales orders are read automatically and appear here for checking." />}
+          />
+        )}
+      </section>
     </div>
   );
 }
@@ -308,7 +312,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   };
 
   if (error && !ex) return <ErrorState title="Couldn't load this reading" detail={error} onRetry={() => void load()} />;
-  if (!ex || !session) return embedded ? <p className="card p-6 text-sm text-ink-muted">Loading the recognized lines…</p> : <LoadingRows rows={4} cols={3} />;
+  if (!ex || !session) return embedded ? <p className="card p-6 text-sm text-ink-muted">Loading the recognized lines…</p> : <PageSkeleton />;
 
   const reviewing = ex.status === "NEEDS_REVIEW";
   const canAccept = canInWarehouse(session, "sales_order.manage", ex.warehouse_id);
