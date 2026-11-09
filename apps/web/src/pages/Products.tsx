@@ -21,6 +21,7 @@ import { dec, mul, cad, qty } from "../lib/decimal";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { ProductImage } from "../ui/ProductImage";
 import { CardGrid, CardGridSkeleton, EntityCard, Tile } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
 import { useViewMode } from "../lib/viewMode";
@@ -165,6 +166,7 @@ export function ProductsPage() {
         <CardGridSkeleton />
       ) : view === "grid" && !loadError && rows !== null ? (
         <>
+            wide
           <CardGrid
             items={rows}
             keyOf={(r) => r.id}
@@ -178,7 +180,7 @@ export function ProductsPage() {
                   to={`/products/${r.id}`}
                   title={r.name}
                   subtitle={`${r.sku} · ${catName(r.category_id)}`}
-                  media={<Tile text={r.name} muted={!r.active} />}
+                  image={<ProductImage sku={r.sku} fallback={<Tile text={r.name} muted />} />}
                   dim={!r.active}
                   facts={[
                     { label: "Case size", value: size ? caseSizeText(size) : <span className="text-ink-muted">Not set</span> },
@@ -422,6 +424,7 @@ export function ProductDetailPage() {
     <div className="space-y-5">
       <nav aria-label="Breadcrumb" className="text-sm"><Link className="text-ink-muted hover:underline" to="/products">Products</Link> / {prod.sku}</nav>
       <PageHeader
+        media={<span className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-ctl bg-card"><ProductImage sku={prod.sku} fallback={<Tile text={prod.name} />} /></span>}
         title={prod.name}
         subtitle={<>SKU <span className="font-medium">{prod.sku}</span> · stock unit {prod.stock_unit} · version <span className="num">{prod.version}</span></>}
         actions={

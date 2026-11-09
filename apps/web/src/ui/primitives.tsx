@@ -36,12 +36,15 @@ export function SampleBanner({ children }: { children?: ReactNode }) {
 
 /* ---------- PageHeader ---------- */
 // One title, one muted line, and the screen's actions on the right (the primary one last).
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions, media }: { title: string; subtitle?: ReactNode; actions?: ReactNode; media?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-      <div className="min-w-0 max-w-3xl">
-        <h1 className="text-[28px] font-semibold leading-tight tracking-tight sm:text-[34px]">{title}</h1>
-        {subtitle && <p className="mt-1 text-base text-ink-muted">{subtitle}</p>}
+      <div className="flex min-w-0 max-w-3xl items-center gap-5">
+        {media}
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-tight sm:text-[34px]">{title}</h1>
+          {subtitle && <p className="mt-1 text-base text-ink-muted">{subtitle}</p>}
+        </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
     </div>

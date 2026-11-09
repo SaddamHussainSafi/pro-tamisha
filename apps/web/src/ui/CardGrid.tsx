@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 
 /** Responsive card grid used for master data (products, customers, suppliers, …). */
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+/** Cards with a picture column need more width: as many ≥ 26rem columns as fit. */
+const WIDE = "grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))]";
 
-export function CardGrid<T>({ items, keyOf, caption, empty, render }: { items: T[]; keyOf: (t: T) => string; caption: string; empty: ReactNode; render: (t: T) => ReactNode }) {
+export function CardGrid<T>({ items, keyOf, caption, empty, render, wide = false }: { items: T[]; keyOf: (t: T) => string; caption: string; empty: ReactNode; render: (t: T) => ReactNode; wide?: boolean }) {
   if (!items.length) return <div className="card">{empty}</div>;
   return (
-    <ul aria-label={caption} className={GRID}>
+    <ul aria-label={caption} className={wide ? WIDE : GRID}>
       {items.map((t) => (
         <li key={keyOf(t)} className="flex">
           {render(t)}
@@ -64,6 +66,7 @@ export function EntityCard({
   title,
   subtitle,
   media,
+  image,
   facts,
   chips,
   actions,
@@ -73,13 +76,15 @@ export function EntityCard({
   title: ReactNode;
   subtitle?: ReactNode;
   media?: ReactNode;
+  /** A picture down the left of the card (e.g. a product photo), filling that column. */
+  image?: ReactNode;
   facts?: { label: string; value: ReactNode }[];
   chips?: ReactNode;
   actions?: ReactNode;
   dim?: boolean;
 }) {
-  return (
-    <article className={`card relative flex w-full flex-col gap-4 p-6 outline outline-1 outline-transparent transition-colors duration-150 ${to ? "hover:outline-brand-gray/50 has-[a:focus-visible]:outline-brand-primary" : ""} ${dim ? "opacity-75" : ""}`}>
+  const body = (
+    <>
       <header className="flex items-start gap-3">
         {media}
         <div className="min-w-0 flex-1">
@@ -110,6 +115,18 @@ export function EntityCard({
           {chips}
           {actions && <div className="relative z-10 ml-auto flex flex-wrap gap-1.5">{actions}</div>}
         </footer>
+      )}
+    </>
+  );
+  return (
+    <article className={`card relative flex w-full gap-4 p-6 outline outline-1 outline-transparent transition-colors duration-150 ${image ? "flex-row gap-5" : "flex-col"} ${to ? "hover:outline-brand-gray/50 has-[a:focus-visible]:outline-brand-primary" : ""} ${dim ? "opacity-75" : ""}`}>
+      {image ? (
+        <>
+          <div className="relative grid min-h-32 w-28 shrink-0 place-items-center overflow-hidden rounded-ctl bg-subtle sm:w-36">{image}</div>
+          <div className="flex min-w-0 flex-1 flex-col gap-4">{body}</div>
+        </>
+      ) : (
+        body
       )}
     </article>
   );
