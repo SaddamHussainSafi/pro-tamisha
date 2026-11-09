@@ -56,7 +56,9 @@ function LiveRegion() {
   const [text, setText] = useState("");
   useEffect(() => subscribe((e) => e.type === "notification" && setText(`New notification: ${e.item.title}`)), [subscribe]);
   return (
-    <div className="sr-only" role="status" aria-live="polite">
+    // aria-live without role="status": the shell is on every screen, and screens (and their tests)
+    // own the one status message per page.
+    <div className="sr-only" aria-live="polite" aria-atomic="true">
       {text}
     </div>
   );
