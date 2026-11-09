@@ -1,16 +1,9 @@
-// Text-only wordmark. Official Tamisha logo files are pending verification/permission
-// (design/BRAND_VERIFICATION.md); no substitute artwork is generated.
-export function Wordmark({ inverse = false, compact = false }: { inverse?: boolean; compact?: boolean }) {
-  return (
-    <div className="flex items-center gap-2 select-none">
-      <span aria-hidden className="grid size-11 place-items-center rounded-full bg-brand-primary text-sm font-bold tracking-tight text-white">
-        PT
-      </span>
-      {!compact && (
-        <span className={`text-[19px] font-semibold tracking-tight ${inverse ? "text-white" : "text-ink"}`}>
-          Pro Trading
-        </span>
-      )}
-    </div>
+// Tamisha Trading Inc. logo supplied by the owner (2026-11-09); files in public/brand/.
+// Collapsed sidebar shows the square emblem only. Alt text names the company for screen readers.
+export function Wordmark({ compact = false, className = "" }: { compact?: boolean; className?: string }) {
+  return compact ? (
+    <img src="/brand/tamisha-trading-mark.webp" alt="Tamisha Trading Inc." width={48} height={48} className={`size-12 select-none ${className}`} draggable={false} />
+  ) : (
+    <img src="/brand/tamisha-trading-logo.webp" alt="Tamisha Trading Inc." width={800} height={222} className={`h-12 w-auto max-w-full select-none ${className}`} draggable={false} />
   );
 }

@@ -25,7 +25,7 @@ test("warehouse user signs in, sees shell, cannot manage, signs out", async ({ p
   await page.getByLabel("Password").fill(fx.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await expect(page.getByText("Pro Trading").first()).toBeVisible();
+  await expect(page.getByRole("img", { name: "Tamisha Trading Inc." }).first()).toBeVisible();
   await page.getByRole("link", { name: /Settings/ }).click();
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: fx.users.warehouse })).toBeVisible();
