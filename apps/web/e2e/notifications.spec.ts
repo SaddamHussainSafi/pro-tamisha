@@ -267,7 +267,7 @@ test("phone width: the panel is a full-width sheet and nothing scrolls sideways"
   await panel.getByRole("button", { name: "Close notifications" }).click();
   await expect(panel).toBeHidden();
   await page.goto("/notifications");
-  await expect(page.getByRole("heading", { name: "Notifications", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity", level: 1 })).toBeVisible();
   await expect(page.getByTestId("notification-card").first()).toBeVisible();
   const sideways = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth || (document.getElementById("main")?.scrollWidth ?? 0) > window.innerWidth);
   expect(sideways).toBe(false);

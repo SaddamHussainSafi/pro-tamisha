@@ -16,6 +16,7 @@ from .bodylimit import BodySizeLimit
 from .config import get_settings
 from .routes import (
     account,
+    activity,
     admin,
     auth,
     catalog,
@@ -189,6 +190,7 @@ def create_app() -> FastAPI:
         security.router,
         suppliers.router,
         notifications.router,
+        activity.router,
         order_connect.router,
         public_orders.router,
         trash.router,

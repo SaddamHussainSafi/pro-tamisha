@@ -9,10 +9,11 @@ import { groupByDay } from "../lib/notifications";
 import type { Category, Severity } from "../lib/notificationsApi";
 import { useDebounced } from "../lib/useDebounced";
 import { Icon } from "../ui/Icon";
-import { ErrorState, PageHeader } from "../ui/primitives";
+import { ErrorState } from "../ui/primitives";
 
-/** Full history: filter, search, open, read/unread, dismiss and restore; loads older pages on scroll. */
-export function NotificationCenterPage() {
+/** The Activity page's "Notifications" tab: your own alerts — filter, search, open, read/unread,
+ * dismiss and restore; loads older pages on scroll. */
+export function NotificationsView() {
   const { summary, live, prefs } = useNotifications();
   const [params, setParams] = useSearchParams();
   // Filters live in state (the router applies URL changes as low-priority transitions, so reading
@@ -25,7 +26,7 @@ export function NotificationCenterPage() {
   }));
   const debounced = useDebounced(filter.q.trim(), 300);
   useEffect(() => {
-    const p = new URLSearchParams();
+    const p = new URLSearchParams({ view: "notifications" });
     if (filter.status !== "all") p.set("status", filter.status);
     if (filter.category) p.set("category", filter.category);
     if (filter.severity) p.set("priority", filter.severity);
@@ -68,30 +69,25 @@ export function NotificationCenterPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Notifications"
-        subtitle={
-          <span className="inline-flex flex-wrap items-center gap-x-3">
-            <span>{unread ? `${unread} unread` : "You're all caught up"}</span>
-            <span className="inline-flex items-center gap-1.5 text-sm" role="status">
-              <span aria-hidden className={`size-2 rounded-full ${live ? "bg-success" : "bg-brand-gray"}`} />
-              {live ? "Live" : "Connecting…"}
-            </span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <p className="flex flex-wrap items-center gap-x-3 text-base text-ink-muted">
+          <span>{unread ? `${unread} unread` : "You're all caught up"}</span>
+          <span className="inline-flex items-center gap-1.5 text-sm" role="status">
+            <span aria-hidden className={`size-2 rounded-full ${live ? "bg-success" : "bg-brand-gray"}`} />
+            {live ? "Live" : "Connecting…"}
           </span>
-        }
-        actions={
-          <>
-            <Link to="/settings/notifications" className="btn-ghost">
-              <Icon name="settings" size={18} />
-              Preferences
-            </Link>
-            <button type="button" className="btn-primary" onClick={() => void inbox.readAll()} disabled={!unread}>
-              <Icon name="checkAll" size={18} />
-              Mark all as read
-            </button>
-          </>
-        }
-      />
+        </p>
+        <div className="ml-auto flex flex-wrap gap-2.5">
+          <Link to="/settings/notifications" className="btn-ghost">
+            <Icon name="settings" size={18} />
+            Preferences
+          </Link>
+          <button type="button" className="btn-primary" onClick={() => void inbox.readAll()} disabled={!unread}>
+            <Icon name="checkAll" size={18} />
+            Mark all as read
+          </button>
+        </div>
+      </div>
       <NotificationFilters value={filter} onChange={setFilter} />
       {/* On phones the notification tiles sit straight on the page (no card around them), so the
           text gets the full width; from sm up they share one card like other list screens. */}

@@ -151,18 +151,26 @@ export function NotificationPopover({ id, onClose, anchor }: { id: string; onClo
         )}
       </div>
 
-      <div className="border-t border-line bg-card px-5 py-3">
-        <button
-          type="button"
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-ink transition-colors duration-150 hover:bg-subtle"
-          onClick={() => {
-            close(false);
-            navigate("/notifications");
-          }}
-        >
-          Open Notification Center
-          <Icon name="chevron" size={16} />
-        </button>
+      <div className="grid grid-cols-2 gap-1 border-t border-line bg-card px-3 py-2.5">
+        {(
+          [
+            ["All notifications", "/activity?view=notifications"],
+            ["Activity", "/activity"],
+          ] as const
+        ).map(([label, to]) => (
+          <button
+            key={to}
+            type="button"
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-ink transition-colors duration-150 hover:bg-subtle"
+            onClick={() => {
+              close(false);
+              navigate(to);
+            }}
+          >
+            {label}
+            <Icon name="chevron" size={15} />
+          </button>
+        ))}
       </div>
     </div>
   );

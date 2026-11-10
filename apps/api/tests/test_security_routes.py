@@ -49,6 +49,8 @@ SELF_SERVICE = {
     ("post", "/api/v1/auth/sessions/{session_id}/revoke"),
     ("post", "/api/v1/auth/sessions/revoke-others"),
     ("get", "/api/v1/auth/activity"),
+    # Activity feed: own actions for everyone; colleagues' only with audit.read.
+    ("get", "/api/v1/activity"),
     # Notification Center: only ever the caller's own inbox and preferences.
     ("get", "/api/v1/notifications"),
     ("get", "/api/v1/notifications/summary"),

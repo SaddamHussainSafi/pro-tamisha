@@ -17,7 +17,7 @@ const chunks = {
   invoices: () => import("./pages/Invoices"),
   mfa: () => import("./pages/Mfa"),
   newInvoice: () => import("./pages/NewInvoice"),
-  notifications: () => import("./pages/Notifications"),
+  activity: () => import("./pages/Activity"),
   ocrReview: () => import("./pages/OcrReview"),
   orderConnect: () => import("./pages/OrderConnect"),
   orderConnectBuilder: () => import("./pages/OrderConnectBuilder"),
@@ -50,7 +50,7 @@ const InvoicePage = page(chunks.invoices, (m) => m.InvoicePage);
 const IssueInvoicePage = page(chunks.invoices, (m) => m.IssueInvoicePage);
 const MfaPage = page(chunks.mfa, (m) => m.MfaPage);
 const NewInvoicePage = page(chunks.newInvoice, (m) => m.NewInvoicePage);
-const NotificationCenterPage = page(chunks.notifications, (m) => m.NotificationCenterPage);
+const ActivityPage = page(chunks.activity, (m) => m.ActivityPage);
 const OcrReviewPage = page(chunks.ocrReview, (m) => m.OcrReviewPage);
 const OcOverviewPage = page(chunks.orderConnect, (m) => m.OcOverviewPage);
 const OcSubmissionsPage = page(chunks.orderConnect, (m) => m.OcSubmissionsPage);
@@ -178,7 +178,8 @@ export function App() {
           <Route path="settings/roles" element={<SettingsPage />} />
           <Route path="settings/security" element={<SettingsPage />} />
           <Route path="settings/notifications" element={<SettingsPage />} />
-          <Route path="notifications" element={<NotificationCenterPage />} />
+          <Route path="activity" element={<ActivityPage />} />
+          <Route path="notifications" element={<Navigate to="/activity?view=notifications" replace />} />
           <Route path="trash" element={<TrashPage />} />
           <Route path="settings/*" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -60,10 +60,22 @@ to 240 per minute per employee. Muting the security category needs `employee.man
   Lock picks the leader tab, a BroadcastChannel relays events), `NotificationBell`,
   `NotificationPopover`, `NotificationCard`, `NotificationGroup` (Today / Yesterday / Earlier,
   stacks of 3+ from one module), `NotificationFilters`, `NotificationPreferences`, `useInbox`.
-- `pages/Notifications.tsx`: `NotificationCenterPage` (filters in the URL, infinite scroll).
+- `pages/Notifications.tsx`: `NotificationsView`, the Activity page's Notifications tab (filters in the URL, infinite scroll). `pages/Activity.tsx` + `components/activity/ActivityTimeline.tsx`: the Activity tab.
 - Desktop notifications use the Web Notifications API only after the person presses "Allow…"
   in Settings and only when the app is in the background; sound is a WebAudio chime (no asset).
   Quiet hours hold back banners, desktop alerts, sounds and emails, never the inbox.
+
+## Activity page (2026-11-09)
+
+`/activity` (sidebar › Analytics › Activity) has two tabs. **Activity** is a timeline of who did
+what, built from the audit log by `pro_trading/activity.py` (`GET /api/v1/activity`): committed,
+successful business actions only (products, prices, customers, suppliers, orders, picking,
+invoices, payments, stock, receiving, scans, website orders, users invited, items moved to /
+restored from the bin), each as "Person verb — Object (detail)" with a tag. Everyone sees their
+own actions; `audit.read` adds colleagues' (company-wide, or the warehouses the grant covers);
+"Show my activities only" and the row menu's "Only <name>'s activity" narrow it. Links are
+dropped for records that no longer exist. **Notifications** is the inbox above; the old
+`/notifications` address opens that tab.
 
 ## Adding an event
 
