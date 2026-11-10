@@ -700,11 +700,17 @@ def to_receiving(
             )  # fmt: skip
             db.add(s)
             db.flush()
+        # The airway bill read from an airport packet (or corrected by the reviewer)
+        hdr = ex.header or {}
+        cell = hdr.get("awb_no") or {}
+        awb = cell.get("corrected", cell.get("value"))
+        if awb and not s.awb_no:
+            s.awb_no = str(awb)[:64]
         job = db.get(ScanJob, ex.scan_job_id)
         assert job is not None
-        link = _attach(
-            db, s, p, ex.document_id, job.id, _DOC_KIND.get(job.job_type, "OTHER"), doc_no
-        )
+        packet = (hdr.get("kind") or {}).get("value") == "AIR_PACKET"
+        kind = "COMBINED" if packet else _DOC_KIND.get(job.job_type, "OTHER")
+        link = _attach(db, s, p, ex.document_id, job.id, kind, doc_no)
         for f in keep:
             assert f.final_product_id and f.final_unit_code and f.final_qty
             db.add(

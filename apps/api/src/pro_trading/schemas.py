@@ -2203,6 +2203,9 @@ class OcrHeaderFixIn(BaseModel):
         "subtotal",
         "tax",
         "total",
+        "awb_no",
+        "carrier",
+        "arrival_date",
     ]
     value: str | None = Field(default=None, max_length=120)
     reason: str = Field(default="", max_length=300)

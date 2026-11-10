@@ -30,6 +30,9 @@ const WARNING: Record<string, string> = {
   CUSTOMER_NOT_FOUND: "The customer reference on the sheet didn't match a customer. Choose the customer.",
   NO_LINES: "No order lines were found. Add them by hand, or reject the scan.",
   OCR_DISABLED: "Automatic reading is switched off. Add the lines by hand from the scan.",
+  SUPPLIER_NOT_FOUND: "The supplier isn't one of yours yet. Choose the supplier before sending to Receiving.",
+  PACKET_TOTAL_MISMATCH: "The total printed on the invoice or CFIA form doesn't match the lines. Check the amounts.",
+  PACKET_INVOICE_MISMATCH: "The vendor invoice and the CFIA Confirmation of Sale don't agree. Check the lines.",
 };
 export const warningText = (code: string) => WARNING[code] ?? code;
 

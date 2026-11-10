@@ -46,5 +46,6 @@ describe("ocr helpers", () => {
     expect(ocrMessage(new Error("boom"))).toMatch(/Nothing was saved/);
     expect(warningText("NO_TEXT")).toMatch(/by hand/);
     expect(warningText("ODD")).toBe("ODD");
+    expect(warningText("PACKET_INVOICE_MISMATCH")).toMatch(/CFIA Confirmation of Sale/);
   });
 });

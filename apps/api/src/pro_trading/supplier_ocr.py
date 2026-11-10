@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from . import airway_packet
 from .models import OcrExtraction, Shipment, Vendor
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
 SUPPLIER_TYPES = ("VENDOR_DOCUMENT", "PURCHASE_ORDER", "DELIVERY_NOTE", "PACKING_LIST", "RECEIPT")
 HEADER_FIELDS = (
     "supplier", "document_no", "document_date", "due_date", "currency", "subtotal", "tax", "total",
+    "awb_no", "carrier", "arrival_date",
 )  # fmt: skip
 CURRENCIES = ("USD", "CAD", "EUR", "GBP", "GHS", "JMD", "NGN", "TTD", "XCD")
 CENT = Decimal("0.01")
@@ -130,9 +132,15 @@ def read(
     make: Any,
 ) -> SupplierReading:
     """`make(**kw)` builds a Proposal (passed in to avoid an import cycle)."""
+    texts = [_row_text(r) for r in rows]
+    if airway_packet.detect(texts):  # airport delivery: customs packet with its own layout
+        h, vendor_id, lines, warns = airway_packet.read(
+            db, company_id, rows, cat, threshold, make, _val, _box
+        )
+        packet = {f: h.get(f, _val(None, [])) for f in HEADER_FIELDS} | {"kind": h["kind"]}
+        return SupplierReading(packet, vendor_id, lines, warns)
     header: dict[str, dict[str, Any]] = {f: _val(None, []) for f in HEADER_FIELDS}
     warnings: list[str] = []
-    texts = [_row_text(r) for r in rows]
 
     # supplier: a known supplier's name or code anywhere in the first rows
     vendors = db.scalars(select(Vendor).where(Vendor.company_id == company_id)).all()
@@ -164,6 +172,10 @@ def read(
             d, amb = parse_date(t)
             if d:
                 header["document_date"] = _val(d.isoformat(), r, ambiguous=amb)
+        if header["awb_no"]["value"] is None and re.search(r"a\.?\s*w\.?\s*b\b|waybill", t, re.I):
+            if awb := airway_packet.awb_number(t):
+                header["awb_no"] = _val(awb, r)
+                header["carrier"] = _val(airway_packet.AIRLINES.get(awb[:3]), [])
         if header["currency"]["value"] is None:
             cur = next((c for c in CURRENCIES if re.search(rf"\b{c}\b", t)), None)
             if cur:

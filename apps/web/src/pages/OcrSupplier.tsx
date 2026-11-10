@@ -92,13 +92,20 @@ const LABEL: Record<string, string> = {
   subtotal: "Subtotal",
   tax: "Tax",
   total: "Total",
+  awb_no: "Airway bill",
+  carrier: "Carrier",
+  arrival_date: "Delivered",
 };
+/** Shown only for airport packets or when the document has them. */
+const AIR_FIELDS = new Set(["awb_no", "carrier", "arrival_date"]);
 const WARN: Record<string, string> = {
   SUPPLIER_NOT_FOUND: "The supplier isn't one of yours yet. Choose the supplier below.",
   LINES_NOT_EQUAL_SUBTOTAL: "The lines don't add up to the subtotal.",
   TOTALS_DONT_ADD_UP: "Subtotal plus tax doesn't equal the total.",
   NO_LINES: "No product lines were found. Add them by hand.",
   NO_TEXT: "No text could be read. Check the scan quality.",
+  PACKET_TOTAL_MISMATCH: "The total printed on the invoice or CFIA form doesn't match the lines. Check the amounts.",
+  PACKET_INVOICE_MISMATCH: "The vendor invoice and the CFIA Confirmation of Sale don't agree. Check the lines.",
 };
 function warnText(w: string): string {
   if (w.startsWith("LINE_MATH:")) return `Line ${w.split(":")[1]}: quantity × price doesn't match the amount.`;
@@ -124,6 +131,9 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
   return (
     <section aria-labelledby="hdr-h" className="card space-y-3 p-6">
       <h2 id="hdr-h" className="text-lg font-semibold">Document details</h2>
+      {h.kind?.value === "AIR_PACKET" && (
+        <p className="text-sm text-ink-muted">Read as an airport delivery packet (customs declaration, vendor invoice and CFIA Confirmation of Sale). Product lines come from the Confirmation of Sale, checked against the invoice.</p>
+      )}
       {(ex.warnings ?? []).length > 0 && (
         <ul className="space-y-1">
           {ex.warnings.map((w) => (
@@ -140,7 +150,7 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
         </p>
       )}
       <dl className="divide-y divide-line rounded-ctl border border-line">
-        {Object.keys(LABEL).map((k) => {
+        {Object.keys(LABEL).filter((k) => !AIR_FIELDS.has(k) || h.kind?.value === "AIR_PACKET" || h[k]?.value != null || h[k]?.corrected != null).map((k) => {
           const c = h[k];
           const shown = c?.corrected !== undefined ? c.corrected : c?.value;
           const low = c?.confidence != null && Number(c.confidence) < threshold;

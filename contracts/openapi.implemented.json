@@ -6915,7 +6915,10 @@
               "currency",
               "subtotal",
               "tax",
-              "total"
+              "total",
+              "awb_no",
+              "carrier",
+              "arrival_date"
             ],
             "title": "Field",
             "type": "string"
