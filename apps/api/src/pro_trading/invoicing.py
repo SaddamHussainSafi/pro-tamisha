@@ -37,6 +37,7 @@ from .models import (
     PickingAttempt,
     PickingLine,
     Product,
+    ProductUnitProfile,
     SalesOrder,
     SalesOrderLine,
     StockMovement,
@@ -71,6 +72,9 @@ class DraftLine:
     unit_rate: Decimal
     pricing_snapshot: dict[str, Any]
     tax_rate: Decimal = ZERO
+    # Pounds per unit printed on the invoice (D-12 "CASE-40" / LBS / KG columns): the entered
+    # case weight on weighed rows, else the product's default case size for the unit.
+    pack_lb: Decimal | None = None
 
     @property
     def line_amount(self) -> Decimal:
@@ -100,6 +104,7 @@ class DraftLine:
             "tax_amount": str(self.tax_amount),
             "price_version_code": snap.get("version_code"),
             "price_scope": snap.get("scope"),
+            "pack_lb": s(self.pack_lb),
         }
 
 
@@ -148,6 +153,7 @@ def compute(
         .order_by(SalesOrderLine.line_no)
     ).all()
     by_id = {pl.id: (pl, ol, prod) for pl, ol, prod in rows}
+    packs = _pack_weights(db, {prod.id for _, _, prod in rows})
     for pid in weights:
         if pid not in by_id or not (by_id[pid][0].picked_qty or ZERO) > 0:
             raise ApiError(422, "INVALID_LINE", "Weights given for a line with nothing picked")
@@ -197,8 +203,11 @@ def compute(
             snap = quote.snapshot() | {"basis": "CATCH_WEIGHT_LB"}
             for w, n in grouped.items():
                 d.lines.append(
-                    DraftLine(pl, ol, prod, "LB", Decimal(n), w, "ENTERED", w * n, quote.rate, snap)
-                )
+                    DraftLine(
+                        pl, ol, prod, "LB", Decimal(n), w, "ENTERED", w * n, quote.rate, snap,
+                        pack_lb=w,
+                    )
+                )  # fmt: skip
         else:
             if ol.rate is None:  # confirmed orders always carry a rate; defensive
                 raise ApiError(409, "NO_PRICE", f"{prod.sku} has no confirmed rate")
@@ -214,9 +223,30 @@ def compute(
                     picked,
                     ol.rate,
                     dict(ol.price_snapshot or {}),
+                    pack_lb=packs.get((prod.id, ol.unit_code)),
                 )
             )
     return d
+
+
+def _pack_weights(db: Session, product_ids: set[uuid.UUID]) -> dict[tuple[uuid.UUID, str], Decimal]:
+    """(product, unit) -> lb per unit of the active case size, the product's default first."""
+    if not product_ids:
+        return {}
+    profs = db.scalars(
+        select(ProductUnitProfile)
+        .where(
+            ProductUnitProfile.product_id.in_(product_ids),
+            ProductUnitProfile.active.is_(True),
+            ProductUnitProfile.weight_lb_per_unit.is_not(None),
+        )
+        .order_by(ProductUnitProfile.is_default.desc(), ProductUnitProfile.code)
+    ).all()
+    out: dict[tuple[uuid.UUID, str], Decimal] = {}
+    for pr in profs:
+        assert pr.weight_lb_per_unit is not None
+        out.setdefault((pr.product_id, pr.unit_code), pr.weight_lb_per_unit)
+    return out
 
 
 # ------------------------------------------------------------------ stock
@@ -354,7 +384,14 @@ def _next_number(db: Session, company_id: uuid.UUID, year: int) -> tuple[int, st
     )
     assert seq is not None
     seq.last_no += 1
-    return seq.last_no, f"{get_settings().invoice_prefix}-{year}-{seq.last_no:06d}"
+    return seq.last_no, invoice_number(get_settings().invoice_prefix, year, seq.last_no)
+
+
+def invoice_number(prefix: str, year: int, seq_no: int) -> str:
+    """`TT2026-000001` (D-11/D-12): prefix + fiscal year + 6-digit yearly sequence, room for
+    999,999 invoices a year (~2,700 a day). The sequence carries on from numbers already
+    issued in the year, so `(fiscal_year, seq_no)` stays unique and gapless."""
+    return f"{prefix}{year}-{seq_no:06d}"
 
 
 def issue(
@@ -364,6 +401,8 @@ def issue(
     attempt: PickingAttempt,
     weights: dict[uuid.UUID, list[Any]],
     note: str,
+    salesperson: str = "",
+    customer_po: str = "",
 ) -> Invoice:
     """Caller holds the order + attempt locks and has checked state/version/permission."""
     st = get_settings()
@@ -397,14 +436,30 @@ def issue(
         "issued_date": issued_at.astimezone(tz).date().isoformat(),
         "due_date": due_at.astimezone(tz).date().isoformat(),
         "currency": "CAD",
-        "company": {"id": str(company.id), "legal_name": company.legal_name},
+        "company": {
+            "id": str(company.id),
+            "legal_name": company.legal_name,
+            "address": company.address,
+            "phone": company.phone,
+            "fax": company.fax,
+            "email": company.email,
+            "business_no": company.business_no,
+        },
         "customer": {
             "id": str(customer.id),
             "external_ref": customer.external_ref,
             "name": customer.name,
             "email": customer.email,
+            "phone": customer.phone,
+            "fax": customer.fax,
+            "bill_to_address": customer.bill_to_address,
+            "ship_to_name": customer.ship_to_name,
+            "ship_to_address": customer.ship_to_address,
+            "vendor_no": customer.vendor_no,
             "payment_terms_days": customer.payment_terms_days,
         },
+        "salesperson": salesperson.strip() or company.default_salesperson,
+        "customer_po": customer_po.strip(),
         "order": {"id": str(order.id), "order_no": order.order_no},
         "pick_code": attempt.pick_code,
         "warehouse_code": wh.code,

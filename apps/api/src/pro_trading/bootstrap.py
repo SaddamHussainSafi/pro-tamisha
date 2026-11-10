@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .models import Permission, Role, RolePermission
+from .models import Company, Permission, Role, RolePermission
 from .permissions import DEFAULT_ROLES, PERMISSIONS
 
 
@@ -37,3 +37,22 @@ def ensure_default_roles(db: Session, company_id: uuid.UUID) -> dict[str, Role]:
         roles[code] = role
     db.flush()
     return roles
+
+
+# Letterhead printed on invoices (D-12), from the owner's paper invoice. Migration 0021 set it on
+# companies that existed then; new companies get it from `apply_letterhead`.
+LETTERHEAD = {
+    "address": "140 Milner Ave., Units 34-36\nScarborough, ON  M1S 3R3",
+    "phone": "416-332-8853",
+    "fax": "416-332-1406",
+    "email": "tamishatradinginc@hotmail.com",
+    "business_no": "803444827",
+    "default_salesperson": "Andy Narine",
+}
+
+
+def apply_letterhead(co: Company) -> None:
+    """Fill the company's blank letterhead fields with Tamisha Trading's."""
+    for field, value in LETTERHEAD.items():
+        if not getattr(co, field):
+            setattr(co, field, value)

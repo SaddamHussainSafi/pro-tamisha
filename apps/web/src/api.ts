@@ -145,7 +145,15 @@ export type PriceQuote = {
   unit_code: UnitCode;
 };
 export type CustomerGroup = { id: string; code: string; name: string; active: boolean };
-export type CustomerIn = {
+/** Printed on invoices: bill-to / ship-to (blank ship-to = same as bill-to), fax, vendor no. */
+export type CustomerInvoiceFields = {
+  fax: string | null;
+  bill_to_address: string | null;
+  ship_to_name: string | null;
+  ship_to_address: string | null;
+  vendor_no: string | null;
+};
+export type CustomerIn = Partial<CustomerInvoiceFields> & {
   external_ref?: string | null;
   name: string;
   email?: string | null;
@@ -153,18 +161,23 @@ export type CustomerIn = {
   group_id?: string | null;
   payment_terms_days: number;
 };
-/** Omitted = unchanged; "" email/phone = clear; clear_group removes the group. */
+/** Omitted = unchanged; "" text (email, phone, fax, address, vendor no.) = clear; clear_group removes the group. */
 export type CustomerPatch = {
   version: number;
   name?: string;
   email?: string;
   phone?: string;
+  fax?: string;
+  bill_to_address?: string;
+  ship_to_name?: string;
+  ship_to_address?: string;
+  vendor_no?: string;
   group_id?: string;
   clear_group?: boolean;
   payment_terms_days?: number;
   active?: boolean;
 };
-export type Customer = {
+export type Customer = CustomerInvoiceFields & {
   id: string;
   external_ref: string | null;
   name: string;
@@ -481,6 +494,8 @@ export type InvoiceDraftLine = {
   tax_amount: string;
   price_version_code: string | null;
   price_scope: string | null;
+  /** lb per unit printed on the invoice (case size); absent before the D-12 template. */
+  pack_lb?: string | null;
 };
 export type StockCheck = { pick_line_id: string; sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean };
 export type InvoicePreview = {
@@ -1018,7 +1033,7 @@ export const api = {
     request<Pick>("POST", `/pick-attempts/${id}/abort`, { version, reason }, true),
   invoicePreview: (pickId: string, weights: Record<string, WeightRow[]>) =>
     request<InvoicePreview>("POST", `/pick-attempts/${pickId}/invoice-preview`, { weights }),
-  issueInvoice: (pickId: string, b: { version: number; dispatch_confirmed: boolean; weights: Record<string, WeightRow[]>; note: string }) =>
+  issueInvoice: (pickId: string, b: InvoiceHeaderIn & { version: number; dispatch_confirmed: boolean; weights: Record<string, WeightRow[]>; note: string }) =>
     request<Invoice>("POST", `/pick-attempts/${pickId}/issue-invoice`, b, true),
   invoices: (q: { q?: string; customer_id?: string; sales_order_id?: string; picking_attempt_id?: string; email_status?: string; open?: boolean; cursor?: string; limit?: number }) =>
     request<Page<InvoiceSummary>>("GET", `/invoices?${qs(q)}`),
@@ -1026,6 +1041,7 @@ export const api = {
   resendInvoiceEmail: (id: string) => request<Invoice>("POST", `/invoices/${id}/email`, undefined, true),
   previewDirectInvoice: (b: DirectInvoiceIn) => request<DirectPreview>("POST", "/invoices/direct/preview", b),
   issueDirectInvoice: (b: DirectInvoiceIn & { dispatch_confirmed: boolean }) => request<Invoice>("POST", "/invoices/direct", b, true),
+  invoiceSettings: () => request<InvoiceSettings>("GET", "/invoice-settings"),
   scanDevices: (q: { warehouse_id?: string; include_revoked?: boolean } = {}) =>
     request<ScanDevice[]>("GET", `/scan-devices?${qs(q)}`),
   pairScanDevice: (b: { warehouse_id: string; name: string }) =>
@@ -1489,7 +1505,20 @@ export type SupplierLedger = {
 };
 
 /* ---------- Direct invoices (no picking sheet) ---------- */
-export type DirectInvoiceIn = { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string }[]; note?: string };
+/** Salesperson / Customer PO No. printed on the invoice; blank salesperson = company default. */
+export type InvoiceHeaderIn = { salesperson?: string; customer_po?: string };
+export type DirectInvoiceIn = InvoiceHeaderIn & { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string }[]; note?: string };
+/** Letterhead and the defaults the Create invoice form starts from. */
+export type InvoiceSettings = {
+  legal_name: string;
+  address: string;
+  phone: string;
+  fax: string;
+  email: string;
+  business_no: string;
+  default_salesperson: string;
+  invoice_prefix: string;
+};
 export type DirectPreview = {
   lines: { sku: string; description: string; unit_code: UnitCode; billed_qty: string; unit_rate: string; line_amount: string; tax_amount: string }[];
   subtotal: string;

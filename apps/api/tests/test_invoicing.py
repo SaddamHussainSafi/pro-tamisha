@@ -104,7 +104,7 @@ def test_inv001_inv002_partial_then_backorder_invoice(owner, sales, wh, world, s
     assert r.status_code == 201, r.text
     a = r.json()
     year = datetime.now(UTC).year
-    assert a["invoice_no"] == f"INV-{year}-000001" and a["state"] == "ISSUED"
+    assert a["invoice_no"] == f"TT{year}-000001" and a["state"] == "ISSUED"
     assert a["total"] == "265.00" and a["lines"][0]["billed_qty"] == "10.0000"
     assert on_hand(owner, lot, "BOX") == "30.0000"
     assert movements(a["id"]) == (1, -10)
@@ -119,7 +119,7 @@ def test_inv001_inv002_partial_then_backorder_invoice(owner, sales, wh, world, s
     r = issue(owner, pk2)
     assert r.status_code == 201, r.text
     b = r.json()
-    assert b["invoice_no"] == f"INV-{year}-000002" and b["id"] != a["id"]
+    assert b["invoice_no"] == f"TT{year}-000002" and b["id"] != a["id"]
     assert on_hand(owner, lot, "BOX") == "25.0000"
     order = owner.get(f"{P}/sales-orders/{o['id']}").json()
     assert order["status"] == "FULFILLED" and line(order, "CAS")["pending_qty"] == "0.0000"
@@ -189,7 +189,7 @@ def test_inv005_price_change_leaves_issued_invoice_identical(owner, sales, wh, w
     assert pdf1.status_code == 200 and pdf1.headers["content-type"] == "application/pdf"
     assert pdf1.content.startswith(b"%PDF-")
     assert hashlib.sha256(pdf1.content).hexdigest() == inv["pdf_sha256"]
-    assert b"PROVISIONAL" in pdf1.content.upper()
+    assert b"(SALES INVOICE) Tj" in pdf1.content and inv["template_version"] == "sales-invoice-1"
 
     csv = (
         "sku,product_name,unit,rate,currency,customer_ref,group_code\r\n"

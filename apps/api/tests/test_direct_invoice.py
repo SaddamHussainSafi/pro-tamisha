@@ -54,7 +54,7 @@ def test_preview_then_issue(owner, world, setup):
     r = owner.post(f"{P}/invoices/direct", json={**b, "dispatch_confirmed": True}, headers=key)
     assert r.status_code == 201, r.text
     inv = r.json()
-    assert inv["invoice_no"].startswith("INV-") and inv["total"] == "115.00"
+    assert inv["invoice_no"].startswith("TT") and inv["total"] == "115.00"
     again = owner.post(f"{P}/invoices/direct", json={**b, "dispatch_confirmed": True}, headers=key)
     assert again.status_code == 201 and again.json()["id"] == inv["id"]
     o, i, m = counts(world.company_id)

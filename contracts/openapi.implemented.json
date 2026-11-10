@@ -1805,6 +1805,18 @@
       },
       "CustomerIn": {
         "properties": {
+          "bill_to_address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill To Address"
+          },
           "email": {
             "anyOf": [
               {
@@ -1830,6 +1842,18 @@
               }
             ],
             "title": "External Ref"
+          },
+          "fax": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fax"
           },
           "group_id": {
             "anyOf": [
@@ -1867,6 +1891,42 @@
               }
             ],
             "title": "Phone"
+          },
+          "ship_to_address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship To Address"
+          },
+          "ship_to_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship To Name"
+          },
+          "vendor_no": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor No"
           }
         },
         "required": [
@@ -1880,6 +1940,17 @@
           "active": {
             "title": "Active",
             "type": "boolean"
+          },
+          "bill_to_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill To Address"
           },
           "email": {
             "anyOf": [
@@ -1902,6 +1973,17 @@
               }
             ],
             "title": "External Ref"
+          },
+          "fax": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fax"
           },
           "group_id": {
             "anyOf": [
@@ -1939,6 +2021,39 @@
             ],
             "title": "Phone"
           },
+          "ship_to_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship To Address"
+          },
+          "ship_to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship To Name"
+          },
+          "vendor_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor No"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -1950,6 +2065,11 @@
           "name",
           "email",
           "phone",
+          "fax",
+          "bill_to_address",
+          "ship_to_name",
+          "ship_to_address",
+          "vendor_no",
           "group_id",
           "payment_terms_days",
           "active",
@@ -1959,7 +2079,7 @@
         "type": "object"
       },
       "CustomerPatch": {
-        "description": "Omitted/null = unchanged. Empty email or phone = clear it.",
+        "description": "Omitted/null = unchanged. Empty text (email, phone, fax, address, vendor no.) = clear.",
         "properties": {
           "active": {
             "anyOf": [
@@ -1971,6 +2091,18 @@
               }
             ],
             "title": "Active"
+          },
+          "bill_to_address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill To Address"
           },
           "clear_group": {
             "default": false,
@@ -1989,6 +2121,18 @@
               }
             ],
             "title": "Email"
+          },
+          "fax": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fax"
           },
           "group_id": {
             "anyOf": [
@@ -2039,6 +2183,42 @@
               }
             ],
             "title": "Phone"
+          },
+          "ship_to_address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship To Address"
+          },
+          "ship_to_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship To Name"
+          },
+          "vendor_no": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor No"
           },
           "version": {
             "minimum": 1.0,
@@ -2716,6 +2896,12 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_po": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Customer Po",
+            "type": "string"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/DirectInvoiceLineIn"
@@ -2729,6 +2915,12 @@
             "default": "",
             "maxLength": 500,
             "title": "Note",
+            "type": "string"
+          },
+          "salesperson": {
+            "default": "",
+            "maxLength": 100,
+            "title": "Salesperson",
             "type": "string"
           },
           "warehouse_id": {
@@ -2752,6 +2944,12 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_po": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Customer Po",
+            "type": "string"
+          },
           "dispatch_confirmed": {
             "title": "Dispatch Confirmed",
             "type": "boolean"
@@ -2769,6 +2967,12 @@
             "default": "",
             "maxLength": 500,
             "title": "Note",
+            "type": "string"
+          },
+          "salesperson": {
+            "default": "",
+            "maxLength": 100,
+            "title": "Salesperson",
             "type": "string"
           },
           "warehouse_id": {
@@ -4136,6 +4340,17 @@
             "title": "Order Line Id",
             "type": "string"
           },
+          "pack_lb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Lb"
+          },
           "pick_line_id": {
             "format": "uuid",
             "title": "Pick Line Id",
@@ -4235,6 +4450,12 @@
       },
       "InvoiceIssueIn": {
         "properties": {
+          "customer_po": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Customer Po",
+            "type": "string"
+          },
           "dispatch_confirmed": {
             "title": "Dispatch Confirmed",
             "type": "boolean"
@@ -4243,6 +4464,12 @@
             "default": "",
             "maxLength": 500,
             "title": "Note",
+            "type": "string"
+          },
+          "salesperson": {
+            "default": "",
+            "maxLength": 100,
+            "title": "Salesperson",
             "type": "string"
           },
           "version": {
@@ -4320,6 +4547,17 @@
             "format": "uuid",
             "title": "Order Line Id",
             "type": "string"
+          },
+          "pack_lb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Lb"
           },
           "pick_line_id": {
             "format": "uuid",
@@ -4866,6 +5104,55 @@
           "can_issue"
         ],
         "title": "InvoicePreviewOut",
+        "type": "object"
+      },
+      "InvoiceSettingsOut": {
+        "description": "Letterhead and defaults the Create invoice form starts from.",
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "business_no": {
+            "title": "Business No",
+            "type": "string"
+          },
+          "default_salesperson": {
+            "title": "Default Salesperson",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "fax": {
+            "title": "Fax",
+            "type": "string"
+          },
+          "invoice_prefix": {
+            "title": "Invoice Prefix",
+            "type": "string"
+          },
+          "legal_name": {
+            "title": "Legal Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legal_name",
+          "address",
+          "phone",
+          "fax",
+          "email",
+          "business_no",
+          "default_salesperson",
+          "invoice_prefix"
+        ],
+        "title": "InvoiceSettingsOut",
         "type": "object"
       },
       "InvoiceSummaryOut": {
@@ -18918,6 +19205,28 @@
         "summary": "List Stock",
         "tags": [
           "inventory"
+        ]
+      }
+    },
+    "/api/v1/invoice-settings": {
+      "get": {
+        "description": "Letterhead and the defaults the Create invoice form starts with (salesperson).",
+        "operationId": "invoice_settings_api_v1_invoice_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Invoice Settings",
+        "tags": [
+          "invoices"
         ]
       }
     },

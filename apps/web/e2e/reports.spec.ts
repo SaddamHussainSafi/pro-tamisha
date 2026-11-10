@@ -51,7 +51,7 @@ test("reports reconcile with an issued invoice, filter, and export CSV", async (
   await page.getByLabel("The goods on this sheet have been dispatched to the customer").check();
   await page.getByRole("button", { name: "Issue invoice" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Issue invoice" }).click();
-  await expect(page.getByRole("heading", { name: /^Invoice INV-\d{4}-\d{6}$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Invoice TT\d{4}-\d{6}$/ })).toBeVisible();
   const total = ((await page.getByTestId("invoice-total").textContent()) ?? "").trim();
   expect(total).toMatch(/^CAD [\d,]+\.\d{2}$/);
 

@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     # Module 05 invoicing. Tax rules are unverified (OPEN_DECISIONS D-03): production-like
     # environments refuse to issue until an accountant signs off and this is set true.
     invoice_tax_verified: bool = False
-    invoice_prefix: str = Field(default="INV", pattern=r"^[A-Z]{1,8}$")
+    # Invoice numbers are `{prefix}{year}-{n:06d}`, e.g. TT2026-000001 (D-11/D-12).
+    invoice_prefix: str = Field(default="TT", pattern=r"^[A-Z]{1,8}$")
     # Module 06 scanner bridge. The capability key signs short-lived, single-job scan grants.
     scan_capability_key: str = DEV_SCAN_KEY
     scan_capability_ttl_seconds: int = Field(default=300, ge=30, le=900)

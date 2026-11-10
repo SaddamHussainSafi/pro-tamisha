@@ -12,8 +12,8 @@
 | D-08 | Actual case weights: scale recorded per box, weighted total, or default estimated | estimated is clearly labeled; cannot book actual-weight price as verified |
 | D-09 | Product units case-to-piece or case-to-weight, storage measurement policy | conversions require product-specific validated rule |
 | D-10 | Physical inventory/dispatch and invoice timing, returned goods, rejection and spoils | recorded separately; require warehouse signoff |
-| D-11 | Invoice numbering, number prefix, historical Focus numbers, fiscal periods | new sequence separate from Focus; preserve external legacy reference |
-| D-12 | Real customer invoice PDF template, paper size, fonts, signature/multicolumn totals | blocked pending upload; no invented layout |
+| D-11 | Invoice numbering, number prefix, historical Focus numbers, fiscal periods | **Format set by the owner 2026-11-09:** `TT2026-000001` = prefix `TT` + fiscal year + 6-digit yearly sequence (room for 999,999 a year; ~44,000 expected). New invoices only; the year's sequence carries on after numbers already issued. Historical Focus numbers and fiscal periods still open |
+| D-12 | Real customer invoice PDF template, paper size, fonts, signature/multicolumn totals | **Settled 2026-11-09 (owner's design):** template `sales-invoice-1`, US Letter, black and white only (greyscale logo, grey fills), Helvetica; header with letterhead, Invoice No./Date/Bus #/Vendor #; Bill To / Ship To; Salesperson / Customer PO No. / Terms; Qty, Units, Description, LBS, KG, Unit Price, Amount (no S/N column); totals of quantity and weight; three notes; Gross/Tax/Net; one signature, the receiver's. See `docs/modules/05-invoicing.md` |
 | D-13 | Actual Focus V7 backup format and export permissions | investigative only |
 | D-14 | Current Toshiba driver/network and whether click-to-scan works on Windows office PC | manual upload fallback |
 | D-15 | Google Workspace account vs personal Drive, storage residency and employee access | company-controlled Shared Drive preferred |

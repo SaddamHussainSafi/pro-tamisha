@@ -11,7 +11,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .bootstrap import ensure_default_roles, sync_permissions
+from .bootstrap import apply_letterhead, ensure_default_roles, sync_permissions
 from .config import get_settings
 from .db import get_sessionmaker
 from .models import (
@@ -60,6 +60,7 @@ def main() -> int:
             print("already seeded")
             return 0
         co = Company(legal_name=DEMO_COMPANY, timezone="America/Toronto")
+        apply_letterhead(co)
         db.add(co)
         db.flush()
         roles = ensure_default_roles(db, co.id)

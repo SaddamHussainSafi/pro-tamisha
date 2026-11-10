@@ -8,12 +8,46 @@ export type CustomerForm = {
   name: string;
   email: string;
   phone: string;
+  fax: string;
+  bill_to: string; // address lines, one per line
+  ship_to_name: string; // "" = same as the name
+  ship_to: string; // "" = same as bill-to
+  vendor_no: string; // the number this customer gave us ("Vendor #" on invoices)
   group_id: string; // "" = no group
   terms: string; // days, as typed
   active: boolean;
 };
 
-export const EMPTY_FORM: CustomerForm = { ref: "", name: "", email: "", phone: "", group_id: "", terms: "0", active: true };
+export const EMPTY_FORM: CustomerForm = {
+  ref: "",
+  name: "",
+  email: "",
+  phone: "",
+  fax: "",
+  bill_to: "",
+  ship_to_name: "",
+  ship_to: "",
+  vendor_no: "",
+  group_id: "",
+  terms: "0",
+  active: true,
+};
+
+/** Address as stored: lines trimmed, blank lines dropped. */
+export function addressText(v: string): string {
+  return v
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+// Text fields printed on invoices: same name in the form and the API; addresses are renamed.
+const TEXT = ["fax", "ship_to_name", "vendor_no"] as const;
+const ADDRESS = [
+  ["bill_to", "bill_to_address"],
+  ["ship_to", "ship_to_address"],
+] as const;
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const REF_RE = /^[A-Za-z0-9._-]+$/;
@@ -28,6 +62,11 @@ export function formFrom(c: Customer): CustomerForm {
     name: c.name,
     email: c.email ?? "",
     phone: c.phone ?? "",
+    fax: c.fax ?? "",
+    bill_to: c.bill_to_address ?? "",
+    ship_to_name: c.ship_to_name ?? "",
+    ship_to: c.ship_to_address ?? "",
+    vendor_no: c.vendor_no ?? "",
     group_id: c.group_id ?? "",
     terms: String(c.payment_terms_days),
     active: c.active,
@@ -50,6 +89,11 @@ export function buildCreate(f: CustomerForm): CustomerIn {
     name: f.name.trim(),
     email: f.email.trim() || null,
     phone: f.phone.trim() || null,
+    fax: f.fax.trim() || null,
+    bill_to_address: addressText(f.bill_to) || null,
+    ship_to_name: f.ship_to_name.trim() || null,
+    ship_to_address: addressText(f.ship_to) || null,
+    vendor_no: f.vendor_no.trim() || null,
     group_id: f.group_id || null,
     payment_terms_days: Number(f.terms.trim()),
   };
@@ -61,6 +105,8 @@ export function buildPatch(c: Customer, f: CustomerForm): CustomerPatch | null {
   if (f.name.trim() !== c.name) p.name = f.name.trim();
   if (f.email.trim() !== (c.email ?? "")) p.email = f.email.trim();
   if (f.phone.trim() !== (c.phone ?? "")) p.phone = f.phone.trim();
+  for (const k of TEXT) if (f[k].trim() !== (c[k] ?? "")) p[k] = f[k].trim();
+  for (const [k, api] of ADDRESS) if (addressText(f[k]) !== (c[api] ?? "")) p[api] = addressText(f[k]);
   if (f.group_id !== (c.group_id ?? "")) {
     if (f.group_id) p.group_id = f.group_id;
     else p.clear_group = true;

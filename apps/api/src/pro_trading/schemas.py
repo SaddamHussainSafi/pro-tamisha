@@ -301,16 +301,26 @@ class CustomerIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     email: str | None = Field(default=None, max_length=320, pattern=EMAIL_OR_EMPTY)
     phone: str | None = Field(default=None, max_length=32)
+    fax: str | None = Field(default=None, max_length=32)
+    bill_to_address: str | None = Field(default=None, max_length=300)
+    ship_to_name: str | None = Field(default=None, max_length=200)
+    ship_to_address: str | None = Field(default=None, max_length=300)
+    vendor_no: str | None = Field(default=None, max_length=32)
     group_id: uuid.UUID | None = None
     payment_terms_days: int = Field(default=0, ge=0, le=365)
 
 
 class CustomerPatch(BaseModel):
-    """Omitted/null = unchanged. Empty email or phone = clear it."""
+    """Omitted/null = unchanged. Empty text (email, phone, fax, address, vendor no.) = clear."""
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     email: str | None = Field(default=None, max_length=320, pattern=EMAIL_OR_EMPTY)
     phone: str | None = Field(default=None, max_length=32)
+    fax: str | None = Field(default=None, max_length=32)
+    bill_to_address: str | None = Field(default=None, max_length=300)
+    ship_to_name: str | None = Field(default=None, max_length=200)
+    ship_to_address: str | None = Field(default=None, max_length=300)
+    vendor_no: str | None = Field(default=None, max_length=32)
     group_id: uuid.UUID | None = None
     clear_group: bool = False
     payment_terms_days: int | None = Field(default=None, ge=0, le=365)
@@ -325,6 +335,11 @@ class CustomerOut(BaseModel):
     name: str
     email: str | None
     phone: str | None
+    fax: str | None
+    bill_to_address: str | None
+    ship_to_name: str | None
+    ship_to_address: str | None
+    vendor_no: str | None
     group_id: uuid.UUID | None
     payment_terms_days: int
     active: bool
@@ -936,10 +951,31 @@ class InvoicePreviewIn(BaseModel):
     weights: dict[uuid.UUID, list[WeightRowIn]] = Field(default_factory=dict)
 
 
-class InvoiceIssueIn(InvoicePreviewIn):
+class InvoiceHeaderIn(BaseModel):
+    """Printed in the invoice's Salesperson / Customer PO No. strip (D-12). A blank
+    salesperson uses the company default (e.g. "Andy Narine")."""
+
+    salesperson: str = Field(default="", max_length=100)
+    customer_po: str = Field(default="", max_length=64)
+
+
+class InvoiceIssueIn(InvoicePreviewIn, InvoiceHeaderIn):
     version: int = Field(ge=1)  # picking attempt version
     dispatch_confirmed: bool  # D-01 gate: goods physically handed over / loaded
     note: str = Field(default="", max_length=500)
+
+
+class InvoiceSettingsOut(BaseModel):
+    """Letterhead and defaults the Create invoice form starts from."""
+
+    legal_name: str
+    address: str
+    phone: str
+    fax: str
+    email: str
+    business_no: str
+    default_salesperson: str
+    invoice_prefix: str
 
 
 class InvoiceDraftLineOut(BaseModel):
@@ -960,6 +996,8 @@ class InvoiceDraftLineOut(BaseModel):
     tax_amount: Decimal
     price_version_code: str | None
     price_scope: str | None
+    # lb per unit printed in the Units / LBS / KG columns (D-12); None before that template.
+    pack_lb: Decimal | None = None
 
 
 class StockCheckOut(BaseModel):
@@ -2150,7 +2188,7 @@ class DirectInvoiceLineIn(BaseModel):
     note: str = Field(default="", max_length=500)
 
 
-class DirectInvoiceIn(BaseModel):
+class DirectInvoiceIn(InvoiceHeaderIn):
     """A counter / small sale billed without a picking sheet (owner direction 2026-11-08).
     Prices resolve now; stock leaves first-expiry-first-out; one transaction."""
 

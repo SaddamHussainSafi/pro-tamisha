@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, canInWarehouse, type Customer, type DirectPreview, type PickSummary, type Product, type ProductSummary, type UnitCode } from "../api";
+import { termsLabel } from "../lib/customers";
 import { useAuth } from "../auth";
 import { cad, dec, qty } from "../lib/decimal";
-import { formProblem, unitsFor, type DraftLine } from "../lib/directInvoice";
+import { billable, formProblem, productsFromInvoice, unitsFor, untouched, withPrefill, type DraftLine } from "../lib/directInvoice";
 import { invoiceMessage } from "../lib/invoices";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { CardTitle, ConfirmDialog, EmptyState, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
@@ -97,6 +98,10 @@ function Direct() {
   const [customer, setCustomer] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([blank()]);
   const [note, setNote] = useState("");
+  const [salesperson, setSalesperson] = useState("");
+  const [po, setPo] = useState("");
+  const [lastInvoice, setLastInvoice] = useState<string | null>(null);
+  const prefillFor = useRef("");
   const [pv, setPv] = useState<DirectPreview | null>(null);
   const [handed, setHanded] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -105,6 +110,10 @@ function Direct() {
 
   useEffect(() => {
     api.customers({ active: true, limit: 500 }).then(setCustomers, () => setCustomers([]));
+    api.invoiceSettings().then(
+      (st) => setSalesperson((cur) => cur || st.default_salesperson),
+      () => undefined,
+    );
     api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
     api.warehouses().then((w) => {
       const ok = w.filter((x) => x.active && session && (canInWarehouse(session, "invoice.issue", x.id) || canInWarehouse(session, "invoice.prepare", x.id)));
@@ -114,7 +123,8 @@ function Direct() {
 
   if (!session) return null;
   const canIssue = !!wh && canInWarehouse(session, "invoice.issue", wh);
-  const used = lines.filter((l) => l.product_id);
+  const used = billable(lines);
+  const cust = customers.find((c) => c.id === customer);
   const changed = () => {
     setPv(null);
     setHanded(false);
@@ -122,20 +132,52 @@ function Direct() {
 
   async function setProduct(key: number, product_id: string) {
     changed();
+    // Record the pick at once (a prefill arriving meanwhile must see the list as touched).
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, product_id, unit_code: "", prefilled: false } : l)));
     let d = details[product_id];
     if (!d && product_id) {
       d = await api.product(product_id);
       setDetails((x) => ({ ...x, [product_id]: d as Product }));
     }
-    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, product_id, unit_code: d ? (unitsFor(d)[0] ?? "") : "" } : l)));
+    setLines((ls) => ls.map((l) => (l.key === key && l.product_id === product_id ? { ...l, unit_code: d ? (unitsFor(d)[0] ?? "") : "" } : l)));
   }
   const setLine = (key: number, patch: Partial<DraftLine>) => {
     changed();
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   };
+  /** Start the product list from the customer's last invoice, so staff only enter quantities.
+   * Only while the list is untouched (no quantity typed, nothing added by hand). */
+  async function chooseCustomer(id: string) {
+    changed();
+    setCustomer(id);
+    prefillFor.current = id;
+    if (!untouched(lines)) return;
+    setLastInvoice(null);
+    if (!id) return setLines((cur) => withPrefill(cur, [], blank));
+    try {
+      const page = await api.invoices({ customer_id: id, limit: 1 });
+      const last = page.items[0];
+      const rows = last ? productsFromInvoice(await api.invoice(last.id)).filter((r) => products.some((p) => p.id === r.product_id)) : [];
+      const fetched = await Promise.all(rows.filter((r) => !details[r.product_id]).map((r) => api.product(r.product_id)));
+      if (prefillFor.current !== id) return; // another customer was chosen meanwhile
+      const all = { ...details, ...Object.fromEntries(fetched.map((d) => [d.id, d])) };
+      setDetails(all);
+      const pre: DraftLine[] = rows.map((r) => {
+        const units = all[r.product_id] ? unitsFor(all[r.product_id] as Product) : [];
+        return { key: nextKey++, product_id: r.product_id, unit_code: units.includes(r.unit_code) ? r.unit_code : (units[0] ?? ""), qty: "", prefilled: true };
+      });
+      setLines((cur) => withPrefill(cur, pre, blank)); // keeps anything typed or picked meanwhile
+      setLastInvoice(last ? last.invoice_no : null);
+    } catch {
+      if (prefillFor.current === id) setLines((cur) => withPrefill(cur, [], blank)); // no invoice access
+    }
+  }
+
   const body = () => ({
     customer_id: customer,
     warehouse_id: wh,
+    salesperson: salesperson.trim(),
+    customer_po: po.trim(),
     note: note.trim(),
     lines: used.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim() })),
   });
@@ -179,30 +221,50 @@ function Direct() {
             {error}
           </p>
         )}
-        <div className="max-w-md">
-          <label className="label" htmlFor="ni-customer">
-            Customer
-          </label>
-          <select
-            id="ni-customer"
-            className="input"
-            value={customer}
-            onChange={(e) => {
-              changed();
-              setCustomer(e.target.value);
-            }}
-          >
+        <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div>
+            <label className="label" htmlFor="ni-customer">
+              Customer
+            </label>
+            <select id="ni-customer" className="input" value={customer} onChange={(e) => void chooseCustomer(e.target.value)}>
             <option value="">Choose…</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.external_ref ? ` (${c.external_ref})` : ""}
-              </option>
-            ))}
-          </select>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {c.external_ref ? ` (${c.external_ref})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="label" id="ni-date-label">
+              Invoice date
+            </span>
+            <p className="input bg-subtle" aria-labelledby="ni-date-label">
+              {today()}
+            </p>
+          </div>
+          <div>
+            <label className="label" htmlFor="ni-salesperson">
+              Salesperson
+            </label>
+            <input id="ni-salesperson" className="input" maxLength={100} value={salesperson} onChange={(e) => setSalesperson(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="ni-po">
+              Customer PO No. (optional)
+            </label>
+            <input id="ni-po" className="input" maxLength={64} value={po} onChange={(e) => setPo(e.target.value)} />
+          </div>
         </div>
+        {cust && <CustomerOnInvoice c={cust} />}
         <fieldset className="space-y-3">
           <legend className="label">Products</legend>
+          {lastInvoice && lines.some((l) => l.prefilled) && (
+            <p className="text-sm text-ink-muted" role="status">
+              {`Products from ${cust?.name ?? "this customer"}'s last invoice (${lastInvoice}) are listed. Enter the quantities; products left empty are not billed.`}
+            </p>
+          )}
           {lines.map((l, i) => {
             const units = l.product_id && details[l.product_id] ? unitsFor(details[l.product_id] as Product) : [];
             return (
@@ -230,7 +292,7 @@ function Direct() {
                 </div>
                 <div>
                   <label className="sr-only" htmlFor={`ni-q-${l.key}`}>{`Quantity, line ${i + 1}`}</label>
-                  <input id={`ni-q-${l.key}`} className="input num" inputMode="decimal" placeholder="Qty" value={l.qty} onChange={(e) => setLine(l.key, { qty: e.target.value })} />
+                  <input id={`ni-q-${l.key}`} className="input num" inputMode="decimal" placeholder="Qty" value={l.qty} autoFocus={i === 0 && !!l.prefilled} onChange={(e) => setLine(l.key, { qty: e.target.value })} />
                 </div>
                 <button
                   type="button"
@@ -343,5 +405,40 @@ function Direct() {
         </p>
       </ConfirmDialog>
     </>
+  );
+}
+
+const today = () => new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+/** What the invoice prints from the customer record (Bill To, Ship To, Terms, Vendor #). */
+function CustomerOnInvoice({ c }: { c: Customer }) {
+  const bill = c.bill_to_address ?? "";
+  const ship = [c.ship_to_name ?? c.name, c.ship_to_address ?? bill].filter(Boolean).join("\n");
+  const items = [
+    { label: "Bill to", value: [c.name, bill].filter(Boolean).join("\n") },
+    { label: "Ship to", value: ship },
+    { label: "Terms", value: termsLabel(c.payment_terms_days) },
+    { label: "Vendor #", value: c.vendor_no ?? "—" },
+  ];
+  return (
+    <div className="rounded-lg border border-line bg-subtle p-4" aria-label="From the customer record">
+      <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((x) => (
+          <div key={x.label}>
+            <dt className="text-ink-muted">{x.label}</dt>
+            <dd className="whitespace-pre-line">{x.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!bill && (
+        <p className="mt-3 text-sm text-ink-muted">
+          No address on file.{" "}
+          <Link className="text-brand-primary underline" to={`/customers/${c.id}`}>
+            Add the bill-to address
+          </Link>{" "}
+          so it prints on the invoice.
+        </p>
+      )}
+    </div>
   );
 }

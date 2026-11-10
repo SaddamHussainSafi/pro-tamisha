@@ -46,6 +46,13 @@ class Company(Base):
     id: Mapped[uuid.UUID] = _pk()
     legal_name: Mapped[str] = mapped_column(Text, nullable=False)
     timezone: Mapped[str] = mapped_column(Text, nullable=False, server_default="America/Toronto")
+    # Invoice letterhead (D-12). Empty string = not printed.
+    address: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    phone: Mapped[str] = mapped_column(String(32), nullable=False, server_default="")
+    fax: Mapped[str] = mapped_column(String(32), nullable=False, server_default="")
+    email: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    business_no: Mapped[str] = mapped_column(String(32), nullable=False, server_default="")
+    default_salesperson: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
     created_at: Mapped[datetime] = _created()
 
 
@@ -402,6 +409,13 @@ class Customer(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     email: Mapped[str | None] = mapped_column(Text)
     phone: Mapped[str | None] = mapped_column(String(32))
+    fax: Mapped[str | None] = mapped_column(String(32))
+    # Printed on invoices (D-12). Ship-to blank = same as the bill-to name / address.
+    bill_to_address: Mapped[str | None] = mapped_column(Text)
+    ship_to_name: Mapped[str | None] = mapped_column(Text)
+    ship_to_address: Mapped[str | None] = mapped_column(Text)
+    # The vendor number this customer assigned to us ("Vendor #" on the invoice).
+    vendor_no: Mapped[str | None] = mapped_column(String(32))
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customer_groups.id"), index=True)
     payment_terms_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))

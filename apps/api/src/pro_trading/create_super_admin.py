@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import audit
-from .bootstrap import ensure_default_roles
+from .bootstrap import apply_letterhead, ensure_default_roles
 from .db import get_sessionmaker
 from .models import Company, Employee, EmployeeRole, Role, Warehouse
 from .permissions import SUPER_ADMIN
@@ -62,6 +62,7 @@ def create(
     co = db.scalar(select(Company).where(Company.legal_name == company_name).with_for_update())
     if co is None:
         co = Company(legal_name=company_name)
+        apply_letterhead(co)  # invoice letterhead (D-12); editable later
         db.add(co)
         db.flush()
     roles = ensure_default_roles(db, co.id)

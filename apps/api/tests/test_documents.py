@@ -53,7 +53,7 @@ def _files(api, **params):
 
 def _snapshot(n):
     return {
-        "invoice_no": "INV-2026-000999",
+        "invoice_no": "TT2026-000999",
         "issued_date": "2026-01-05",
         "due_date": "2026-02-04",
         "currency": "CAD",
@@ -65,8 +65,8 @@ def _snapshot(n):
         "lines": [
             {
                 "line_no": i,
-                "sku": f"SKU-{i:03}",
-                "description": "Synthetic product",
+                "sku": "SYN",
+                "description": f"Synthetic product {i:03}",
                 "billed_qty": "1",
                 "unit_code": "BOX",
                 "unit_rate": "1.00",
@@ -85,13 +85,14 @@ def _snapshot(n):
 # ---------------------------------------------------------------- acceptance
 
 
-@pytest.mark.parametrize(("n", "pages"), [(1, 1), (30, 1), (31, 2), (50, 2), (61, 3)])
+@pytest.mark.parametrize(("n", "pages"), [(1, 1), (25, 1), (26, 2), (50, 2), (51, 3)])
 def test_long_invoice_paginates(n, pages):
     pdf = invoice_pdf.render(_snapshot(n))
     assert f"/Count {pages} >>".encode() in pdf
-    assert f"Page {pages} of {pages}".encode() in pdf
-    assert b"SKU-%03d" % n in pdf  # last line is printed
-    assert pdf.count(b"Subtotal") == 1  # totals once, on the last page
+    assert f"Page: {pages} of {pages}".encode() in pdf
+    assert b"Synthetic product %03d" % n in pdf  # last line is printed
+    assert pdf.count(b"(Gross Amount)") == 1  # totals once, on the last page
+    assert pdf.count(b"Name & Signature") == 1  # one receiver signature, last page only
 
 
 def test_issue_files_invoice_and_syncs_once(owner, sales, wh, world, setup, drive_root):

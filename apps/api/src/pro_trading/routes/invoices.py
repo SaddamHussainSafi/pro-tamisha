@@ -16,9 +16,11 @@ from sqlalchemy.orm import Session
 from .. import idempotency
 from .. import invoicing as svc
 from .. import orders as osvc
+from ..config import get_settings
 from ..deps import DbDep, Principal, PrincipalDep, authorize
 from ..errors import ApiError
 from ..models import (
+    Company,
     Customer,
     Invoice,
     InvoiceDocument,
@@ -36,6 +38,7 @@ from ..schemas import (
     InvoicePage,
     InvoicePreviewIn,
     InvoicePreviewOut,
+    InvoiceSettingsOut,
     OrderIn,
     OrderLineIn,
 )
@@ -139,7 +142,10 @@ def issue_invoice(
             _already(db, a.id)
         state(a, ("VERIFIED",), "Picking sheet")
         check_version(a.version, body.version, "Picking sheet")
-        invoice = svc.issue(db, p.employee, o, a, _weights(body), body.note.strip())
+        invoice = svc.issue(
+            db, p.employee, o, a, _weights(body), body.note.strip(),
+            body.salesperson, body.customer_po,
+        )  # fmt: skip
         db.flush()
         out = svc.invoice_out(db, invoice)
         return (
@@ -277,6 +283,27 @@ def resend_email(
     )
 
 
+@router.get("/invoice-settings", response_model=InvoiceSettingsOut)
+def invoice_settings(request: Request, db: DbDep, p: PrincipalDep) -> dict[str, Any]:
+    """Letterhead and the defaults the Create invoice form starts with (salesperson)."""
+    if not any(
+        p.can(perm, any_scope=True) for perm in ("invoice.read", "invoice.prepare", "invoice.issue")
+    ):
+        authorize(request, p, "invoice.read", None)
+    co = db.get(Company, p.company_id)
+    assert co is not None
+    return {
+        "legal_name": co.legal_name,
+        "address": co.address,
+        "phone": co.phone,
+        "fax": co.fax,
+        "email": co.email,
+        "business_no": co.business_no,
+        "default_salesperson": co.default_salesperson,
+        "invoice_prefix": get_settings().invoice_prefix,
+    }
+
+
 # ------------------------------------------------------------------ direct invoices
 
 
@@ -375,7 +402,9 @@ def issue_direct(
 
     def fn() -> Result:
         o, a = _direct(db, p, body)
-        invoice = svc.issue(db, p.employee, o, a, {}, body.note.strip())
+        invoice = svc.issue(
+            db, p.employee, o, a, {}, body.note.strip(), body.salesperson, body.customer_po
+        )
         db.flush()
         out = svc.invoice_out(db, invoice)
         return out, str(invoice.id), {"invoice_no": invoice.invoice_no,

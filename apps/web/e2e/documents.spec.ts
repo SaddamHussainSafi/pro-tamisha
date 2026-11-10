@@ -46,7 +46,7 @@ test("issued invoice is filed and copied to the archive; POD upload is appended"
   await page.getByLabel("The goods on this sheet have been dispatched to the customer").check();
   await page.getByRole("button", { name: "Issue invoice" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Issue invoice" }).click();
-  const heading = page.getByRole("heading", { name: /^Invoice INV-\d{4}-\d{6}$/ });
+  const heading = page.getByRole("heading", { name: /^Invoice TT\d{4}-\d{6}$/ });
   await expect(heading).toBeVisible();
   const invoiceNo = ((await heading.textContent()) ?? "").replace("Invoice ", "");
 

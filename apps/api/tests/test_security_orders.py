@@ -27,7 +27,7 @@ def sku(setup: dict, prefix: str) -> str:
 
 def _snapshot(name: str, product: str) -> dict:
     return {
-        "invoice_no": "INV-2026-000001",
+        "invoice_no": "TT2026-000001",
         "company": {"legal_name": "Tamisha Trading Inc."},
         "customer": {"name": name, "external_ref": "C-1", "payment_terms_days": 14},
         "issued_date": "2026-11-09",

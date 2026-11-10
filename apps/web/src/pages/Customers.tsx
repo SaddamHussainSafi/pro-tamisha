@@ -106,6 +106,33 @@ function CustomerFields({
         "Leave empty if invoices are not emailed.",
       )}
       {field("phone", "Phone", <input id="cu-phone" type="tel" className="input" value={f.phone} maxLength={32} onChange={(e) => set("phone", e.target.value)} />)}
+      {field("fax", "Fax", <input id="cu-fax" type="tel" className="input" value={f.fax} maxLength={32} onChange={(e) => set("fax", e.target.value)} />)}
+      {field(
+        "vendor_no",
+        "Our vendor number with them",
+        <input id="cu-vendor_no" className="input" value={f.vendor_no} maxLength={32} onChange={(e) => set("vendor_no", e.target.value)} />,
+        "Printed as \"Vendor #\" on invoices, e.g. the number No Frills gave us.",
+      )}
+      {field(
+        "bill_to",
+        "Bill-to address",
+        <textarea id="cu-bill_to" className="input min-h-20" rows={3} value={f.bill_to} maxLength={300} onChange={(e) => set("bill_to", e.target.value)} />,
+        "Street on the first line, then city, province and postal code.",
+      )}
+      <div className="grid gap-4">
+        {field(
+          "ship_to_name",
+          "Ship-to name",
+          <input id="cu-ship_to_name" className="input" value={f.ship_to_name} maxLength={200} onChange={(e) => set("ship_to_name", e.target.value)} />,
+          "Leave empty to use the customer's name.",
+        )}
+        {field(
+          "ship_to",
+          "Ship-to address",
+          <textarea id="cu-ship_to" className="input min-h-20" rows={3} value={f.ship_to} maxLength={300} onChange={(e) => set("ship_to", e.target.value)} />,
+          "Leave empty when goods go to the bill-to address.",
+        )}
+      </div>
       {field(
         "group_id",
         "Customer group",
@@ -589,6 +616,14 @@ export function CustomerDetailPage() {
                 <dd>{c.email ?? "No email"}</dd>
                 <dt className="text-ink-muted">Phone</dt>
                 <dd>{c.phone ?? "—"}</dd>
+                <dt className="text-ink-muted">Fax</dt>
+                <dd>{c.fax ?? "—"}</dd>
+                <dt className="text-ink-muted">Vendor #</dt>
+                <dd>{c.vendor_no ?? "—"}</dd>
+                <dt className="text-ink-muted">Bill to</dt>
+                <dd className="whitespace-pre-line">{c.bill_to_address ?? "—"}</dd>
+                <dt className="text-ink-muted">Ship to</dt>
+                <dd className="whitespace-pre-line">{[c.ship_to_name, c.ship_to_address].filter(Boolean).join("\n") || "Same as bill to"}</dd>
                 <dt className="text-ink-muted">Group</dt>
                 <dd>{group?.name ?? "No group"}</dd>
                 <dt className="text-ink-muted">Payment terms</dt>

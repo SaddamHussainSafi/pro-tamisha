@@ -33,7 +33,12 @@ def main() -> int:
     out: dict[str, object] = {"password": password, "users": {}}
     with get_sessionmaker()() as db, db.begin():
         sync_permissions(db)
-        co = Company(legal_name=f"E2E Synthetic Co {tag}", timezone="UTC")
+        co = Company(
+            legal_name=f"E2E Synthetic Co {tag}",
+            timezone="UTC",
+            business_no="000111222",
+            default_salesperson="Sam Synthetic",
+        )
         db.add(co)
         db.flush()
         roles = ensure_default_roles(db, co.id)

@@ -75,7 +75,7 @@ test("owner bills 7 cases by weight (205 lb × 1.50 = 307.50) and issues once", 
   await issue.click();
   await page.getByRole("dialog").getByRole("button", { name: "Issue invoice" }).click();
 
-  await expect(page.getByRole("heading", { name: /^Invoice INV-\d{4}-\d{6}$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Invoice TT\d{4}-\d{6}$/ })).toBeVisible();
   await expect(page.getByTestId("invoice-total")).toHaveText(/307\.50/);
   await expect(page.getByRole("region", { name: "Invoice lines" })).toContainText("3 × 25 lb (weighed)");
   await expect(page.getByText(/CAS-FZ-SEED-2/)).toBeVisible();

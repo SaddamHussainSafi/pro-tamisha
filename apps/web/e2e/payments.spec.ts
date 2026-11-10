@@ -65,7 +65,7 @@ test("reported payment is confirmed and applied; invoice and receivables show wh
   await page.getByLabel("The goods on this sheet have been dispatched to the customer").check();
   await page.getByRole("button", { name: "Issue invoice" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Issue invoice" }).click();
-  const heading = page.getByRole("heading", { name: /^Invoice INV-\d{4}-\d{6}$/ });
+  const heading = page.getByRole("heading", { name: /^Invoice TT\d{4}-\d{6}$/ });
   await expect(heading).toBeVisible();
   invoiceNo = ((await heading.textContent()) ?? "").replace("Invoice ", "");
   total = cents((await page.getByTestId("invoice-total").textContent()) ?? "");

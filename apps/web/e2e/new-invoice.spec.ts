@@ -29,7 +29,10 @@ async function axe(page: Page) {
 }
 
 async function fillDirect(page: Page) {
-  await page.getByLabel("Customer").selectOption({ label: "Island Grocers (synthetic) (C-1001)" });
+  await page.getByLabel("Customer", { exact: true }).selectOption({ label: "Island Grocers (synthetic) (C-1001)" });
+  // Prefilled from the customer record (D-12): salesperson default and the bill-to panel.
+  await expect(page.getByLabel("Salesperson")).toHaveValue("Sam Synthetic");
+  await expect(page.getByLabel("From the customer record")).toContainText("Net");
   await page.getByLabel("Product, line 1").selectOption({ label: "Cassava frozen (CFZ)" });
   await page.getByLabel("Unit, line 1").selectOption({ label: "boxes" });
   await page.getByLabel("Quantity, line 1").fill("2");
@@ -57,7 +60,7 @@ test("owner creates invoices from a sheet or directly", async ({ page }) => {
   await axe(page);
   await page.getByRole("button", { name: "Issue invoice" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Issue invoice" }).click();
-  await expect(page.getByRole("heading", { name: /^Invoice INV-\d{4}-\d{6}$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Invoice TT\d{4}-\d{6}$/ })).toBeVisible();
   await expect(page.getByTestId("invoice-total")).toHaveText("CAD 58.00");
 });
 

@@ -49,6 +49,15 @@ def _blank(v: str | None) -> str | None:
     return (v or "").strip() or None
 
 
+def _lines(v: str | None) -> str | None:
+    """Address text: each line trimmed, blank lines dropped; None when empty."""
+    return "\n".join(x.strip() for x in (v or "").splitlines() if x.strip()) or None
+
+
+TEXT_FIELDS = ("email", "phone", "fax", "ship_to_name", "vendor_no")
+ADDRESS_FIELDS = ("bill_to_address", "ship_to_address")
+
+
 def _out(c: Customer) -> dict[str, Any]:
     return CustomerOut.model_validate(c).model_dump(mode="json")
 
@@ -133,8 +142,8 @@ def create_customer(
             company_id=p.company_id,
             external_ref=body.external_ref,
             name=body.name.strip(),
-            email=_blank(body.email),
-            phone=_blank(body.phone),
+            **{f: _blank(getattr(body, f)) for f in TEXT_FIELDS},
+            **{f: _lines(getattr(body, f)) for f in ADDRESS_FIELDS},
             group_id=body.group_id,
             payment_terms_days=body.payment_terms_days,
         )
@@ -175,10 +184,10 @@ def patch_customer(
             v = getattr(body, f)
             if v is not None:
                 setattr(c, f, v.strip() if isinstance(v, str) else v)
-        for f in ("email", "phone"):
+        for f in TEXT_FIELDS + ADDRESS_FIELDS:
             v = getattr(body, f)
             if v is not None:
-                setattr(c, f, _blank(v))
+                setattr(c, f, _lines(v) if f in ADDRESS_FIELDS else _blank(v))
         c.version += 1
         c.updated_at = datetime.now(UTC)
         db.flush()
