@@ -39,6 +39,7 @@
     return {
       view: "shop", // shop | checkout | done
       cart: {}, // "productId|UNIT" -> qty string
+      sizes: {}, // "productId|BOX" -> chosen box size in lb ("40")
       values: {},
       consent: false,
       requestType: "ORDER",
@@ -113,7 +114,7 @@
   function save() {
     if (mode !== "live") return;
     try {
-      window.sessionStorage.setItem(storeKey, JSON.stringify({ cart: state.cart, values: state.values, token: state.token, requestType: state.requestType }));
+      window.sessionStorage.setItem(storeKey, JSON.stringify({ cart: state.cart, sizes: state.sizes, values: state.values, token: state.token, requestType: state.requestType }));
     } catch (e) { /* storage blocked in some third-party frames: fine */ }
   }
   function restore() {
@@ -121,6 +122,7 @@
       var s = JSON.parse(window.sessionStorage.getItem(storeKey) || "null");
       if (s && typeof s === "object") {
         state.cart = s.cart || {};
+        state.sizes = s.sizes || {};
         state.values = s.values || {};
         if (s.requestType === "QUOTE") state.requestType = "QUOTE";
         if (typeof s.token === "string" && /^[a-f0-9]{32}$/.test(s.token)) state.token = s.token;
@@ -156,18 +158,11 @@
     });
   }
 
-  /** In a full-height frame CSS "sticky" has nothing to stick to: place the cart by hand. */
+  /** In a full-height frame "fixed" means the whole frame: place the cart bar and drawer in
+      the part of the frame that is on screen. */
   function follow() {
     if (!view) return;
     var docH = document.documentElement.scrollHeight;
-    var col = byId("oc-cart-col"), inner = byId("oc-cart-inner");
-    if (col && inner && col.offsetParent !== null && getComputedStyle(col).display !== "none") {
-      var colTop = col.getBoundingClientRect().top + window.scrollY;
-      var max = Math.max(0, col.offsetHeight - inner.offsetHeight);
-      var y = Math.min(max, Math.max(0, view.top + 16 - colTop));
-      inner.style.transform = "translateY(" + Math.round(y) + "px)";
-      inner.style.maxHeight = Math.max(320, view.height - 32) + "px";
-    }
     var bar = byId("oc-cartbar");
     if (bar) {
       var bh = bar.offsetHeight || 64;
@@ -253,6 +248,10 @@
       var ok = p && p.units.some(function (u) { return u.code === parts[1]; });
       if (!ok || !(Number(state.cart[k]) > 0)) delete state.cart[k];
     });
+    Object.keys(state.sizes).forEach(function (k) {
+      var parts = k.split("|");
+      if (boxSizes(product(parts[0])).indexOf(state.sizes[k]) < 0) delete state.sizes[k];
+    });
     var keys = {};
     cfg.fields.forEach(function (f) { keys[f.key] = true; });
     Object.keys(state.values).forEach(function (k) { if (!keys[k]) delete state.values[k]; });
@@ -262,7 +261,7 @@
   function lines() {
     return Object.keys(state.cart)
       .filter(function (k) { return Number(state.cart[k]) > 0; })
-      .map(function (k) { var parts = k.split("|"); return { key: k, product: product(parts[0]), unit: parts[1], qty: state.cart[k] }; })
+      .map(function (k) { var parts = k.split("|"); return { key: k, product: product(parts[0]), unit: parts[1], qty: state.cart[k], size: parts[1] === "BOX" ? state.sizes[k] || null : null }; })
       .filter(function (l) { return l.product; });
   }
   function cartCount() { return lines().length; }
@@ -330,7 +329,6 @@
 
   function renderShop() {
     var pf = productsField();
-    var shop = h("div", { className: "oc-shop" });
     var main = h("section", { className: "oc-main", "aria-labelledby": "oc-shop-h" });
     main.appendChild(h("h2", { id: "oc-shop-h", className: "oc-sr", "data-focus": "1", text: pf ? pf.label : "Products" }));
     if (cfg.form.intro) main.appendChild(h("p", { className: "oc-intro", text: cfg.form.intro }));
@@ -350,17 +348,14 @@
     }
     main.appendChild(h("div", { className: "oc-toolbar" },
       h("label", { className: "oc-search" }, icon("search", 18), h("span", { className: "oc-sr", text: "Search products" }), search),
-      catSel ? h("label", { className: "oc-cat" }, h("span", { className: "oc-sr", text: "Category" }), catSel) : null));
+      catSel ? h("label", { className: "oc-cat" }, h("span", { className: "oc-sr", text: "Category" }), catSel) : null,
+      h("button", { id: "oc-cart-top", type: "button", className: "oc-btn oc-btn-ghost oc-cart-top", "aria-haspopup": "dialog", on: { click: openCart } })));
     if (cfg.form.show_prices) main.appendChild(h("p", { className: "oc-help", text: "Prices shown are our standard prices. Our team confirms the final price with your order." }));
     countEl = h("p", { className: "oc-count", "aria-live": "polite" });
     main.appendChild(countEl);
     gridEl = h("ul", { className: "oc-grid", "aria-label": "Products" });
     main.appendChild(gridEl);
-    shop.appendChild(main);
-
-    shop.appendChild(h("div", { id: "oc-cart-col", className: "oc-cart-col" },
-      h("aside", { id: "oc-cart-inner", className: "oc-cart", "aria-label": "Your order" })));
-    root.appendChild(shop);
+    root.appendChild(main);
     root.appendChild(h("div", { id: "oc-cartbar", className: "oc-cartbar" }));
     root.appendChild(h("div", { id: "oc-sheet", className: "oc-sheet", hidden: !state.sheet }));
     drawGrid();
@@ -396,23 +391,37 @@
     return img;
   }
 
+  function unitInfo(p, code) { return p.units.filter(function (u) { return u.code === code; })[0] || null; }
+  function boxSizes(p) { var u = p && unitInfo(p, "BOX"); return (u && u.box_sizes) || []; }
+
   function chosenUnit(p) {
     var u = state.units[p.id];
-    if (!p.units.some(function (x) { return x.code === u; })) {
-      // Prefer a unit that's already in the cart, else the first one offered.
+    if (!unitInfo(p, u)) {
       var inCart = p.units.filter(function (x) { return Number(state.cart[p.id + "|" + x.code]) > 0; })[0];
-      u = (inCart || p.units[0]).code;
+      u = (inCart || unitInfo(p, "BOX") || p.units[0]).code;
     }
     return u;
   }
 
-  function priceText(p) {
-    var pr = (p.prices || [])[0];
+  /** Price for the shown unit when the form shows prices; else the first standard rate kept. */
+  function priceText(p, unit) {
+    var list = p.prices || [];
+    var pr = list.filter(function (x) { return x.unit === unit; })[0] || list[0];
     return pr ? pr.currency + " " + pr.price + " / " + unitName(pr.unit, 1) : null;
   }
 
   function row(iconName, label, value) {
     return h("div", { className: "oc-row" }, h("dt", null, icon(iconName, 16), label), h("dd", null, value));
+  }
+
+  function qtyText(unit, qty, size) {
+    if (unit === "BOX") return qty + " " + unitName("BOX", qty) + (size ? " · " + size + " lb" : "");
+    return qty + " " + unitName(unit, qty);
+  }
+  function lineTitle(l) {
+    if (l.unit === "BOX") return "Box" + (l.size ? " · " + l.size + " lb" : "");
+    if (l.unit === "LB") return "Per lb";
+    return unitTitle(l.unit);
   }
 
   function stepper(p, unit, small) {
@@ -440,30 +449,64 @@
       h("button", { id: id + "-more", type: "button", className: "oc-step", "aria-label": "More " + unitName(unit, 2) + " of " + p.name, on: { click: function () { bump(1); } } }, "+"));
   }
 
+  function unitLabel(code) { return code === "BOX" ? "Box" : code === "LB" ? "Per lb" : code === "PIECE" ? "Piece" : unitTitle(code); }
+
   function card(p) {
     var unit = chosenUnit(p);
     var key = p.id + "|" + unit;
     var inCart = Number(state.cart[key]) > 0;
     var anyInCart = p.units.some(function (u) { return Number(state.cart[p.id + "|" + u.code]) > 0; });
-    var uinfo = p.units.filter(function (u) { return u.code === unit; })[0] || {};
     var cat = category(p.category_id);
-    var price = cfg.form.show_prices ? priceText(p) : null;
-
-    var soldBy;
-    if (p.units.length > 1) {
-      soldBy = h("select", { className: "oc-unit", "aria-label": "Unit for " + p.name, on: { change: function (e) { state.units[p.id] = e.target.value; refreshCard(p.id); } } },
-        p.units.map(function (u) { return h("option", { value: u.code, selected: u.code === unit, text: unitTitle(u.code) }); }));
-    } else soldBy = unitTitle(unit);
-
+    var price = cfg.form.show_prices ? priceText(p, unit) : null;
+    var sizes = unit === "BOX" ? boxSizes(p) : [];
+    var size = state.sizes[p.id + "|BOX"] || (sizes.length === 1 ? sizes[0] : "");
     var err = state.itemErrors[key];
+    var sizeId = "oc-size-" + p.id;
+
+    // Unit choice: a small segmented control (radio buttons) when there is more than one.
+    var unitCtl = null;
+    if (p.units.length > 1) {
+      unitCtl = h("div", { className: "oc-seg", role: "radiogroup", "aria-label": "Order " + p.name + " by" },
+        p.units.map(function (u) {
+          var on = u.code === unit;
+          var n = Number(state.cart[p.id + "|" + u.code]) || 0;
+          return h("button", { type: "button", role: "radio", "aria-checked": String(on), className: "oc-seg-btn" + (on ? " is-on" : ""),
+            on: { click: function () { state.units[p.id] = u.code; refreshCard(p.id); var b = root.querySelector("#oc-card-" + p.id + " .oc-seg-btn.is-on"); if (b) b.focus(); } } },
+            unitLabel(u.code), n ? h("span", { className: "oc-seg-n", "aria-label": n + " in your order", text: String(n) }) : null);
+        }));
+    } else {
+      unitCtl = h("span", { className: "oc-unit-only", text: unitLabel(unit) });
+    }
+    var sizeCtl = null;
+    if (unit === "BOX" && sizes.length) {
+      sizeCtl = h("select", { id: sizeId, className: "oc-size" + (err && !size ? " is-invalid" : ""), "aria-label": "Box size for " + p.name,
+        on: { change: function (e) {
+          if (e.target.value) state.sizes[p.id + "|BOX"] = e.target.value; else delete state.sizes[p.id + "|BOX"];
+          delete state.itemErrors[p.id + "|BOX"];
+          save(); refreshCard(p.id); renderCart();
+          var again = byId(sizeId); if (again) again.focus();
+        } } },
+        sizes.length > 1 ? h("option", { value: "", text: "Box size…" }) : null,
+        sizes.map(function (z) { return h("option", { value: z, selected: z === size, text: z + " lb box" }); }));
+    }
+
+    function add() {
+      if (unit === "BOX" && sizes.length && !size) {
+        state.itemErrors[key] = "Choose a box size first";
+        refreshCard(p.id);
+        var sel = byId(sizeId); if (sel) sel.focus();
+        say("Choose a box size for " + p.name + " first");
+        return;
+      }
+      if (unit === "BOX" && size) state.sizes[key] = size;
+      setQty(p.id, unit, 1, true);
+      var q = byId("oc-q-" + p.id + "-" + unit + "-more");
+      if (q) q.focus();
+    }
     var action = inCart
       ? h("div", { className: "oc-card-action" }, h("span", { className: "oc-incart" }, icon("check", 16), "In your order"), stepper(p, unit, false))
       : h("div", { className: "oc-card-action" },
-          h("button", { type: "button", className: "oc-btn oc-add", "aria-label": "Add " + p.name + " to your order", on: { click: function () {
-            setQty(p.id, unit, 1, true);
-            var q = byId("oc-q-" + p.id + "-" + unit + "-more");
-            if (q) q.focus();
-          } } }, icon("cart", 17), "Add to order"));
+          h("button", { type: "button", className: "oc-btn oc-add", "aria-label": "Add " + p.name + " to your order", on: { click: add } }, icon("cart", 17), "Add to order"));
 
     return h("li", { id: "oc-card-" + p.id, className: "oc-card" + (anyInCart ? " is-in" : "") },
       h("div", { className: "oc-card-top" },
@@ -471,10 +514,8 @@
         h("div", { className: "oc-info" },
           h("h3", { className: "oc-name", text: p.name }),
           h("p", { className: "oc-meta", text: p.sku + (cat ? " · " + cat : "") }),
-          h("dl", { className: "oc-rows" },
-            row("box", "Sold by", soldBy),
-            uinfo.size ? row("scale", "Case size", uinfo.size) : null,
-            price ? row("tag", "Price", price) : null))),
+          price ? h("dl", { className: "oc-rows" }, row("tag", "Price", price)) : null)),
+      h("div", { className: "oc-choose" }, unitCtl, sizeCtl),
       err ? h("p", { className: "oc-err", text: err }) : null,
       action);
   }
@@ -485,21 +526,34 @@
     if (old && p && old.parentNode) old.parentNode.replaceChild(card(p), old);
   }
 
-  // ---------------------------------------------------------------- cart (aside, phone bar, sheet)
+  // ---------------------------------------------------------------- cart (button, bar, drawer)
 
-  function cartBody(inSheet) {
+  function openCart() {
+    state.sheet = true;
+    renderCart();
+    var c = byId("oc-sheet-h");
+    if (c) { c.setAttribute("tabindex", "-1"); c.focus(); }
+  }
+  function closeCart() {
+    state.sheet = false;
+    renderCart();
+    var b = byId("oc-cart-top");
+    if (b) b.focus();
+  }
+
+  function cartBody() {
     var ls = lines();
     var n = ls.length;
     var wrap = h("div", { className: "oc-cart-body" });
     wrap.appendChild(h("div", { className: "oc-cart-head" },
-      h("h2", { className: "oc-cart-title", id: inSheet ? "oc-sheet-h" : null }, icon("cart", 20), "Your order"),
+      h("h2", { className: "oc-cart-title", id: "oc-sheet-h" }, icon("cart", 20), "Your order"),
       n ? h("span", { className: "oc-pill", text: n + (n === 1 ? " item" : " items") }) : null,
-      inSheet ? h("button", { type: "button", className: "oc-icon-btn", "aria-label": "Close your order", on: { click: function () { state.sheet = false; renderCart(); var b = byId("oc-cartbar-btn"); if (b) b.focus(); } } }, icon("x", 20)) : null));
+      h("button", { type: "button", className: "oc-icon-btn", "aria-label": "Close your order", on: { click: closeCart } }, icon("x", 20))));
     if (!n) {
       wrap.appendChild(h("div", { className: "oc-cart-empty" },
         h("span", { className: "oc-empty-icon", "aria-hidden": "true" }, icon("cart", 26)),
         h("p", { text: "Your order is empty." }),
-        h("p", { className: "oc-help", text: "Add products, then send them as an order or ask us for a quote." })));
+        h("p", { className: "oc-help", text: "Add products by the box or per lb, then send them as an order or ask us for a quote." })));
       return wrap;
     }
     var list = h("ul", { className: "oc-cart-lines" });
@@ -509,26 +563,58 @@
         h("div", { className: "oc-line-tile" }, photo(l.product, "oc-line-photo")),
         h("div", { className: "oc-line-main" },
           h("p", { className: "oc-line-name", text: l.product.name }),
+          lineSize(l) || h("p", { className: "oc-line-unit", text: lineTitle(l) }),
           h("div", { className: "oc-line-row" }, stepper(l.product, l.unit, true), h("span", { className: "oc-line-unit", text: unitName(l.unit, l.qty) })),
           err ? h("p", { className: "oc-err", text: err }) : null),
-        h("button", { type: "button", className: "oc-icon-btn oc-remove", "aria-label": "Remove " + l.product.name + " (" + unitName(l.unit, 2) + ")", on: { click: function () { setQty(l.product.id, l.unit, 0, true); } } }, icon("x", 16))));
+        h("button", { type: "button", className: "oc-icon-btn oc-remove", "aria-label": "Remove " + l.product.name + " (" + lineTitle(l) + ")", on: { click: function () { setQty(l.product.id, l.unit, 0, true); } } }, icon("x", 16))));
     });
     wrap.appendChild(list);
     wrap.appendChild(h("div", { className: "oc-cart-foot" },
       h("p", { className: "oc-help", text: "No payment now. Our team confirms prices, availability and delivery with you." }),
-      h("button", { type: "button", className: "oc-btn oc-block", on: { click: function () { go("checkout"); } } }, "Continue")));
+      h("button", { type: "button", className: "oc-btn oc-block", on: { click: function () {
+        if (missingSizes().length) { renderCart(); var first = root.querySelector(".oc-sheet-panel .oc-size.is-invalid"); if (first) first.focus(); return; }
+        go("checkout");
+      } } }, "Continue")));
     return wrap;
   }
 
+  /** Box lines pick (or change) their size right in the cart. */
+  function lineSize(l) {
+    var sizes = l.unit === "BOX" ? boxSizes(l.product) : [];
+    if (!sizes.length) return null;
+    var id = "oc-lsize-" + l.product.id;
+    return h("select", { id: id, className: "oc-size is-small" + (!l.size && state.itemErrors[l.key] ? " is-invalid" : ""), "aria-label": "Box size for " + l.product.name,
+      on: { change: function (e) {
+        if (e.target.value) state.sizes[l.key] = e.target.value; else delete state.sizes[l.key];
+        delete state.itemErrors[l.key];
+        save(); refreshCard(l.product.id); renderCart();
+        var again = byId(id); if (again) again.focus();
+      } } },
+      l.size ? null : h("option", { value: "", text: "Box size…" }),
+      sizes.map(function (z) { return h("option", { value: z, selected: z === l.size, text: z + " lb box" }); }));
+  }
+
+  /** Every box line needs a size before sending (the server checks too). */
+  function missingSizes() {
+    var missing = lines().filter(function (l) { return l.unit === "BOX" && !l.size && boxSizes(l.product).length; });
+    missing.forEach(function (l) { state.itemErrors[l.key] = "Choose a box size"; });
+    return missing;
+  }
+
   function renderCart() {
-    var aside = byId("oc-cart-inner");
-    if (aside) { clear(aside); aside.appendChild(cartBody(false)); }
     var n = cartCount();
+    var top = byId("oc-cart-top");
+    if (top) {
+      clear(top);
+      top.appendChild(icon("cart", 18));
+      top.appendChild(document.createTextNode("Your order"));
+      if (n) top.appendChild(h("span", { className: "oc-pill", text: String(n) }));
+    }
     var bar = byId("oc-cartbar");
     if (bar) {
       clear(bar);
       bar.hidden = !n;
-      if (n) bar.appendChild(h("button", { id: "oc-cartbar-btn", type: "button", className: "oc-btn oc-block oc-cartbar-btn", "aria-haspopup": "dialog", on: { click: function () { state.sheet = true; renderCart(); var c = byId("oc-sheet-h"); if (c) { c.setAttribute("tabindex", "-1"); c.focus(); } } } },
+      if (n) bar.appendChild(h("button", { id: "oc-cartbar-btn", type: "button", className: "oc-btn oc-cartbar-btn", "aria-haspopup": "dialog", on: { click: openCart } },
         icon("cart", 18), "View order", h("span", { className: "oc-pill is-light", text: String(n) })));
     }
     var sheet = byId("oc-sheet");
@@ -536,9 +622,9 @@
       clear(sheet);
       sheet.hidden = !state.sheet;
       if (state.sheet) {
-        sheet.appendChild(h("div", { className: "oc-sheet-backdrop", on: { click: function () { state.sheet = false; renderCart(); } } }));
+        sheet.appendChild(h("div", { className: "oc-sheet-backdrop", on: { click: closeCart } }));
         sheet.appendChild(h("div", { className: "oc-sheet-panel", role: "dialog", "aria-modal": "true", "aria-labelledby": "oc-sheet-h",
-          on: { keydown: function (e) { if (e.key === "Escape") { state.sheet = false; renderCart(); } } } }, cartBody(true)));
+          on: { keydown: function (e) { if (e.key === "Escape") closeCart(); } } }, cartBody()));
       }
     }
     follow();
@@ -667,7 +753,7 @@
           h("div", { className: "oc-line-tile" }, photo(l.product, "oc-line-photo")),
           h("div", { className: "oc-line-main" },
             h("p", { className: "oc-line-name", text: l.product.name }),
-            h("p", { className: "oc-line-unit", text: l.qty + " " + unitName(l.unit, l.qty) }),
+            h("p", { className: "oc-line-unit", text: qtyText(l.unit, l.qty, l.size) }),
             err ? h("p", { className: "oc-err", text: err }) : null)));
       });
       if (!ls.length) list.appendChild(h("li", { className: "oc-help", text: "No products yet." }));
@@ -681,6 +767,15 @@
     if (state.sending || mode !== "live") return;
     var pf = productsField();
     if (pf && pf.required && !cartCount()) { state.notice = "Add at least one product first."; go("shop"); return; }
+    var missing = missingSizes();
+    if (missing.length) {
+      state.notice = "Choose a box size for " + missing.map(function (l) { return l.product.name; }).join(", ") + ".";
+      state.view = "shop";
+      state.sheet = true;
+      render(true);
+      toTop();
+      return;
+    }
     state.errors = checkDetails();
     if (Object.keys(state.errors).length) {
       state.notice = "Some details need attention.";
@@ -701,7 +796,11 @@
       form_token: cfg.token,
       client_token: state.token,
       values: values,
-      items: lines().map(function (l) { return { product_id: l.product.id, unit_code: l.unit, qty: l.qty }; }),
+      items: lines().map(function (l) {
+        var it = { product_id: l.product.id, unit_code: l.unit, qty: l.qty };
+        if (l.unit === "BOX" && l.size) it.box_size_lb = l.size;
+        return it;
+      }),
       consent: !!state.consent,
       request_type: state.requestType,
       website: trap ? trap.value : "",

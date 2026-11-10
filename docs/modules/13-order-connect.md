@@ -71,6 +71,15 @@ Customers, products, employees and sales orders are the existing tables.
 All are company-level grants (warehouse-scoped grants don't count). Converting also needs
 `sales_order.manage` for the chosen warehouse, and `catalog.manage` to create a new customer.
 
+## Units and box sizes
+
+Every product can be ordered **by the box** or **per lb** (owner, 2026-11-09), plus pieces where the
+catalog packs them. Boxes need a size: the product's own BOX case sizes (packing profiles with a
+weight), or — until the real product list with case sizes is imported — the standard sizes
+10/20/25/40/50 lb (`STANDARD_BOX_SIZES_LB`, D-32). The size is validated server-side, kept with
+the submitted values, shown to staff and copied to the draft order line as a note. One box size per
+product per request (the sales order holds one line per product and unit).
+
 ## Order or quote
 
 The customer's choice is stored in the submitted values (`raw.request_type`, `ORDER` | `QUOTE`;

@@ -136,9 +136,22 @@ test("a customer shops with the cart on the website page and sends a quote reque
   await expect(form.getByRole("heading", { name: "Wholesale orders" })).toHaveCount(0);
 
   await form.getByLabel("Search products").fill("cassava");
-  await form.getByRole("button", { name: /^Add .* to your order$/ }).first().click();
-  await form.getByRole("button", { name: /^More .* of / }).first().click();
-  await expect(form.getByRole("button", { name: /View order/ })).toContainText("1");
+  const card = form.getByRole("listitem").filter({ has: form.getByRole("heading", { level: 3 }) }).first();
+  const name = (await card.getByRole("heading", { level: 3 }).textContent()) ?? "";
+  // Boxes need a size first: the product's own case sizes, or the standard list.
+  await card.getByRole("button", { name: `Add ${name} to your order` }).click();
+  const size = card.getByLabel(`Box size for ${name}`);
+  if ((await size.inputValue()) === "") {
+    await expect(card.getByText("Choose a box size first")).toBeVisible();
+    await size.selectOption({ index: 1 });
+    await card.getByRole("button", { name: `Add ${name} to your order` }).click();
+  }
+  const boxSize = await size.inputValue();
+  await card.getByRole("button", { name: /^More .* of / }).click();
+  // ...and the same product per lb, as a second line.
+  await card.getByRole("radio", { name: /Per lb/ }).click();
+  await card.getByRole("button", { name: `Add ${name} to your order` }).click();
+  await expect(form.getByRole("button", { name: /View order/ })).toContainText("2");
   // The website code makes the frame as tall as the form: no box scrolling inside the page,
   // and nothing in the form scrolls sideways at phone width.
   const frame = page.frames().find((f) => f.url().includes("/embed/"));
@@ -153,7 +166,9 @@ test("a customer shops with the cart on the website page and sends a quote reque
 
   await form.getByRole("button", { name: /View order/ }).click();
   const sheet = form.getByRole("dialog", { name: "Your order" });
-  await expect(sheet.getByLabel(/^Quantity of /)).toHaveValue("2");
+  await expect(sheet.getByLabel(/^Quantity of .* in boxes$/)).toHaveValue("2");
+  await expect(sheet.getByLabel(/^Quantity of .* in lb$/)).toHaveValue("1");
+  await expect(sheet.getByLabel(`Box size for ${name}`)).toHaveValue(boxSize);
   await sheet.getByRole("button", { name: "Continue" }).click();
 
   await expect(form.getByRole("heading", { name: "Send your request" })).toBeVisible();
@@ -165,7 +180,9 @@ test("a customer shops with the cart on the website page and sends a quote reque
   await form.getByLabel("Email").fill("ada@example.test");
   await form.getByLabel("Delivery notes").fill("<script>alert(1)</script> back door");
   await form.getByLabel("We have a loading dock").check();
-  await expect(form.getByRole("complementary", { name: "Order summary" }).getByText("2 boxes")).toBeVisible();
+  const summary = form.getByRole("complementary", { name: "Order summary" });
+  await expect(summary.getByText(`2 boxes · ${boxSize} lb`)).toBeVisible();
+  await expect(summary.getByText("1 lb", { exact: true })).toBeVisible();
   await form.getByRole("button", { name: "Send quote request" }).click();
   await expect(form.getByRole("heading", { name: "Quote request sent" })).toBeVisible();
   reference = (await form.locator(".oc-ref strong").textContent()) ?? "";
@@ -189,6 +206,8 @@ test("staff review the order and convert it into a draft sales order", async ({ 
   await expect(page.getByText(reference)).toBeVisible();
   await expect(page.getByText("<script>alert(1)</script> back door")).toBeVisible();
   await expect(page.getByText("We have a loading dock")).toBeVisible();
+  await expect(page.getByRole("cell", { name: /^2 boxes · \d+ lb$/ })).toBeVisible(); // box size kept
+  await expect(page.getByRole("cell", { name: "1 lb", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start review" }).click();
   await expect(page.getByText("Marked reviewing.")).toBeVisible();
   await page.getByRole("button", { name: "Approve" }).click();

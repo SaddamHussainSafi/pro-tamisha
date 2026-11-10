@@ -24,7 +24,7 @@
 | D-20 | Client's preferred actual application name (Tami vs Tamisha One) | working name **Pro Trading** only |
 | D-21 | Order Connect: who may approve website orders and convert them into draft sales orders | Owner/Admin and Manager approve + convert; Sales may review, reject, mark spam/duplicate only |
 | D-22 | Order Connect public address: same domain as the staff app, or a separate one (e.g. orders.tamishatrading.com) | `PUBLIC_APP_ORIGIN` empty = staff app origin; a separate subdomain is recommended (isolates customer pages from staff cookies); reverse proxy must route `/embed/*` and `/api/*` there |
-| D-23 | Units customers may order in | product's stock unit + BOX/PIECE units with an active packing profile; LB/KG only for products stocked in LB/KG |
+| D-23 | Units customers may order in | **Owner, 2026-11-09:** box or per lb for every product (plus pieces where packed so); box size chosen from the product's case sizes |
 | D-24 | Show prices on the public form? which price book, currency and tax wording | off by default; when on, only the STANDARD rate of the price book in effect, labelled as a guide; prices never taken from the browser |
 | D-25 | Product photos on the public form (source, licensing in `apps/web/public/products/CREDITS.md`) | uses `/products/<SKU>.webp` when present, initials otherwise |
 | D-26 | Captcha service (Cloudflare Turnstile / hCaptcha) on the public form | none: honeypot, minimum fill time, per-IP/per-form hourly limits; spam kept as SPAM for review |
@@ -33,5 +33,6 @@
 | D-29 | Form publishing rules, duplicate window, reopening rejected/spam | publish needs required Products + a name + a contact; same contact+items within 24 h flagged (not blocked); rejected/spam/duplicate can be reopened |
 | D-30 | Customers created from a website order: group, terms, external ref | created with the submitted name/email/phone, no group, 0 payment-terms days; staff complete it in Customers |
 | D-31 | Online Orders quote requests: should Pro Trading produce a quote document (PDF/email with prices) or is a reply by phone/email enough? Reference prefix stays `OC-`? | quote requests use the same review flow and convert to a DRAFT order; no quote document; `OC-` references |
+| D-32 | Standard box sizes offered for products with no recorded case weight (until the real product list with case sizes is imported); one BOX price per product whatever the size | 10, 20, 25, 40, 50 lb (`STANDARD_BOX_SIZES_LB` in `order_connect/forms.py`); a product's own BOX case sizes replace the list automatically; the chosen size goes on the draft order line as a note |
 
 For each decision record approver, date, selected option, affected schema/APIs and test updates in an ADR. Never silently infer legal/financial answers.

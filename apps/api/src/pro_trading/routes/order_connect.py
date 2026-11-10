@@ -282,7 +282,8 @@ def detail_out(db: Session, p: Principal, s: OrderFormSubmission) -> dict[str, A
                     "sku": i.sku,
                     "product_name": i.product_name,
                     "unit_code": i.unit_code,
-                    "qty": str(i.qty.normalize()) if i.qty == i.qty.to_integral() else str(i.qty),
+                    "qty": format(i.qty.normalize(), "f"),
+                    "box_size_lb": intake.box_size(s, i.product_id, i.unit_code),
                 }
                 for i in items
             ],
@@ -1040,13 +1041,20 @@ def convert(
             src = items.get(ln.item_line_no) if ln.item_line_no else None
             if ln.item_line_no and src is None:
                 raise ApiError(422, "INVALID_ITEM", f"Submission has no line {ln.item_line_no}")
+            size = intake.box_size(s, src.product_id, src.unit_code) if src else None
             text = (
                 f"Online {what} {s.reference} line {src.line_no}: {src.qty.normalize()} "
                 f"{src.unit_code} {src.product_name} ({src.sku})"
+                + (f", {size} lb boxes" if size else "")
                 if src
                 else f"Added by staff to online {what} {s.reference}"
             )
-            lines.append(ln.model_copy(update={"source_line_text": text[:500]}))
+            # The draft order keeps the requested box size as the line note; the order line has
+            # no case-size field (packing is chosen when the order is picked and invoiced).
+            note = ln.note or (
+                f"Box size requested: {size} lb" if size and ln.unit_code == "BOX" else ""
+            )
+            lines.append(ln.model_copy(update={"source_line_text": text[:500], "note": note[:500]}))
         requested = body.requested_for
         if requested is None and s.requested_date is not None:
             requested = datetime.combine(s.requested_date, time(12, 0), tzinfo=UTC)

@@ -71,7 +71,7 @@ export type SubSummary = {
   version: number;
   created_at: string;
 };
-export type SubItem = { line_no: number; product_id: string; sku: string; product_name: string; unit_code: string; qty: string };
+export type SubItem = { line_no: number; product_id: string; sku: string; product_name: string; unit_code: string; qty: string; box_size_lb: string | null };
 export type SubEvent = { kind: string; from_status: string | null; to_status: string | null; note: string; actor_name: string | null; created_at: string };
 export type SubDetail = SubSummary & {
   form_version_no: number;
@@ -368,11 +368,11 @@ export function relTime(iso: string, now = new Date()): string {
 
 export const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 
-export const qtyText = (qty: string, unit: string) => {
+export const qtyText = (qty: string, unit: string, boxSizeLb?: string | null) => {
   const n = Number(qty);
   const names: Record<string, [string, string]> = { BOX: ["box", "boxes"], PIECE: ["piece", "pieces"], LB: ["lb", "lb"], KG: ["kg", "kg"] };
   const [one, many] = names[unit] ?? [unit, unit];
-  return `${qty} ${n === 1 ? one : many}`;
+  return `${qty} ${n === 1 ? one : many}${unit === "BOX" && boxSizeLb ? ` · ${boxSizeLb} lb` : ""}`;
 };
 
 /** Live refresh for Order Connect screens: a window event other screens (and the sidebar) hear. */

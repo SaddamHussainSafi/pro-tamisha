@@ -228,7 +228,7 @@ def good_body(cfg, cat, **over):
             "notes": "Back door please",
         },
         "items": [
-            {"product_id": str(cat["CAS"]), "unit_code": "BOX", "qty": 3},
+            {"product_id": str(cat["CAS"]), "unit_code": "BOX", "qty": 3, "box_size_lb": "40"},
             {"product_id": str(cat["PLN"]), "unit_code": "PIECE", "qty": "12"},
         ],
     }
@@ -406,7 +406,14 @@ def test_public_config_has_catalog_units_and_no_stock_or_customer_prices(owner, 
     names = [p["name"] for p in cfg["products"]]
     assert names == ["Cassava", "Okra", "Plantain"]  # inactive product hidden
     cas = next(p for p in cfg["products"] if p["sku"] == "CAS")
-    assert [u["code"] for u in cas["units"]] == ["BOX"]
+    # box or per lb for every product; box sizes: the product's own (CAS packs 40 lb), else standard
+    assert [u["code"] for u in cas["units"]] == ["BOX", "LB"]
+    assert cas["units"][0]["box_sizes"] == ["40"] and cas["units"][0]["standard_sizes"] is False
+    okr_box = next(p for p in cfg["products"] if p["sku"] == "OKR")["units"][0]
+    assert (
+        okr_box["box_sizes"] == ["10", "20", "25", "40", "50"] and okr_box["standard_sizes"] is True
+    )
+    assert "box_sizes" not in cas["units"][1]
     assert cas["units"][0]["size"] == "40 lb"  # from the packing profile, nothing invented
     assert next(p for p in cfg["products"] if p["sku"] == "OKR")["units"][0]["size"] is None
     assert "price" not in cas["units"][0] and cas["prices"] == []  # prices off by default
@@ -619,7 +626,7 @@ def test_valid_delivery_date_is_kept(api, live, cat):
     [
         ({"sku": "OLD", "unit_code": "BOX", "qty": 1}, "no longer available"),
         ({"sku": "CAS", "unit_code": "PIECE", "qty": 1}, "can't be ordered by PIECE"),
-        ({"sku": "CAS", "unit_code": "LB", "qty": 1}, "can't be ordered by LB"),
+        ({"sku": "CAS", "unit_code": "KG", "qty": 1}, "can't be ordered by KG"),
         ({"sku": "CAS", "unit_code": "BOX", "qty": "1.5"}, "whole numbers"),
         ({"sku": "foreign", "unit_code": "BOX", "qty": 1}, "no longer available"),
     ],
@@ -637,11 +644,38 @@ def test_inactive_foreign_or_wrong_unit_products_are_refused(api, live, cat, ite
     assert r.status_code == 422 and msg in str(r.json()["error"]["fields"]), r.text
 
 
+def test_box_sizes_and_per_lb_orders(api, live, cat, owner):
+    cfg = load(api, live)
+    cas, okr = str(cat["CAS"]), str(cat["OKR"])
+    for item, msg in [
+        ({"product_id": cas, "unit_code": "BOX", "qty": 1}, "Choose a box size"),
+        (
+            {"product_id": cas, "unit_code": "BOX", "qty": 1, "box_size_lb": "25"},
+            "listed box sizes",
+        ),
+        (
+            {"product_id": cas, "unit_code": "LB", "qty": 5, "box_size_lb": "40"},
+            "only applies to boxes",
+        ),
+    ]:
+        r = submit(api, live, good_body(cfg, cat, items=[item]))
+        assert r.status_code == 422 and msg in str(r.json()["error"]["fields"]), r.text
+    # standard sizes for a product with no case weight of its own; per lb with a decimal amount
+    items = [
+        {"product_id": okr, "unit_code": "BOX", "qty": 2, "box_size_lb": "25"},
+        {"product_id": cas, "unit_code": "LB", "qty": "12.5"},
+    ]
+    ref = ok(submit(api, live, good_body(cfg, cat, items=items)), 201)["reference"]
+    d = ok(owner.get(f"{OC}/submissions/{_sid(ref)}"))
+    got = {(i["product_name"], i["unit_code"], i["qty"], i["box_size_lb"]) for i in d["items"]}
+    assert got == {("Okra", "BOX", "2", "25"), ("Cassava", "LB", "12.5", None)}
+
+
 def test_products_required_and_no_duplicates(api, live, cat):
     cfg = load(api, live)
     r = submit(api, live, good_body(cfg, cat, items=[]))
     assert r.status_code == 422 and "products" in r.json()["error"]["fields"]
-    line = {"product_id": str(cat["CAS"]), "unit_code": "BOX", "qty": 1}
+    line = {"product_id": str(cat["CAS"]), "unit_code": "BOX", "qty": 1, "box_size_lb": "40"}
     r = submit(api, live, good_body(cfg, cat, items=[line, line]))
     assert r.status_code == 422 and "listed twice" in r.text
 
@@ -804,7 +838,8 @@ def test_quote_requests_are_marked_alerted_filtered_and_kept_after_erasure(
             headers=idem(),
         )
     )
-    assert d["raw"] == {"erased": True, "request_type": "QUOTE"} and d["request_type"] == "QUOTE"
+    assert d["raw"]["erased"] is True and d["raw"]["request_type"] == "QUOTE"
+    assert set(d["raw"]) == {"erased", "request_type", "items"} and d["request_type"] == "QUOTE"
 
 
 def test_quote_receipt_email_says_quote(api, live, cat, world):
@@ -986,6 +1021,8 @@ def test_conversion_creates_one_draft_order_and_nothing_else(received, owner, wo
             ("PIECE", Decimal("12.0000"), None),
         ]
         assert all("Online order" in ln.source_line_text for ln in lines)
+        box = next(ln for ln in lines if ln.unit_code == "BOX")
+        assert box.note == "Box size requested: 40 lb" and "40 lb boxes" in box.source_line_text
         assert (
             db.scalar(
                 select(func.count())
@@ -1160,7 +1197,10 @@ def test_erasure_blanks_personal_data_once(received, owner, as_):
         )
     )
     assert d["email"] == d["customer_name"] == d["delivery_address"] == "" and d["erased"]
-    assert d["raw"] == {"erased": True, "request_type": "ORDER"} and len(d["items"]) == 2
+    # products, units and box sizes are not personal data: they stay
+    assert d["raw"] == {"erased": True, "request_type": "ORDER", "items": d["raw"]["items"]}
+    assert len(d["raw"]["items"]) == 2 and len(d["items"]) == 2
+    assert d["items"][0]["box_size_lb"] == "40"
     with get_sessionmaker()() as db:
         assert db.scalar(select(Notification.body).where(Notification.target_id == received)) == (
             "Personal data erased"

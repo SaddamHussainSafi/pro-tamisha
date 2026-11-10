@@ -57,6 +57,8 @@ class PublicItemIn(BaseModel):
     product_id: uuid.UUID
     unit_code: Literal["BOX", "PIECE", "LB", "KG"]
     qty: Decimal = Field(gt=0, le=MAX_QTY, max_digits=8, decimal_places=4)
+    # Chosen box size in lb (BOX lines only; one of the sizes the form offers for the product).
+    box_size_lb: Decimal | None = Field(default=None, gt=0, le=1000, max_digits=7, decimal_places=2)
 
 
 class PublicSubmissionIn(BaseModel):
@@ -227,6 +229,7 @@ def validate_items(
         return []
     allowed = {p.id: p for p in forms.products_in_scope(db, form.company_id, ver)}
     units = forms._units(db, list(allowed.values()))
+    boxes = forms.box_sizes(db, list(allowed.values()))
     errors: dict[str, str] = {}
     seen: set[tuple[uuid.UUID, str]] = set()
     out = []
@@ -240,6 +243,17 @@ def validate_items(
             continue
         if it.unit_code in ("BOX", "PIECE") and it.qty != it.qty.to_integral_value():
             errors[f"items.{i}"] = f"{it.unit_code} quantities must be whole numbers"
+            continue
+        if it.unit_code == "BOX":
+            offered = boxes[prod.id][0]
+            if it.box_size_lb is None and offered:
+                errors[f"items.{i}"] = f"Choose a box size for {prod.name}"
+                continue
+            if it.box_size_lb is not None and it.box_size_lb.normalize() not in offered:
+                errors[f"items.{i}"] = f"Choose one of the listed box sizes for {prod.name}"
+                continue
+        elif it.box_size_lb is not None:
+            errors[f"items.{i}"] = f"A box size only applies to boxes of {prod.name}"
             continue
         if (prod.id, it.unit_code) in seen:
             errors[f"items.{i}"] = f"{prod.name} by {it.unit_code} is listed twice"
@@ -322,13 +336,25 @@ def receive(
             for k, v in body.values.items()
         },
         "items": [
-            {"product_id": str(i.product_id), "unit_code": i.unit_code, "qty": str(i.qty)}
+            {
+                "product_id": str(i.product_id),
+                "unit_code": i.unit_code,
+                "qty": str(i.qty),
+                **({"box_size_lb": forms.size_text(i.box_size_lb)} if i.box_size_lb else {}),
+            }
             for i in body.items
         ],
         "consent": body.consent,
         "request_type": body.request_type,
     }
-    line_keys = [(str(p.id), it.unit_code, str(it.qty)) for it, p in lines]
+    line_keys = [
+        (
+            str(p.id),
+            it.unit_code + (f"@{it.box_size_lb.normalize()}" if it.box_size_lb else ""),
+            str(it.qty),
+        )
+        for it, p in lines
+    ]
     chash = content_hash(form.id, vals, line_keys)
     dup = None
     if not spam:
@@ -485,3 +511,12 @@ def handle_received(ev: OutboxEvent) -> None:
 def request_type(sub: OrderFormSubmission) -> str:
     """ORDER or QUOTE, as the customer chose (kept in the submitted values, also after erasure)."""
     return "QUOTE" if (sub.raw or {}).get("request_type") == "QUOTE" else "ORDER"
+
+
+def box_size(sub: OrderFormSubmission, product_id: uuid.UUID, unit_code: str) -> str | None:
+    """The box size (lb) the customer chose for this product/unit, from the submitted values."""
+    for it in (sub.raw or {}).get("items") or []:
+        if it.get("product_id") == str(product_id) and it.get("unit_code") == unit_code:
+            v = it.get("box_size_lb")
+            return str(v) if v else None
+    return None

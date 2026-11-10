@@ -325,10 +325,19 @@ def publish(db: Session, form: OrderForm, draft: OrderFormVersion, actor: uuid.U
 # ------------------------------------------------------------------ public config
 
 
+# Box sizes offered for a product with no recorded case weight yet (owner, 2026-11-09: "some
+# standard sizes" until the real product list with its case sizes is imported). A product's own
+# active BOX profiles with a weight replace these automatically. OPEN_DECISIONS D-32.
+STANDARD_BOX_SIZES_LB: tuple[Decimal, ...] = tuple(
+    Decimal(x) for x in ("10", "20", "25", "40", "50")
+)
+
+
 def _units(db: Session, products: list[Product]) -> dict[uuid.UUID, list[str]]:
-    """Units a customer may order in: the product's stock unit plus units with an active
-    packing profile (LB/KG only when that is how the product is stocked)."""
-    out: dict[uuid.UUID, set[str]] = {p.id: {p.stock_unit} for p in products}
+    """Units a customer may order in (owner, 2026-11-09: box or per lb for every product): the
+    product's stock unit, LB always (catch weight, as for stock), plus BOX/PIECE units with an
+    active packing profile. KG only when that is how the product is stocked."""
+    out: dict[uuid.UUID, set[str]] = {p.id: {p.stock_unit, "LB"} for p in products}
     if products:
         rows = db.execute(
             select(ProductUnitProfile.product_id, ProductUnitProfile.unit_code).where(
@@ -353,6 +362,32 @@ def products_in_scope(db: Session, company_id: uuid.UUID, ver: OrderFormVersion)
 
 
 def _qty(v: Decimal) -> str:
+    return format(v.normalize(), "f")
+
+
+def box_sizes(db: Session, products: list[Product]) -> dict[uuid.UUID, tuple[list[Decimal], bool]]:
+    """Box sizes (lb) a customer can pick per product, and whether they are the standard list:
+    the product's own active BOX profiles with a weight, else STANDARD_BOX_SIZES_LB."""
+    own: dict[uuid.UUID, set[Decimal]] = {}
+    if products:
+        rows = db.execute(
+            select(ProductUnitProfile.product_id, ProductUnitProfile.weight_lb_per_unit).where(
+                ProductUnitProfile.product_id.in_([p.id for p in products]),
+                ProductUnitProfile.active.is_(True),
+                ProductUnitProfile.unit_code == "BOX",
+                ProductUnitProfile.weight_lb_per_unit.is_not(None),
+            )
+        ).all()
+        for pid, w in rows:
+            if w is not None:
+                own.setdefault(pid, set()).add(w.normalize())
+    return {
+        p.id: (sorted(own[p.id]), False) if p.id in own else (list(STANDARD_BOX_SIZES_LB), True)
+        for p in products
+    }
+
+
+def size_text(v: Decimal) -> str:
     return format(v.normalize(), "f")
 
 
@@ -433,6 +468,7 @@ def public_config(
     products = products_in_scope(db, form.company_id, ver)
     units = _units(db, products)
     sizes = case_sizes(db, products)
+    boxes = box_sizes(db, products)
     prices = (
         standard_prices(db, form.company_id, [p.id for p in products]) if ver.show_prices else {}
     )
@@ -483,6 +519,16 @@ def public_config(
                     {
                         "code": u,
                         "size": sizes.get((p.id, u)),
+                        # Box sizes to choose from (lb); "standard" when the product has none of
+                        # its own recorded yet.
+                        **(
+                            {
+                                "box_sizes": [size_text(x) for x in boxes[p.id][0]],
+                                "standard_sizes": boxes[p.id][1],
+                            }
+                            if u == "BOX"
+                            else {}
+                        ),
                         **(
                             {"price": money(prices[(p.id, u)][0]), "currency": prices[(p.id, u)][1]}
                             if (p.id, u) in prices

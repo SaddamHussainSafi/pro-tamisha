@@ -371,7 +371,7 @@ export function OcSubmissionPage() {
                   {d.items.map((i) => (
                     <tr key={i.line_no}>
                       <td className="td px-3"><span className="font-medium">{i.product_name}</span> <span className="text-ink-muted">{i.sku}</span></td>
-                      <td className="td num px-3 text-right">{qtyText(i.qty, i.unit_code)}</td>
+                      <td className="td num px-3 text-right">{qtyText(i.qty, i.unit_code, i.box_size_lb)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -503,7 +503,7 @@ function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => v
   const [search, setSearch] = useState("");
   const [found, setFound] = useState<{ id: string; name: string }[]>([]);
   const [lines, setLines] = useState<(ConvertLine & { label: string; keep: boolean })[]>(
-    d.items.map((i) => ({ product_id: i.product_id, unit_code: i.unit_code, qty: i.qty, item_line_no: i.line_no, label: `${i.product_name} (${i.sku})`, keep: true })),
+    d.items.map((i) => ({ product_id: i.product_id, unit_code: i.unit_code, qty: i.qty, item_line_no: i.line_no, label: `${i.product_name} (${i.sku})${i.unit_code === "BOX" && i.box_size_lb ? ` · ${i.box_size_lb} lb box` : i.unit_code === "LB" ? " · per lb" : ""}`, keep: true })),
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
