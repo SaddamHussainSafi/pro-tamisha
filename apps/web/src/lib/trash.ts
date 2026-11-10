@@ -61,7 +61,7 @@ export const KIND_LABEL: Record<TrashKind, string> = {
   document: "Document",
   user: "User",
   notification: "Notification",
-  website_entry: "Website order",
+  website_entry: "Online order request",
 };
 
 /** Where each kind's DELETE lives (next to the record's own API routes). */
@@ -127,7 +127,7 @@ export function recordLink(kind: TrashKind, id: string): string {
     case "notification":
       return "/notifications";
     case "website_entry":
-      return `/order-connect/submissions/${id}`;
+      return `/online-orders/requests/${id}`;
   }
 }
 

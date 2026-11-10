@@ -8,13 +8,20 @@ import { useInbox } from "../components/notifications/useInbox";
 import { groupByDay } from "../lib/notifications";
 import type { Category, Severity } from "../lib/notificationsApi";
 import { useDebounced } from "../lib/useDebounced";
+import { deleteMode, useTrashChanges } from "../lib/trash";
+import type { AppNotification } from "../lib/notificationsApi";
+import { useAuth } from "../auth";
+import { DeleteAction } from "../ui/DeleteAction";
 import { Icon } from "../ui/Icon";
 import { ErrorState } from "../ui/primitives";
 
 /** The Activity page's "Notifications" tab: your own alerts — filter, search, open, read/unread,
  * dismiss and restore; loads older pages on scroll. */
 export function NotificationsView() {
-  const { summary, live, prefs } = useNotifications();
+  const { summary, live, prefs, refreshSummary } = useNotifications();
+  const { session } = useAuth();
+  const canDelete = !!session && deleteMode(session, "notification") === "trash";
+  const [trashing, setTrashing] = useState<AppNotification | null>(null);
   const [params, setParams] = useSearchParams();
   // Filters live in state (the router applies URL changes as low-priority transitions, so reading
   // them back from the URL lags behind fast input); the URL mirrors them for links and reloads.
@@ -45,6 +52,10 @@ export function NotificationsView() {
     [filter.status, filter.category, filter.severity, debounced],
   );
   const inbox = useInbox(listParams);
+  useTrashChanges(() => {
+    inbox.load();
+    refreshSummary();
+  });
   const groups = groupByDay(inbox.items);
   const unread = summary?.unread ?? 0;
 
@@ -64,6 +75,7 @@ export function NotificationsView() {
     onToggleRead: (n) => void inbox.act(n, n.read ? "unread" : "read"),
     onArchive: (n) => void inbox.act(n, "archive"),
     onRestore: (n) => void inbox.act(n, "unarchive"),
+    onDelete: canDelete ? (n) => setTrashing(n) : undefined,
   };
   const filtered = filter.status !== "all" || filter.category || filter.severity || debounced;
 
@@ -128,6 +140,9 @@ export function NotificationsView() {
           </div>
         )}
       </div>
+      {trashing && (
+        <DeleteAction kind="notification" id={trashing.id} label={trashing.title} open onClose={() => setTrashing(null)} />
+      )}
     </div>
   );
 }

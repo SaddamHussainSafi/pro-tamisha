@@ -19,6 +19,7 @@ const fx: Fixture = JSON.parse(
 test.describe.configure({ mode: "serial" });
 
 let secret = ""; // the owner's authenticator, once two-step sign-in is on
+let lastStep = 0; // last TOTP time step used to sign in
 
 async function signIn(page: Page, email: string) {
   await page.goto("/login");
@@ -27,7 +28,11 @@ async function signIn(page: Page, email: string) {
   await page.getByRole("button", { name: "Sign in" }).click();
   if (email === fx.users.owner && secret) {
     await expect(page).toHaveURL(/\/mfa$/);
-    await page.getByLabel("6-digit code").fill(totp(secret, Date.now() + 30_000)); // next step: no replay
+    // Each 30 s code works once: use the next step, waiting for a fresh one if it was just used.
+    const step = () => Math.floor((Date.now() + 30_000) / 30_000);
+    while (step() <= lastStep) await page.waitForTimeout(1_000);
+    lastStep = step();
+    await page.getByLabel("6-digit code").fill(totp(secret, Date.now() + 30_000));
     await page.getByRole("button", { name: "Verify" }).click();
   }
   // Sign-in returns to the page last opened (e.g. /orders after signing out there).
@@ -168,4 +173,21 @@ test("Super Admin sees the delete request and dismisses it", async ({ page }) =>
   await page.getByRole("dialog", { name: `Dismiss the request for “${draftOrder}”?` }).getByRole("button", { name: "Dismiss" }).click();
   await expect(page.getByText("Nothing was deleted.")).toBeVisible();
   await expect(page.getByText("No delete requests")).toBeVisible();
+});
+
+test("Super Admin deletes a notification and brings it back with Undo", async ({ page }) => {
+  test.setTimeout(90_000); // may wait for a fresh two-step code
+  await signIn(page, fx.users.owner);
+  await page.goto("/activity?view=notifications");
+  const title = `Delete requested: ${draftOrder}`;
+  const card = page.getByRole("article", { name: new RegExp(title) });
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: `Delete “${title}”` }).click();
+  const dialog = page.getByRole("dialog", { name: `Move “${title}” to Trash?` });
+  await axe(page);
+  await dialog.getByRole("button", { name: "Move to Trash" }).click();
+  await expect(card).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByText("restored.")).toBeVisible();
+  await expect(card).toBeVisible();
 });

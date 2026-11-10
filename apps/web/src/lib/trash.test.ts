@@ -65,7 +65,7 @@ describe("helpers", () => {
     expect(recordLink("product", "p1")).toBe("/products/p1");
     expect(recordLink("sales_order", "o1")).toBe("/orders/o1");
     expect(recordLink("case_size", "x")).toBe("/products/case-sizes");
-    expect(recordLink("website_entry", "s1")).toBe("/order-connect/submissions/s1");
+    expect(recordLink("website_entry", "s1")).toBe("/online-orders/requests/s1");
   });
 
   it("names what blocks a delete", () => {

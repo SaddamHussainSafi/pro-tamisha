@@ -8,6 +8,8 @@ export type CardActions = {
   onToggleRead: (n: AppNotification) => void;
   onArchive: (n: AppNotification) => void;
   onRestore?: (n: AppNotification) => void;
+  /** Super Admin only (Notifications page): move the notification to the Trash. */
+  onDelete?: (n: AppNotification) => void;
 };
 
 const ACTION = "grid size-9 cursor-pointer place-items-center rounded-full text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink";
@@ -33,7 +35,7 @@ export function NotificationCard({ n, actions, now, className = "" }: { n: AppNo
         <Icon name={CATEGORY_ICON[n.category] ?? "bell"} size={19} className={tone.icon} />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-2 pr-16">
+        <div className={`flex items-start gap-2 ${actions.onDelete ? "pr-24" : "pr-16"}`}>
           {to ? (
             <Link to={to} className={titleCls} onClick={() => actions.onOpen(n)}>
               {n.title}
@@ -56,6 +58,17 @@ export function NotificationCard({ n, actions, now, className = "" }: { n: AppNo
       </div>
       {/* Read dot + actions sit above the stretched link. */}
       <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-0.5">
+        {actions.onDelete && (
+          <button
+            type="button"
+            className={`${ACTION} hover:text-danger opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100`}
+            onClick={() => actions.onDelete?.(n)}
+            aria-label={`Delete “${n.title}”`}
+            title="Delete"
+          >
+            <Icon name="trash" size={16} />
+          </button>
+        )}
         {n.archived && actions.onRestore ? (
           <button type="button" className={ACTION} onClick={() => actions.onRestore?.(n)} aria-label={`Restore “${n.title}” to the inbox`} title="Restore">
             <Icon name="refresh" size={16} />
