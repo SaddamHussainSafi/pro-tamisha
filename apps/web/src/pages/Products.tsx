@@ -22,7 +22,8 @@ import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
 import { ProductImage } from "../ui/ProductImage";
-import { CardGrid, CardGridSkeleton, EntityCard, Tile } from "../ui/CardGrid";
+import { Tile } from "../ui/CardGrid";
+import { PRODUCT_GRID, ProductCard, ProductGridSkeleton } from "../ui/ProductCard";
 import { ViewToggle } from "../ui/ViewToggle";
 import { useViewMode } from "../lib/viewMode";
 import { caseSizeText, priceBooks } from "../lib/caseSizes";
@@ -31,6 +32,7 @@ import { ProductPrices } from "./ProductPrices";
 
 const UNITS: UnitCode[] = ["LB", "KG", "BOX", "PIECE"];
 const UNIT_SHORT: Record<UnitCode, string> = { BOX: "box", PIECE: "piece", LB: "lb", KG: "kg" };
+const SOLD_BY: Record<UnitCode, string> = { BOX: "Box", PIECE: "Piece", LB: "lb", KG: "kg" };
 
 const profileLabel = (p: UnitProfile | UnitProfileIn) =>
   p.unit_code === "BOX" || p.unit_code === "PIECE"
@@ -163,44 +165,49 @@ export function ProductsPage() {
         </select>
       </FilterBar>
       {view === "grid" && !loadError && rows === null ? (
-        <CardGridSkeleton />
+        <ProductGridSkeleton />
       ) : view === "grid" && !loadError && rows !== null ? (
         <>
-            wide
-          <CardGrid
-            items={rows}
-            keyOf={(r) => r.id}
-            caption="Products"
-            empty={<EmptyState title="No products match" hint="Try another search or filter." />}
-            render={(r) => {
-              const size = sizes[r.id];
-              const price = [...(prices[r.id] ?? [])].sort((a, b) => (a.unit_code === (size?.unit_code ?? "BOX") ? -1 : b.unit_code === (size?.unit_code ?? "BOX") ? 1 : 0));
-              return (
-                <EntityCard
-                  to={`/products/${r.id}`}
-                  title={r.name}
-                  subtitle={`${r.sku} · ${catName(r.category_id)}`}
-                  image={<ProductImage sku={r.sku} fallback={<Tile text={r.name} muted />} />}
-                  dim={!r.active}
-                  facts={[
-                    { label: "Case size", value: size ? caseSizeText(size) : <span className="text-ink-muted">Not set</span> },
-                    ...(has(session, "price.read")
-                      ? [{ label: "Price", value: price.length ? <span className="num font-semibold">{price.slice(0, 2).map((e) => `${rateText(e.rate)} / ${UNIT_SHORT[e.unit_code]}`).join(" · ")}</span> : <span className="text-ink-muted">No price</span> }]
-                      : []),
-                    { label: "Sold by", value: UNIT_SHORT[r.stock_unit] },
-                  ]}
-                  chips={
-                    !r.active || r.tracks_expiry ? (
-                      <>
-                        {!r.active && <StatusChip tone="neutral">Inactive</StatusChip>}
-                        {r.tracks_expiry && <StatusChip tone="info">Expiry tracked</StatusChip>}
-                      </>
-                    ) : undefined
-                  }
-                />
-              );
-            }}
-          />
+          {rows.length === 0 ? (
+            <div className="card">
+              <EmptyState title="No products match" hint="Try another search or filter." />
+            </div>
+          ) : (
+            <ul aria-label="Products" className={PRODUCT_GRID}>
+              {rows.map((r) => {
+                const size = sizes[r.id];
+                const price = [...(prices[r.id] ?? [])].sort((a, b) => (a.unit_code === (size?.unit_code ?? "BOX") ? -1 : b.unit_code === (size?.unit_code ?? "BOX") ? 1 : 0));
+                const to = `/products/${r.id}`;
+                return (
+                  <li key={r.id} className="flex">
+                    <ProductCard
+                      to={to}
+                      name={r.name}
+                      subtitle={[r.sku, catName(r.category_id), r.tracks_expiry ? "Expiry tracked" : null].filter(Boolean).join(" · ")}
+                      image={<ProductImage sku={r.sku} className="mix-blend-multiply" fallback={<Tile text={r.name} muted />} />}
+                      active={r.active}
+                      facts={[
+                        size ? { icon: "inventory", label: "Case size", value: caseSizeText(size) } : { icon: "inventory", label: "Case size", value: "Not set", empty: true },
+                        ...(has(session, "price.read")
+                          ? [
+                              price.length
+                                ? { icon: "pricing" as const, label: "Price", value: price.slice(0, 2).map((e) => `${rateText(e.rate)} / ${UNIT_SHORT[e.unit_code]}`).join(" · ") }
+                                : { icon: "pricing" as const, label: "Price", value: "No price", empty: true },
+                            ]
+                          : []),
+                        { icon: "layers", label: "Sold by", value: SOLD_BY[r.stock_unit] },
+                      ]}
+                      actions={[
+                        { label: "Open product", icon: "arrowUpRight", to },
+                        { label: "Open in new tab", icon: "external", to, newTab: true },
+                        { label: "Copy SKU", icon: "copy", onSelect: () => navigator.clipboard?.writeText(r.sku) },
+                      ]}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           {next && (
             <div className="flex justify-center pt-1">
               <button className="btn-ghost" onClick={() => void load(next)}>Load more</button>

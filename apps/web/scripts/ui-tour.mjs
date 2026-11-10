@@ -46,10 +46,13 @@ const only = process.env.ONLY ? process.env.ONLY.split(",") : null;
 const browser = await chromium.launch();
 const overflow = [];
 
+// Not "networkidle": the app keeps live event streams open (inventory, notifications), so the
+// network is never idle. Wait for the page to load and every loading skeleton to go instead.
 async function settle(page) {
-  await page.waitForLoadState("networkidle").catch(() => undefined);
-  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 8000 }).catch(() => undefined);
-  await page.waitForTimeout(400);
+  await page.waitForLoadState("load").catch(() => undefined);
+  await page.waitForTimeout(300);
+  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 10000 }).catch(() => undefined);
+  await page.waitForTimeout(500);
 }
 
 async function firstLink(page, prefix) {
