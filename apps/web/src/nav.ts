@@ -93,3 +93,5 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 export const SETTINGS: NavItem = { label: "Settings", icon: "settings", to: "/settings", module: null };
+/** Super Admin only (shown above Settings): deleted records, kept 30 days. */
+export const TRASH: NavItem = { label: "Trash", icon: "trash", to: "/trash", module: null };

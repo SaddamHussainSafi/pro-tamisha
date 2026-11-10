@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { api, hasCompanyWide, type RoleCode, type RoleMatrix, type StaffMember, type StaffStatus } from "../../api";
 import { useAuth } from "../../auth";
 import { filterStaff, roleLabel, ROLES, STATUS_LABEL, staffMessage, tempPassword, when, type StaffFilter } from "../../lib/staff";
+import { useTrashChanges } from "../../lib/trash";
 import { useViewMode } from "../../lib/viewMode";
 import { CardGrid, EntityCard } from "../../ui/CardGrid";
 import { DataGrid, type Column } from "../../ui/DataGrid";
+import { DeleteAction } from "../../ui/DeleteAction";
 import { Icon } from "../../ui/Icon";
 import { Avatar, CardTitle, ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, StatusChip } from "../../ui/primitives";
 import { ViewToggle } from "../../ui/ViewToggle";
@@ -58,6 +60,7 @@ export function Users() {
     }
   }, []);
   useEffect(() => void load(), [load]);
+  useTrashChanges(load);
 
   const shown = useMemo(() => filterStaff(rows ?? [], filter), [rows, filter]);
   const counts = useMemo(() => {
@@ -108,6 +111,8 @@ export function Users() {
         Manage
       </button>
     ) : null;
+  // Not on your own account: nobody deletes themselves from here.
+  const deleteButton = (u: StaffMember) => (u.id === me ? null : <DeleteAction compact kind="user" id={u.id} label={`${u.display_name} <${u.email}>`} onDone={() => void load()} />);
 
   const columns: Column<StaffMember>[] = [
     {
@@ -127,6 +132,7 @@ export function Users() {
     { key: "m", header: "Two-step", cell: (u) => (u.mfa_enrolled ? "On" : "Off") },
     { key: "l", header: "Last login", cell: (u) => <span className="whitespace-nowrap">{when(u.last_login_at)}</span>, sort: (u) => u.last_login_at ?? "" },
     { key: "a", header: "Actions", cell: manageButton },
+    { key: "delete", header: "", align: "right", cell: deleteButton },
   ];
 
   return (
@@ -212,7 +218,12 @@ export function Users() {
                   { label: "Two-step", value: u.mfa_enrolled ? "On" : "Off" },
                 ]}
                 chips={<StatusChips u={u} />}
-                actions={manageButton(u)}
+                actions={
+                  <>
+                    {manageButton(u)}
+                    {deleteButton(u)}
+                  </>
+                }
               />
             )}
           />
@@ -230,7 +241,19 @@ export function Users() {
           if (await run(() => api.createStaff(b), `Invitation sent to ${b.email}. They'll show as Invited until they set a password.`)) setAdding(false);
         }}
       />
-      {managing && <Manage who={managing} matrix={matrix} busy={busy} onClose={() => setManaging(null)} onConfirm={setConfirm} />}
+      {managing && (
+        <Manage
+          who={managing}
+          matrix={matrix}
+          busy={busy}
+          onClose={() => setManaging(null)}
+          onConfirm={setConfirm}
+          onDeleted={() => {
+            setManaging(null);
+            void load();
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={confirm !== null}
@@ -361,7 +384,21 @@ function AddUser({
   );
 }
 
-function Manage({ who, matrix, busy, onClose, onConfirm }: { who: StaffMember; matrix: RoleMatrix | null; busy: boolean; onClose: () => void; onConfirm: (c: Confirm) => void }) {
+function Manage({
+  who,
+  matrix,
+  busy,
+  onClose,
+  onConfirm,
+  onDeleted,
+}: {
+  who: StaffMember;
+  matrix: RoleMatrix | null;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (c: Confirm) => void;
+  onDeleted: () => void;
+}) {
   const [name, setName] = useState(who.display_name);
   const [role, setRole] = useState<RoleCode>((who.roles[0] as RoleCode) ?? "VIEWER");
   const [error, setError] = useState<string | null>(null);
@@ -441,6 +478,9 @@ function Manage({ who, matrix, busy, onClose, onConfirm }: { who: StaffMember; m
             ? action("Suspend", { kind: "suspend", who }, "Block sign-in. Their past work stays.", true)
             : action("Reactivate", { kind: "reactivate", who }, "Allow sign-in again.")}
         </ul>
+        <div className="flex justify-end pt-3">
+          <DeleteAction kind="user" id={who.id} label={`${who.display_name} <${who.email}>`} onDone={onDeleted} />
+        </div>
       </section>
     </Modal>
   );

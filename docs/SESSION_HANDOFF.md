@@ -30,6 +30,14 @@ Modules 10 Payments, 12 Reports and the Customers UI are **done** (evidence: `do
 - Web: `apps/web/src/pages/Reports.tsx` (`/reports`), `lib/reports.ts` (ranges, chart grouping, CSV). CSV is built in the browser from the rows on screen (≤ 50 per table).
 - Tests: `apps/api/tests/test_reports.py`, `apps/web/src/lib/reports.test.ts`, `apps/web/e2e/reports.spec.ts`.
 
+### Trash map (for follow-ups)
+- Owner rule (2026-11-09): only the **Super Admin** deletes, and only with two-step sign-in turned on and passed; deletes go to a **Trash for 30 days** (restore, delete forever, Empty Trash), then the worker purges them (`pro_trading.purge_trash`, hourly). Everyone else who can edit a record can only **request** a delete; the Super Admin approves or dismisses it on `/trash?tab=requests`.
+- API: `apps/api/src/pro_trading/trash.py` (kinds, reference check, move/restore/purge, `next_number`), `routes/trash.py` (one typed `DELETE` per kind next to the record's own routes, `/trash`, `/delete-requests`). Migration `0020_trash`. A trashed record leaves the live tables; its rows live in `trash_items.payload` until restore or purge, so other queries need no filter.
+- Adding a kind: add a `Kind` in `trash.py` (owned children, rules, extra non-FK refs), its path in `routes/trash.py` `PATHS`, the kind to the migration's check list (new migration), and `lib/trash.ts` (label, path, request permission, link). If the table has a guard trigger that refuses DELETE, split it like `0020` does (DELETE trigger with a `WHEN` on `pro_trading.trash`).
+- Never trashable: issued invoices (+ lines, PDFs), stock movements/lots/balances, payments and allocations, supplier payments, audit events, published price books, confirmed+ orders, verified/invoiced picks, shipments, OCR reads, scanners, converted website entries.
+- Web: `ui/DeleteAction.tsx` (Delete / Request delete / nothing; confirm dialog, 409 reasons, Undo toast; `open`/`onClose` for ⋯ menus), `lib/trash.ts` (`deleteMode`, `useTrashChanges` for list reloads), `pages/Trash.tsx` (`/trash`, sidebar entry above Settings for `trash.manage`).
+- Tests: `apps/api/tests/test_trash.py`, `test_trash_order_connect.py`, `apps/web/src/lib/trash.test.ts`, `apps/web/e2e/trash.spec.ts`.
+
 ### Customers UI map (for follow-ups)
 - Web: `apps/web/src/pages/Customers.tsx` (`/customers`, `/customers/:id`), `lib/customers.ts` (form ↔ PATCH of changed fields only). Editing needs **company-wide** `catalog.manage`; reading needs `catalog.read` or `price.read`.
 - API: `routes/customers.py`; empty email/phone on PATCH clears it; `external_ref` is fixed after create.

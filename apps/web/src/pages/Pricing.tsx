@@ -20,7 +20,9 @@ import {
 import { useAuth } from "../auth";
 import { dec } from "../lib/decimal";
 import { pricingMessage, rateText, scopeLabel } from "../lib/pricingErrors";
+import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
+import { DeleteAction } from "../ui/DeleteAction";
 import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip, type Tone } from "../ui/primitives";
 
@@ -60,6 +62,7 @@ export function PricingPage() {
     }
   }, [filter]);
   useEffect(() => void load(), [load]);
+  useTrashChanges(load);
 
   if (!session) return null;
   const canDraft = hasCompanyWide(session, "price.draft");
@@ -77,6 +80,7 @@ export function PricingPage() {
     { key: "n", header: "Prices", cell: (r) => <span className="num">{r.entry_count}</span>, align: "right", sort: (r) => BigInt(r.entry_count) },
     { key: "src", header: "Source", cell: (r) => (r.source_hash ? "CSV upload" : "Edited") },
     { key: "notes", header: "Notes", cell: (r) => <span className="text-ink-muted">{r.notes || "—"}</span> },
+    { key: "delete", header: "", align: "right", cell: (r) => (r.status === "DRAFT" ? <DeleteAction kind="price_draft" id={r.id} label={`Price book ${r.version_code}`} compact /> : null) },
   ];
 
   return (
@@ -534,6 +538,7 @@ export function PriceVersionPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <a className="btn-ghost" href={priceCsvUrl(v.id)} download>Export CSV</a>
+            {v.status === "DRAFT" && <DeleteAction kind="price_draft" id={v.id} label={`Price book ${v.version_code}`} onDone={() => nav("/products/prices")} />}
             {v.status === "DRAFT" && canDraft && <button className="btn-ghost" onClick={() => setDialog("discard")}>Discard draft</button>}
             {v.status === "DRAFT" && canApprove && <button className="btn-primary" onClick={() => setDialog("activate")}>Activate…</button>}
             {v.state === "SCHEDULED" && canApprove && <button className="btn-ghost" onClick={() => setDialog("cancel")}>Cancel schedule</button>}

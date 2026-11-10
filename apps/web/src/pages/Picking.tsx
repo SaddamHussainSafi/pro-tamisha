@@ -5,7 +5,9 @@ import { api, ApiError, canInWarehouse, type Disposition, type Pick, type PickSt
 import { useAuth } from "../auth";
 import { qtyText, wholeOnly } from "../lib/inventory";
 import { ordersMessage, PICK_STATUS, pickOutcome, SHORTAGE_LABEL } from "../lib/orders";
+import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
+import { DeleteAction } from "../ui/DeleteAction";
 import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 import { ReasonDialog } from "./Orders";
@@ -46,6 +48,7 @@ export function PickingPage() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+  useTrashChanges(load);
 
   const columns: Column<PickSummary>[] = [
     { key: "c", header: "Sheet", cell: (r) => <Link className={link} to={`/picking/${r.id}`}>{r.pick_code}</Link>, sort: (r) => r.pick_code },
@@ -54,6 +57,8 @@ export function PickingPage() {
     { key: "l", header: "Lines", align: "right", cell: (r) => <span className="num">{r.line_count}</span> },
     { key: "s", header: "Status", cell: (r) => <PickChip status={r.status} /> },
     { key: "t", header: "Created", cell: (r) => new Date(r.created_at).toLocaleString(), sort: (r) => r.created_at },
+    // Only voided sheets can be deleted. The summary has no warehouse id, so the server makes the per-warehouse check.
+    { key: "delete", header: "", align: "right", cell: (r) => (r.status === "ABORTED" ? <DeleteAction kind="picking_sheet" id={r.id} label={`Picking sheet ${r.pick_code}`} compact /> : null) },
   ];
   return (
     <div className="space-y-5">
@@ -84,6 +89,7 @@ type Entry = { qty: string; reason: ShortageReason | "" };
 export function PickSheetPage() {
   const { id = "" } = useParams();
   const { session } = useAuth();
+  const nav = useNavigate();
   const [p, setP] = useState<Pick | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [entries, setEntries] = useState<Record<string, Entry>>({});
@@ -172,6 +178,11 @@ export function PickSheetPage() {
         actions={
           <>
             <button className="btn-ghost print:hidden" onClick={() => window.print()}>Print</button>
+            {p.status === "ABORTED" && (
+              <span className="contents print:hidden">
+                <DeleteAction kind="picking_sheet" id={p.id} label={`Picking sheet ${p.pick_code}`} warehouseId={p.warehouse_id} onDone={() => nav("/picking")} />
+              </span>
+            )}
             {canAbort && <button className="btn-ghost print:hidden" onClick={() => setDialog("abort")}>Void sheet</button>}
             {canVerify && <button className="btn-ghost print:hidden" onClick={() => setDialog("return")}>Send back</button>}
             {canVerify && <button className="btn-primary print:hidden" onClick={() => setDialog("verify")}>Verify pick</button>}

@@ -19,12 +19,14 @@ from .order_connect.intake import handle_received as handle_oc_received
 from .order_connect.review import purge_expired as purge_order_connect
 from .outbox import Handler, dispatch_pending
 from .payments import REMINDER_EVENT, handle_reminder, schedule_reminders
+from .trash import purge_expired as purge_trash_items
 
 app = Celery("pro_trading", broker=get_settings().redis_url)
 app.conf.beat_schedule = {
     "dispatch-outbox": {"task": "pro_trading.dispatch_outbox", "schedule": 5.0},
     "payment-reminders": {"task": "pro_trading.schedule_reminders", "schedule": 3600.0},
     "order-connect-retention": {"task": "pro_trading.order_connect_retention", "schedule": 86400.0},
+    "purge-trash": {"task": "pro_trading.purge_trash", "schedule": 3600.0},
 }
 
 # Module 00 has no external integrations yet; modules register handlers here.
@@ -55,3 +57,10 @@ def order_connect_retention(*_: Any) -> int:
     """Erase personal data of finished website submissions past their retention period."""
     with get_sessionmaker()() as db:
         return purge_order_connect(db)
+
+
+@app.task(name="pro_trading.purge_trash")  # type: ignore[untyped-decorator]
+def purge_trash(*_: Any) -> int:
+    """Delete forever whatever has been in the Trash for 30 days."""
+    with get_sessionmaker()() as db:
+        return purge_trash_items(db)

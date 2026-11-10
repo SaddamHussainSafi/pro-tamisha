@@ -22,7 +22,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import func, select, text, update
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from . import audit, ratelimit
@@ -151,8 +151,9 @@ def store_document(
 
 def next_job_no(db: Session, company_id: uuid.UUID) -> str:
     db.get(Company, company_id, with_for_update={"key_share": True})  # serialize numbering
-    n = db.scalar(select(func.count()).where(ScanJob.company_id == company_id)) or 0
-    return f"SCN-{now():%Y%m%d}-{n + 1:04d}"
+    from .trash import next_number  # late: trash imports the module graph scanning sits in
+
+    return f"SCN-{now():%Y%m%d}-{next_number(db, ScanJob.job_no, company_id, 'scan'):04d}"
 
 
 def sweep(db: Session, company_id: uuid.UUID) -> int:

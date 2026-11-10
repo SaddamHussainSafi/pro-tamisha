@@ -6,6 +6,8 @@ import { cad, dec } from "../lib/decimal";
 import { buildCreate, buildPatch, customerMessage, EMPTY_FORM, formFrom, formProblems, termsLabel, type CustomerForm } from "../lib/customers";
 import { ORDER_STATUS } from "../lib/orders";
 import { INVOICE_STATE } from "../lib/payments";
+import { deleteMode, useTrashChanges } from "../lib/trash";
+import { DeleteAction } from "../ui/DeleteAction";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { CardGrid, CardGridSkeleton, EntityCard } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
@@ -185,12 +187,15 @@ export function CustomersPage() {
   useEffect(() => {
     if (allowed) void loadGroups();
   }, [allowed, loadGroups]);
+  useTrashChanges(load);
+  useTrashChanges(loadGroups);
 
   if (!session) return null;
   if (!allowed) return <NoAccess />;
 
   const groupName = (id: string | null) => groups.find((g) => g.id === id)?.name ?? "—";
   const problems = tried ? formProblems(f, true) : {};
+  const canDelete = !!deleteMode(session, "customer");
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -251,6 +256,7 @@ export function CustomersPage() {
       header: "Status",
       cell: (c) => <ActiveChip active={c.active} />,
     },
+    { key: "delete", header: "", align: "right", cell: (c) => <DeleteAction compact kind="customer" id={c.id} label={c.name} onDone={() => void load()} /> },
   ];
 
   return (
@@ -362,6 +368,7 @@ export function CustomersPage() {
                     : []),
                 ]}
                 chips={c.active ? undefined : <ActiveChip active={false} />}
+                actions={canDelete ? <DeleteAction compact kind="customer" id={c.id} label={c.name} onDone={() => void load()} /> : undefined}
               />
             );
           }}
@@ -413,8 +420,11 @@ function Groups({ groups, canManage, onAdded }: { groups: CustomerGroup[]; canMa
       {groups.length ? (
         <ul className="flex flex-wrap gap-2" aria-label="Groups">
           {groups.map((g) => (
-            <li key={g.id} className="chip border-line bg-subtle px-3.5 py-1.5 text-[13px] text-ink">
-              {g.name} <span className="text-ink-muted">· {g.code}</span>
+            <li key={g.id} className="flex items-center gap-1">
+              <span className="chip border-line bg-subtle px-3.5 py-1.5 text-[13px] text-ink">
+                {g.name} <span className="text-ink-muted">· {g.code}</span>
+              </span>
+              <DeleteAction compact kind="customer_group" id={g.id} label={`${g.name} (${g.code})`} onDone={() => void onAdded()} />
             </li>
           ))}
         </ul>
@@ -448,6 +458,7 @@ function Groups({ groups, canManage, onAdded }: { groups: CustomerGroup[]; canMa
 export function CustomerDetailPage() {
   const { id = "" } = useParams();
   const { session } = useAuth();
+  const navigate = useNavigate();
   const [c, setC] = useState<Customer | null>(null);
   const [groups, setGroups] = useState<CustomerGroup[]>([]);
   const [f, setF] = useState<CustomerForm>(EMPTY_FORM);
@@ -527,6 +538,7 @@ export function CustomerDetailPage() {
         }
         actions={
           <>
+            <DeleteAction kind="customer" id={c.id} label={c.name} onDone={() => navigate("/customers")} />
             {has(session, "report.read") && (
               <Link className="btn-ghost" to={`/reports?customer_id=${c.id}`}>
                 Sales report

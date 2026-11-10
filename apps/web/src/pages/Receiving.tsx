@@ -22,6 +22,8 @@ import { ViewToggle } from "../ui/ViewToggle";
 import { stockUnits, qtyText } from "../lib/inventory";
 import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
 import { ACCEPT, checkFile, fileSize } from "../lib/scans";
+import { useTrashChanges } from "../lib/trash";
+import { DeleteAction } from "../ui/DeleteAction";
 import { Icon } from "../ui/Icon";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
@@ -931,8 +933,13 @@ export function SuppliersPage() {
     if (canLedger) api.supplierBalances().then((b) => setBalances(Object.fromEntries(b.map((x) => [x.vendor_id, x]))), () => setBalances({}));
   }, [canLedger]);
   useEffect(() => void load(), [load]);
+  useTrashChanges(load);
   if (!session) return null;
   const canManage = has(session, "catalog.manage");
+  const deleted = (v: Vendor) => {
+    setEditing((e) => (e?.id === v.id ? null : e));
+    void load();
+  };
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -1006,6 +1013,7 @@ export function SuppliersPage() {
       : []),
     { key: "active", header: "Status", cell: (v) => (v.active ? <StatusChip tone="success">Active</StatusChip> : <StatusChip tone="neutral">Inactive</StatusChip>) },
     ...(canManage ? [{ key: "edit", header: "Actions", cell: (v: Vendor) => <button className="btn-ghost text-xs" aria-label={`Edit ${v.name}`} onClick={() => setEditing({ ...v })}>Edit</button> }] : []),
+    { key: "delete", header: "", align: "right", cell: (v) => <DeleteAction compact kind="supplier" id={v.id} label={v.name} onDone={() => deleted(v)} /> },
   ];
 
   return (
@@ -1077,11 +1085,14 @@ export function SuppliersPage() {
                 ]}
                 chips={v.active ? <StatusChip tone="success">Active</StatusChip> : <StatusChip tone="neutral">Inactive</StatusChip>}
                 actions={
-                  canManage ? (
-                    <button className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Edit ${v.name}`} onClick={() => setEditing({ ...v })}>
-                      Edit
-                    </button>
-                  ) : undefined
+                  <>
+                    {canManage && (
+                      <button className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Edit ${v.name}`} onClick={() => setEditing({ ...v })}>
+                        Edit
+                      </button>
+                    )}
+                    <DeleteAction compact kind="supplier" id={v.id} label={v.name} onDone={() => deleted(v)} />
+                  </>
                 }
               />
             );

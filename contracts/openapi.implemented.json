@@ -2250,6 +2250,154 @@
         "title": "DeclaredLineOut",
         "type": "object"
       },
+      "DeleteRequestIn": {
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "item_id"
+        ],
+        "title": "DeleteRequestIn",
+        "type": "object"
+      },
+      "DeleteRequestOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_note": {
+            "title": "Decision Note",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "DISMISSED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "item_id",
+          "label",
+          "reason",
+          "status",
+          "requested_by",
+          "created_at",
+          "decided_by",
+          "decided_at",
+          "decision_note"
+        ],
+        "title": "DeleteRequestOut",
+        "type": "object"
+      },
       "DetectedScanner": {
         "properties": {
           "driver": {
@@ -2665,6 +2813,18 @@
           "active_reserved"
         ],
         "title": "DiscrepancyOut",
+        "type": "object"
+      },
+      "DismissIn": {
+        "properties": {
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "title": "DismissIn",
         "type": "object"
       },
       "DocumentFileOut": {
@@ -10503,6 +10663,19 @@
         "title": "PublishIn",
         "type": "object"
       },
+      "PurgedOut": {
+        "properties": {
+          "purged": {
+            "title": "Purged",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "purged"
+        ],
+        "title": "PurgedOut",
+        "type": "object"
+      },
       "QtyLineIn": {
         "properties": {
           "qty": {
@@ -10872,6 +11045,45 @@
           "released_at"
         ],
         "title": "ReservationOut",
+        "type": "object"
+      },
+      "RestoredOut": {
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "item_id",
+          "label"
+        ],
+        "title": "RestoredOut",
         "type": "object"
       },
       "ReturnIn": {
@@ -14023,6 +14235,85 @@
         "title": "TokenPasswordIn",
         "type": "object"
       },
+      "TrashItemOut": {
+        "properties": {
+          "already_in_trash": {
+            "default": false,
+            "title": "Already In Trash",
+            "type": "boolean"
+          },
+          "days_left": {
+            "title": "Days Left",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "purge_after": {
+            "format": "date-time",
+            "title": "Purge After",
+            "type": "string"
+          },
+          "trashed_at": {
+            "format": "date-time",
+            "title": "Trashed At",
+            "type": "string"
+          },
+          "trashed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trashed By"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "item_id",
+          "label",
+          "trashed_by",
+          "trashed_at",
+          "purge_after",
+          "days_left"
+        ],
+        "title": "TrashItemOut",
+        "type": "object"
+      },
       "UnitProfileIn": {
         "properties": {
           "code": {
@@ -15685,6 +15976,61 @@
         ]
       }
     },
+    "/api/v1/customer-groups/{item_id}": {
+      "delete": {
+        "description": "Move a customer group to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_customer_group_api_v1_customer_groups__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a customer group to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/customers": {
       "get": {
         "operationId": "list_customers_api_v1_customers_get",
@@ -15938,6 +16284,284 @@
         "summary": "Patch Customer",
         "tags": [
           "customers"
+        ]
+      }
+    },
+    "/api/v1/customers/{item_id}": {
+      "delete": {
+        "description": "Move a customer to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_customer_api_v1_customers__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a customer to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/delete-requests": {
+      "get": {
+        "operationId": "list_requests_api_v1_delete_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "PENDING",
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "DISMISSED"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeleteRequestOut"
+                  },
+                  "title": "Response List Requests Api V1 Delete Requests Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Requests",
+        "tags": [
+          "trash"
+        ]
+      },
+      "post": {
+        "description": "Ask the Super Admin to delete a record. Needs the permission that edits that record;\nrefused up front (409) when the record could not be deleted anyway.",
+        "operationId": "request_delete_api_v1_delete_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Delete",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/delete-requests/{request_id}/approve": {
+      "post": {
+        "operationId": "approve_request_api_v1_delete_requests__request_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Request",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/delete-requests/{request_id}/dismiss": {
+      "post": {
+        "operationId": "dismiss_request_api_v1_delete_requests__request_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Request",
+        "tags": [
+          "trash"
         ]
       }
     },
@@ -16266,6 +16890,61 @@
         ]
       }
     },
+    "/api/v1/documents/{item_id}": {
+      "delete": {
+        "description": "Move a document to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_document_api_v1_documents__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a document to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/employees": {
       "get": {
         "operationId": "list_staff_api_v1_employees_get",
@@ -16547,6 +17226,61 @@
         "summary": "Reset Password",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/api/v1/employees/{item_id}": {
+      "delete": {
+        "description": "Move a user to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_user_api_v1_employees__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a user to the Trash",
+        "tags": [
+          "trash"
         ]
       }
     },
@@ -18835,6 +19569,61 @@
         ]
       }
     },
+    "/api/v1/notifications/{item_id}": {
+      "delete": {
+        "description": "Move a notification to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_notification_api_v1_notifications__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a notification to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/notifications/{notification_id}/archive": {
       "post": {
         "description": "Dismiss: archived rows leave the inbox and stop counting as unread.",
@@ -20505,6 +21294,61 @@
         ]
       }
     },
+    "/api/v1/order-connect/submissions/{item_id}": {
+      "delete": {
+        "description": "Move a website order entry to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_website_entry_api_v1_order_connect_submissions__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a website order entry to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/order-connect/submissions/{submission_id}": {
       "get": {
         "operationId": "read_submission_api_v1_order_connect_submissions__submission_id__get",
@@ -21483,6 +22327,61 @@
         ]
       }
     },
+    "/api/v1/pick-attempts/{item_id}": {
+      "delete": {
+        "description": "Move a picking sheet to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_picking_sheet_api_v1_pick_attempts__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a picking sheet to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/pick-attempts/{pick_id}": {
       "get": {
         "operationId": "read_attempt_api_v1_pick_attempts__pick_id__get",
@@ -22184,6 +23083,61 @@
         "summary": "Import Version",
         "tags": [
           "pricing"
+        ]
+      }
+    },
+    "/api/v1/price-books/versions/{item_id}": {
+      "delete": {
+        "description": "Move a price book draft to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_price_draft_api_v1_price_books_versions__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a price book draft to the Trash",
+        "tags": [
+          "trash"
         ]
       }
     },
@@ -23266,6 +24220,61 @@
         "summary": "Create Product",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/api/v1/products/{item_id}": {
+      "delete": {
+        "description": "Move a product to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_product_api_v1_products__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a product to the Trash",
+        "tags": [
+          "trash"
         ]
       }
     },
@@ -24810,6 +25819,61 @@
         ]
       }
     },
+    "/api/v1/sales-orders/{item_id}": {
+      "delete": {
+        "description": "Move a sales order to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_sales_order_api_v1_sales_orders__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a sales order to the Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/sales-orders/{order_id}": {
       "get": {
         "operationId": "read_order_api_v1_sales_orders__order_id__get",
@@ -26107,6 +27171,61 @@
         "summary": "Create Job",
         "tags": [
           "scans"
+        ]
+      }
+    },
+    "/api/v1/scans/jobs/{item_id}": {
+      "delete": {
+        "description": "Move a scan to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_scan_api_v1_scans_jobs__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a scan to the Trash",
+        "tags": [
+          "trash"
         ]
       }
     },
@@ -27991,6 +29110,226 @@
         ]
       }
     },
+    "/api/v1/trash": {
+      "get": {
+        "operationId": "list_trash_api_v1_trash_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "product",
+                    "case_size",
+                    "customer",
+                    "customer_group",
+                    "supplier",
+                    "price_draft",
+                    "sales_order",
+                    "picking_sheet",
+                    "scan",
+                    "document",
+                    "user",
+                    "notification",
+                    "website_entry"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrashItemOut"
+                  },
+                  "title": "Response List Trash Api V1 Trash Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/trash/empty": {
+      "post": {
+        "operationId": "empty_trash_api_v1_trash_empty_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Empty Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/trash/{trash_id}": {
+      "delete": {
+        "operationId": "delete_forever_api_v1_trash__trash_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trash_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trash Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Forever",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/trash/{trash_id}/restore": {
+      "post": {
+        "operationId": "restore_item_api_v1_trash__trash_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trash_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trash Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoredOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Item",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
     "/api/v1/unit-profiles": {
       "get": {
         "description": "Every case size (unit profile) across products, by product name then default first.",
@@ -28067,6 +29406,61 @@
         "summary": "List Case Sizes",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/api/v1/unit-profiles/{item_id}": {
+      "delete": {
+        "description": "Move a case size to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_case_size_api_v1_unit_profiles__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a case size to the Trash",
+        "tags": [
+          "trash"
         ]
       }
     },
@@ -28189,6 +29583,61 @@
         "summary": "Create Vendor",
         "tags": [
           "receiving"
+        ]
+      }
+    },
+    "/api/v1/vendors/{item_id}": {
+      "delete": {
+        "description": "Move a supplier to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "operationId": "trash_supplier_api_v1_vendors__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a supplier to the Trash",
+        "tags": [
+          "trash"
         ]
       }
     },

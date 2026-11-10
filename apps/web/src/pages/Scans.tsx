@@ -7,6 +7,8 @@ import { ACCEPT, AUTO_READ, stageOf, bridgeScan, checkFile, failHint, fileSize, 
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { OcrReviewPage, ReviewQueue, ScanReading } from "./OcrReview";
 import { OCR_STATUS } from "../lib/ocr";
+import { useTrashChanges } from "../lib/trash";
+import { DeleteAction } from "../ui/DeleteAction";
 import { Icon, type IconName } from "../ui/Icon";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
@@ -108,6 +110,7 @@ function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
     },
     [q, view],
   );
+  useTrashChanges(load);
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
@@ -128,6 +131,13 @@ function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
     { key: "by", header: "By", cell: (r) => r.requested_by_name },
     { key: "d", header: "Started", cell: (r) => when(r.created_at), sort: (r) => r.created_at },
     { key: "s", header: "Status", cell: (r) => <JobChip j={r} /> },
+    {
+      key: "delete",
+      header: "",
+      align: "right",
+      // The server refuses while the scanner may still be working on it.
+      cell: (r) => (isOpen(r) ? null : <DeleteAction compact kind="scan" id={r.id} label={`Scan ${r.job_no}`} warehouseId={r.warehouse_id} />),
+    },
   ];
   return (
     <div className="space-y-5">
@@ -833,6 +843,7 @@ function AddScanner({ warehouses, onPaired }: { warehouses: Warehouse[]; onPaire
 
 export function ScanJobPage() {
   const { id = "" } = useParams();
+  const nav = useNavigate();
   const [job, setJob] = useState<ScanJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -862,7 +873,12 @@ export function ScanJobPage() {
       <PageHeader
         title={`Scan ${job.job_no}`}
         subtitle={<><Link className={link} to="/scan">Scan Center</Link> · {JOB_TYPE[job.job_type]}</>}
-        actions={job.status === "REQUESTED" && <button className="btn-ghost" onClick={() => setConfirm(true)}>Cancel scan</button>}
+        actions={
+          <>
+            {job.status === "REQUESTED" && <button className="btn-ghost" onClick={() => setConfirm(true)}>Cancel scan</button>}
+            {!isOpen(job) && <DeleteAction kind="scan" id={job.id} label={`Scan ${job.job_no}`} warehouseId={job.warehouse_id} onDone={() => nav("/scan")} />}
+          </>
+        }
       />
       {error && <Notice tone="error">{error}</Notice>}
       {AUTO_READ.includes(job.job_type) && <ScanReading jobId={job.id} warehouseId={job.warehouse_id} received={job.status === "UPLOADED"} />}

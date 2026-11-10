@@ -3,7 +3,9 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api, has, type Warehouse } from "../api";
 import { useAuth } from "../auth";
 import { roleLabel } from "../lib/staff";
-import { NAV_GROUPS, SETTINGS, type NavItem } from "../nav";
+import { NAV_GROUPS, SETTINGS, TRASH, type NavItem } from "../nav";
+import { canManageTrash } from "../lib/trash";
+import { TrashToastHost } from "../ui/DeleteAction";
 import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
 import { NotificationBell } from "./notifications/NotificationBell";
@@ -163,6 +165,7 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
       </nav>
 
       <div className={`shrink-0 space-y-1 border-t border-line p-3 ${collapsed ? "flex flex-col items-center" : ""}`}>
+        {session && canManageTrash(session) && <Item item={TRASH} collapsed={collapsed} />}
         <Item item={SETTINGS} collapsed={collapsed} />
         <div className={`mt-2 flex items-center gap-3 rounded-ctl ${collapsed ? "flex-col" : "border border-line p-2"}`} title={collapsed ? name : undefined}>
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-accent/15 text-sm font-semibold text-brand-primary-hover">{initials(name)}</span>
@@ -275,6 +278,7 @@ export function Shell() {
           </aside>
         </>
       )}
+      <TrashToastHost />
     </div>
     </NotificationProvider>
   );

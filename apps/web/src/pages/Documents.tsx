@@ -4,7 +4,9 @@ import { api, canInWarehouse, documentContentUrl, has, type DocFileKind, type Do
 import { useAuth } from "../auth";
 import { DOC_KIND, documentMessage, linkedHref, linkedTo, SYNC_STATUS, syncProblem } from "../lib/documents";
 import { ACCEPT, checkFile, fileSize } from "../lib/scans";
+import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
+import { DeleteAction } from "../ui/DeleteAction";
 import { EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
@@ -58,6 +60,7 @@ export function DocumentsPage() {
     },
     [allowed, kind, q, view],
   );
+  useTrashChanges(load);
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
@@ -130,6 +133,13 @@ export function DocumentsPage() {
           )}
         </div>
       ),
+    },
+    {
+      key: "delete",
+      header: "",
+      align: "right",
+      // An invoice PDF is part of the issued invoice: the server never deletes it.
+      cell: (r) => (r.kind === "INVOICE_PDF" ? null : <DeleteAction compact kind="document" id={r.id} label={r.filename} warehouseId={r.warehouse_id} />),
     },
   ];
   const counts = page?.counts ?? {};

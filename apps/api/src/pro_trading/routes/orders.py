@@ -40,6 +40,7 @@ from ..schemas import (
     ReasonIn,
     VersionIn,
 )
+from ..trash import next_number
 from ._common import esc, mutate
 
 router = APIRouter(tags=["sales-orders"])
@@ -212,10 +213,10 @@ def insert_order(
     svc.get_customer(db, p.company_id, body.customer_id)
     prods = svc.validate_lines(db, p.company_id, body.lines)
     db.get(Company, p.company_id, with_for_update={"key_share": True})  # serialize numbering
-    n = db.scalar(select(func.count()).where(SalesOrder.company_id == p.company_id)) or 0
+    n = next_number(db, SalesOrder.order_no, p.company_id, "sales_order")
     o = SalesOrder(
         company_id=p.company_id,
-        order_no=f"SO-{svc.now():%Y%m%d}-{n + 1:04d}",
+        order_no=f"SO-{svc.now():%Y%m%d}-{n:04d}",
         customer_id=body.customer_id,
         warehouse_id=wh.id,
         source=body.source,

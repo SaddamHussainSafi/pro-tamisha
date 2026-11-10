@@ -9,6 +9,8 @@ import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { CardGrid, EntityCard, Tile } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
+import { DeleteAction } from "../ui/DeleteAction";
+import { useTrashChanges } from "../lib/trash";
 import { useViewMode } from "../lib/viewMode";
 import { EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
 
@@ -61,6 +63,7 @@ export function CaseSizesPage() {
     }
   }, [q, show]);
   useEffect(() => void load(), [load]);
+  useTrashChanges(load);
   useEffect(() => {
     if (canManage) api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
   }, [canManage]);
@@ -164,6 +167,13 @@ export function CaseSizesPage() {
           },
         ]
       : []),
+    {
+      key: "delete",
+      header: "",
+      align: "right" as const,
+      // The default size can't go (make another the default first).
+      cell: (r: CaseSize) => (r.is_default ? null : <DeleteAction compact kind="case_size" id={r.id} label={`${r.code} (${r.sku})`} onDone={() => void load()} />),
+    },
   ];
 
   return (
@@ -275,6 +285,7 @@ export function CaseSizesPage() {
                           Retire
                         </button>
                       )}
+                      {!r.is_default && <DeleteAction compact kind="case_size" id={r.id} label={`${r.code} (${r.sku})`} onDone={() => void load()} />}
                     </li>
                   ))}
                 </ul>

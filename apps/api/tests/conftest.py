@@ -153,6 +153,9 @@ class Api:
     def put(self, url: str, json: Any = None, headers: dict[str, str] | None = None) -> Any:
         return self.c.put(url, json=json, headers=self._h(headers))
 
+    def delete(self, url: str, headers: dict[str, str] | None = None) -> Any:
+        return self.c.delete(url, headers=self._h(headers))
+
     def enroll_and_verify(self, password: str = PASSWORD) -> Any:
         """Turn on two-step sign-in from My account (optional since 2026-11-09): returns the
         confirm response ({session, recovery_codes}) and keeps the codes on the client."""

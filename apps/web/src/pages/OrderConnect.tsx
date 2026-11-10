@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, api, has, hasCompanyWide, type Warehouse } from "../api";
 import { useAuth } from "../auth";
+import { useTrashChanges } from "../lib/trash";
 import { useOcLive } from "../lib/useOcLive";
 import { useDebounced } from "../lib/useDebounced";
 import {
@@ -29,6 +30,7 @@ import {
   type SubStatus,
   type SubSummary,
 } from "../lib/orderConnect";
+import { DeleteAction } from "../ui/DeleteAction";
 import { Icon } from "../ui/Icon";
 import { CardTitle, ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
@@ -67,10 +69,16 @@ function Notice({ msg }: { msg: { tone: "ok" | "error"; text: string } | null })
   return <p role={msg.tone === "error" ? "alert" : "status"} className={msg.tone === "error" ? "alert-danger" : "alert-success"}>{msg.text}</p>;
 }
 
-function SubRow({ s }: { s: SubSummary }) {
+/** How a website entry is named in the Trash and the delete dialog. */
+const entryLabel = (s: Pick<SubSummary, "reference" | "business_name" | "customer_name">) => {
+  const who = s.business_name || s.customer_name;
+  return who ? `${s.reference} — ${who}` : s.reference;
+};
+
+function SubRow({ s, deletable = false }: { s: SubSummary; deletable?: boolean }) {
   return (
-    <li>
-      <Link to={`/order-connect/submissions/${s.id}`} className="flex items-center gap-4 rounded-ctl px-3 py-3 transition-colors duration-150 hover:bg-subtle" data-testid={`oc-row-${s.reference}`}>
+    <li className="flex items-center gap-1">
+      <Link to={`/order-connect/submissions/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4 rounded-ctl px-3 py-3 transition-colors duration-150 hover:bg-subtle" data-testid={`oc-row-${s.reference}`}>
         <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${s.unread ? "bg-brand-primary" : "bg-transparent"}`} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2">
@@ -85,6 +93,8 @@ function SubRow({ s }: { s: SubSummary }) {
         <span className="hidden text-right text-sm text-ink-muted sm:block">{relTime(s.created_at)}</span>
         <Status s={s.status} />
       </Link>
+      {/* Beside the link, not inside it (no buttons inside links). A converted entry can't be deleted. */}
+      {deletable && s.status !== "CONVERTED" && <DeleteAction compact kind="website_entry" id={s.id} label={entryLabel(s)} />}
     </li>
   );
 }
@@ -186,6 +196,7 @@ export function OcSubmissionsPage() {
     if (a.read) oc.forms().then(setForms, () => undefined);
   }, [a.read]);
   useOcLive(() => a.read && load(), 30_000);
+  useTrashChanges(() => a.read && load());
 
   const more = async () => {
     if (!next) return;
@@ -231,7 +242,7 @@ export function OcSubmissionsPage() {
           <EmptyState icon="inbox" title={dq ? "Nothing matches your search" : "No submissions here"} hint={status === "OPEN" ? "New website orders will appear here the moment they arrive." : undefined} />
         ) : (
           <>
-            <ul className="divide-y divide-line">{items.map((s) => <SubRow key={s.id} s={s} />)}</ul>
+            <ul className="divide-y divide-line">{items.map((s) => <SubRow key={s.id} s={s} deletable />)}</ul>
             {next && <div className="p-3 text-center"><button className="btn-ghost" onClick={() => void more()}>Load more</button></div>}
           </>
         )}
@@ -244,6 +255,7 @@ export function OcSubmissionsPage() {
 
 export function OcSubmissionPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const a = useAccess();
   const [d, setD] = useState<SubDetail | null>(null);
   const [error, setError] = useState("");
@@ -305,16 +317,21 @@ export function OcSubmissionPage() {
             <span>{d.reference} · received {when(d.created_at)} · {d.form_name} (version {d.form_version_no})</span>
           </span>
         }
-        actions={moves.map((to) => (
-          <button
-            key={to}
-            className={to === forward ? "btn-primary" : "btn-ghost"}
-            disabled={busy}
-            onClick={() => (destructive.includes(to) ? setConfirm(to) : void move(to))}
-          >
-            {actionLabel(d.status, to)}
-          </button>
-        ))}
+        actions={
+          <>
+            {d.status !== "CONVERTED" && <DeleteAction kind="website_entry" id={d.id} label={entryLabel(d)} onDone={() => navigate("/order-connect/submissions")} />}
+            {moves.map((to) => (
+              <button
+                key={to}
+                className={to === forward ? "btn-primary" : "btn-ghost"}
+                disabled={busy}
+                onClick={() => (destructive.includes(to) ? setConfirm(to) : void move(to))}
+              >
+                {actionLabel(d.status, to)}
+              </button>
+            ))}
+          </>
+        }
       />
       <Notice msg={msg} />
       {d.possible_duplicate_of && (

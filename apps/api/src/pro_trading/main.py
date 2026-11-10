@@ -37,6 +37,7 @@ from .routes import (
     scans,
     security,
     suppliers,
+    trash,
     warehouses,
 )
 
@@ -190,6 +191,7 @@ def create_app() -> FastAPI:
         notifications.router,
         order_connect.router,
         public_orders.router,
+        trash.router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app

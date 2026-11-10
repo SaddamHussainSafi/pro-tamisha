@@ -18,7 +18,9 @@ import { useAuth } from "../auth";
 import { qtyText, stockUnits, wholeOnly } from "../lib/inventory";
 import { AMENDMENT_LABEL, lineAmount, ORDER_STATUS, ordersMessage, PICK_STATUS } from "../lib/orders";
 import { rateText } from "../lib/pricingErrors";
+import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
+import { DeleteAction } from "../ui/DeleteAction";
 import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
@@ -78,6 +80,7 @@ export function OrdersPage() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+  useTrashChanges(load);
 
   if (!session) return null;
   const columns: Column<OrderSummary>[] = [
@@ -87,6 +90,8 @@ export function OrdersPage() {
     { key: "for", header: "Wanted for", cell: (r) => (r.requested_for ? new Date(r.requested_for).toLocaleDateString() : "—") },
     { key: "st", header: "Status", cell: (r) => <OrderChip status={r.status} /> },
     { key: "at", header: "Created", cell: (r) => when(r.created_at), sort: (r) => r.created_at },
+    // Only drafts can be deleted. The summary has no warehouse id, so the server makes the per-warehouse check.
+    { key: "delete", header: "", align: "right", cell: (r) => (r.status === "DRAFT" ? <DeleteAction kind="sales_order" id={r.id} label={`Order ${r.order_no}`} compact /> : null) },
   ];
   return (
     <div className="space-y-5">
@@ -332,6 +337,7 @@ export function OrderPage() {
         subtitle={<><span className="font-medium text-ink">{o.customer_name}</span>{o.customer_ref && ` (${o.customer_ref})`} · <OrderChip status={o.status} /></>}
         actions={
           <>
+            {o.status === "DRAFT" && <DeleteAction kind="sales_order" id={o.id} label={`Order ${o.order_no}`} warehouseId={o.warehouse_id} onDone={() => nav("/orders")} />}
             {manage && o.status === "DRAFT" && <button className="btn-ghost" onClick={() => setDialog("cancel")}>Cancel draft</button>}
             {close && o.status === "CONFIRMED" && o.attempts.every((a) => a.status === "ABORTED") && (
               <button className="btn-ghost" onClick={() => setDialog("cancel")}>Cancel order</button>

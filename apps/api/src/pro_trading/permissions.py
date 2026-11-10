@@ -51,6 +51,7 @@ PERMISSIONS: Final[dict[str, str]] = {
     "order_connect.manage": "Build/publish order forms, allowed websites, settings, erasure",
     "order_connect.review": "Move submissions through review (reviewing, reject, spam, duplicate)",
     "order_connect.approve": "Approve submissions and convert them into draft sales orders",
+    "trash.manage": "Move records to the Trash, restore or delete them forever (Super Admin)",
 }
 
 ALL: Final = frozenset(PERMISSIONS)
@@ -185,4 +186,7 @@ assert all(p <= ALL for _, _, p in DEFAULT_ROLES.values()), "unknown permission 
 assert all(
     not (p & USER_ADMIN_PERMISSIONS) for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
 ), "only Super Admin may hold user-administration permissions"
+assert all(
+    "trash.manage" not in p for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
+), "only Super Admin may delete records (Trash)"
 SUPER_ADMIN: Final = "OWNER_ADMIN"

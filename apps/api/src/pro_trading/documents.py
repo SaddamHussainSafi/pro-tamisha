@@ -487,8 +487,12 @@ def handle_sync(ev: OutboxEvent) -> None:
         with_for_update=True,
         populate_existing=True,
     )
-    if f is None:
-        raise LookupError("document file not found")
+    if f is None:  # moved to the Trash (or deleted forever) before it synced: nothing to do
+        log.info(
+            "document file gone; sync skipped",
+            extra={"ctx": {"id": ev.payload["document_file_id"]}},
+        )
+        return
     run_sync(db, f, ev.attempts, outbox.MAX_ATTEMPTS)
 
 

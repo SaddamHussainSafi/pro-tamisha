@@ -31,6 +31,7 @@ const chunks = {
   scans: () => import("./pages/Scans"),
   settings: () => import("./pages/Settings"),
   suppliers: () => import("./pages/Suppliers"),
+  trash: () => import("./pages/Trash"),
 };
 function page<M>(load: () => Promise<M>, pick: (m: M) => ComponentType) {
   return lazy(() => load().then((m) => ({ default: pick(m) })));
@@ -79,6 +80,7 @@ const ScanJobPage = page(chunks.scans, (m) => m.ScanJobPage);
 const SettingsPage = page(chunks.settings, (m) => m.SettingsPage);
 const SupplierDetailPage = page(chunks.suppliers, (m) => m.SupplierDetailPage);
 const SupplierPaymentsPage = page(chunks.suppliers, (m) => m.SupplierPaymentsPage);
+const TrashPage = page(chunks.trash, (m) => m.TrashPage);
 
 function usePrefetchScreens(enabled: boolean) {
   useEffect(() => {
@@ -177,6 +179,7 @@ export function App() {
           <Route path="settings/security" element={<SettingsPage />} />
           <Route path="settings/notifications" element={<SettingsPage />} />
           <Route path="notifications" element={<NotificationCenterPage />} />
+          <Route path="trash" element={<TrashPage />} />
           <Route path="settings/*" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

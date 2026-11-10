@@ -25,6 +25,8 @@ import { ProductImage } from "../ui/ProductImage";
 import { Tile } from "../ui/CardGrid";
 import { PRODUCT_GRID, ProductCard, ProductGridSkeleton } from "../ui/ProductCard";
 import { ViewToggle } from "../ui/ViewToggle";
+import { DeleteAction } from "../ui/DeleteAction";
+import { deleteMode, useTrashChanges } from "../lib/trash";
 import { useViewMode } from "../lib/viewMode";
 import { caseSizeText, priceBooks } from "../lib/caseSizes";
 import { rateText } from "../lib/pricingErrors";
@@ -59,6 +61,7 @@ export function ProductsPage() {
   const [next, setNext] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [trashing, setTrashing] = useState<ProductSummary | null>(null);
 
   const load = useCallback(
     async (cursor?: string) => {
@@ -110,6 +113,8 @@ export function ProductsPage() {
         );
   }, [session]);
 
+  useTrashChanges(() => load());
+
   if (!session) return null;
   const canManage = hasCompanyWide(session, "catalog.manage");
   const catName = (id: string | null) => cats.find((c) => c.id === id)?.name ?? "—";
@@ -125,7 +130,15 @@ export function ProductsPage() {
       header: "Status",
       cell: (r) => <StatusChip tone={r.active ? "success" : "neutral"}>{r.active ? "Active" : "Inactive"}</StatusChip>,
     },
+    {
+      key: "delete",
+      header: "",
+      align: "right",
+      cell: (r) => <DeleteAction compact kind="product" id={r.id} label={`${r.sku} — ${r.name}`} onDone={() => void load()} />,
+    },
   ];
+  const deleteText = { trash: "Delete", request: "Request delete" }[deleteMode(session, "product") ?? "trash"];
+  const canDelete = deleteMode(session, "product") !== null;
 
   return (
     <div className="space-y-5">
@@ -201,6 +214,7 @@ export function ProductsPage() {
                         { label: "Open product", icon: "arrowUpRight", to },
                         { label: "Open in new tab", icon: "external", to, newTab: true },
                         { label: "Copy SKU", icon: "copy", onSelect: () => navigator.clipboard?.writeText(r.sku) },
+                        ...(canDelete ? [{ label: deleteText, icon: "trash" as const, onSelect: () => setTrashing(r) }] : []),
                       ]}
                     />
                   </li>
@@ -238,6 +252,9 @@ export function ProductsPage() {
           </>
         )}
       </div>
+      )}
+      {trashing && (
+        <DeleteAction kind="product" id={trashing.id} label={`${trashing.sku} — ${trashing.name}`} open onClose={() => setTrashing(null)} onDone={() => void load()} />
       )}
     </div>
   );
@@ -384,6 +401,7 @@ export function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [edit, setEdit] = useState<{ name: string; category_id: string | null; tracks_expiry: boolean; active: boolean } | null>(null);
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     try {
@@ -435,9 +453,12 @@ export function ProductDetailPage() {
         title={prod.name}
         subtitle={<>SKU <span className="font-medium">{prod.sku}</span> · stock unit {prod.stock_unit} · version <span className="num">{prod.version}</span></>}
         actions={
-          canManage && !edit && (
-            <button className="btn-ghost" onClick={() => setEdit({ name: prod.name, category_id: prod.category_id, tracks_expiry: prod.tracks_expiry, active: prod.active })}>Edit</button>
-          )
+          <>
+            {canManage && !edit && (
+              <button className="btn-ghost" onClick={() => setEdit({ name: prod.name, category_id: prod.category_id, tracks_expiry: prod.tracks_expiry, active: prod.active })}>Edit</button>
+            )}
+            <DeleteAction kind="product" id={prod.id} label={`${prod.sku} — ${prod.name}`} onDone={() => navigate("/products")} />
+          </>
         }
       />
       {error && (

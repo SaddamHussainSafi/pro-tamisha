@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, hasCompanyWide, type SupplierBalance, type SupplierLedger, type SupplierPayMethod, type SupplierPayment } from "../api";
 import { useAuth } from "../auth";
 import { dec, qty } from "../lib/decimal";
 import { amountIn, amountProblem, balanceWords, PAY_METHOD, supplierMessage } from "../lib/suppliers";
+import { deleteMode } from "../lib/trash";
+import { DeleteAction } from "../ui/DeleteAction";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { CardTitle, ConfirmDialog, EmptyState, ErrorState, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
@@ -258,6 +260,7 @@ function PaymentsGrid({ rows, canRecord, showSupplier, onVoided }: { rows: Suppl
 export function SupplierDetailPage() {
   const { id = "" } = useParams();
   const { session } = useAuth();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [led, setLed] = useState<SupplierLedger | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -371,10 +374,15 @@ export function SupplierDetailPage() {
           </span>
         }
         actions={
-          canRecord && !recording ? (
-            <button type="button" className="btn-primary" onClick={() => setRecording(true)}>
-              Record payment
-            </button>
+          (canRecord && !recording) || deleteMode(session, "supplier") ? (
+            <>
+              <DeleteAction kind="supplier" id={led.vendor_id} label={led.name} onDone={() => navigate("/suppliers")} />
+              {canRecord && !recording && (
+                <button type="button" className="btn-primary" onClick={() => setRecording(true)}>
+                  Record payment
+                </button>
+              )}
+            </>
           ) : undefined
         }
       />
