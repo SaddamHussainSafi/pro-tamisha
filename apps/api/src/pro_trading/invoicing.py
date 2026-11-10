@@ -223,10 +223,16 @@ def compute(
                     picked,
                     ol.rate,
                     dict(ol.price_snapshot or {}),
-                    pack_lb=packs.get((prod.id, ol.unit_code)),
+                    pack_lb=_snap_box_lb(ol.price_snapshot) or packs.get((prod.id, ol.unit_code)),
                 )
             )
     return d
+
+
+def _snap_box_lb(snap: dict[str, Any] | None) -> Decimal | None:
+    """Box weight a box rate was worked out from (per lb x box, see orders._box_from_lb)."""
+    v = (snap or {}).get("box_lb")
+    return Decimal(v) if v else None
 
 
 def _pack_weights(db: Session, product_ids: set[uuid.UUID]) -> dict[tuple[uuid.UUID, str], Decimal]:

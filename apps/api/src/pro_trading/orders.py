@@ -28,6 +28,7 @@ from .models import (
     PickingAttempt,
     PickingLine,
     Product,
+    ProductUnitProfile,
     SalesOrder,
     SalesOrderAmendment,
     SalesOrderLine,
@@ -388,6 +389,71 @@ def price_lines(db: Session, company_id: uuid.UUID, o: SalesOrder, at: datetime)
         try:
             qt = pricing.resolve(db, company_id, ln.product_id, ln.unit_code, cust, at)
         except pricing.NoPriceError:
-            msg = f"Line {ln.line_no}: no active price for {prod.sku} per {ln.unit_code}"
-            raise ApiError(422, "NO_PRICE", msg, line=ln.line_no) from None
+            if ln.unit_code != "BOX":
+                msg = f"Line {ln.line_no}: no active price for {prod.sku} per {ln.unit_code}"
+                raise ApiError(422, "NO_PRICE", msg, line=ln.line_no) from None
+            ln.rate, ln.price_snapshot = _box_from_lb(db, company_id, o, ln, prod, cust, at)
+            continue
         ln.rate, ln.price_snapshot = qt.rate, qt.snapshot()
+
+
+def _box_from_lb(
+    db: Session,
+    company_id: uuid.UUID,
+    o: SalesOrder,
+    ln: SalesOrderLine,
+    prod: Product,
+    cust: Customer,
+    at: datetime,
+) -> tuple[Decimal, dict[str, Any]]:
+    """A box with no box price is priced per lb x the box's weight (owner, 2026-11-10): the
+    size the customer picked on the online order form, else the product's default case size.
+    The snapshot keeps the per-lb price and the weight used, so the invoice shows the box size."""
+    try:
+        lb = pricing.resolve(db, company_id, ln.product_id, "LB", cust, at)
+    except pricing.NoPriceError:
+        msg = f"Line {ln.line_no}: no active price for {prod.sku} per BOX or per LB"
+        raise ApiError(422, "NO_PRICE", msg, line=ln.line_no) from None
+    box_lb = _ordered_box_lb(db, o, ln) or _default_box_lb(db, ln.product_id)
+    if box_lb is None:
+        msg = (
+            f"Line {ln.line_no}: {prod.sku} has a price per lb but no box price, and the box "
+            "weight is unknown. Add a case size or a box price, then confirm again."
+        )
+        raise ApiError(422, "NO_PRICE", msg, line=ln.line_no)
+    rate = (lb.rate * box_lb).quantize(pricing.Q4)
+    snap = lb.snapshot() | {
+        "unit_code": "BOX",
+        "rate": str(rate),
+        "basis": "PER_LB_X_BOX",
+        "lb_rate": str(lb.rate),
+        "box_lb": str(box_lb),
+    }
+    return rate, snap
+
+
+def _ordered_box_lb(db: Session, o: SalesOrder, ln: SalesOrderLine) -> Decimal | None:
+    """Box size (lb) the customer picked for this line on an online order, if any."""
+    from .order_connect.models import OrderFormSubmission  # local: order_connect imports orders
+
+    sub = db.scalar(select(OrderFormSubmission).where(OrderFormSubmission.sales_order_id == o.id))
+    for it in ((sub.raw or {}).get("items") or []) if sub else []:
+        if it.get("product_id") == str(ln.product_id) and it.get("unit_code") == "BOX":
+            v = it.get("box_size_lb")
+            return Decimal(str(v)) if v else None
+    return None
+
+
+def _default_box_lb(db: Session, product_id: uuid.UUID) -> Decimal | None:
+    """Weight of the product's active BOX case size, the default first."""
+    return db.scalar(
+        select(ProductUnitProfile.weight_lb_per_unit)
+        .where(
+            ProductUnitProfile.product_id == product_id,
+            ProductUnitProfile.unit_code == "BOX",
+            ProductUnitProfile.active.is_(True),
+            ProductUnitProfile.weight_lb_per_unit.is_not(None),
+        )
+        .order_by(ProductUnitProfile.is_default.desc(), ProductUnitProfile.code)
+        .limit(1)
+    )

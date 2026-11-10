@@ -8,7 +8,7 @@
 | D-04 | Stock costing: FIFO/batch actual/weighted average, freight/duties allocation/currency conversion | record costs, do not show unsupported profit |
 | D-05 | Negative stock, oversell and warehouse reservation | refuse negative stock |
 | D-06 | How should `NO` be handled: backorder until closed, or ask manager to cancel? | pending backorder, never auto-cancel |
-| D-07 | Per-product invoice price basis: fixed per case, per lb, per kg or per piece; split-case pricing | explicit product configuration |
+| D-07 | Per-product invoice price basis: fixed per case, per lb, per kg or per piece; split-case pricing | explicit product configuration. **Owner, 2026-11-10:** a box with no box price is priced per lb × the box weight (the size picked on the online order form, else the product's default case size); an explicit box price always wins |
 | D-08 | Actual case weights: scale recorded per box, weighted total, or default estimated | estimated is clearly labeled; cannot book actual-weight price as verified |
 | D-09 | Product units case-to-piece or case-to-weight, storage measurement policy | conversions require product-specific validated rule |
 | D-10 | Physical inventory/dispatch and invoice timing, returned goods, rejection and spoils | recorded separately; require warehouse signoff |
