@@ -65,7 +65,7 @@ export function OcFormsPage() {
     setBusy(true);
     try {
       const f = await oc.createForm(name.trim(), null);
-      navigate(`/order-connect/forms/${f.id}`);
+      navigate(`/online-orders/forms/${f.id}`);
     } catch (err) {
       setFormErr(errText(err));
       setBusy(false);
@@ -76,7 +76,7 @@ export function OcFormsPage() {
     return (
       <div className="space-y-5">
         <PageHeader title="Form builder" />
-        <EmptyState title="You don't have access to Order Connect" hint="Ask an administrator for the Order Connect permissions." />
+        <EmptyState title="You don't have access to Online Orders" hint="Ask an administrator for the Online Orders permissions." />
       </div>
     );
 
@@ -84,7 +84,7 @@ export function OcFormsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Form builder"
-        subtitle="Order forms customers fill in on your website. Submissions arrive in Order Connect."
+        subtitle="Order and quote forms customers fill in on your website. Requests arrive in Online Orders."
         actions={canManage && <button className="btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={18} />New form</button>}
       />
       {creating && (
@@ -122,12 +122,12 @@ export function OcFormsPage() {
               </div>
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div><dt className="text-ink-muted">Open</dt><dd className="num text-xl font-semibold">{f.open_submissions}</dd></div>
-                <div><dt className="text-ink-muted">All submissions</dt><dd className="num text-xl font-semibold">{f.submissions}</dd></div>
+                <div><dt className="text-ink-muted">All requests</dt><dd className="num text-xl font-semibold">{f.submissions}</dd></div>
               </dl>
               <div className="mt-auto flex flex-wrap gap-2">
-                <Link to={`/order-connect/forms/${f.id}`} className="btn-primary">{canManage ? "Edit form" : "View form"}</Link>
-                <Link to={`/order-connect/embed?form=${f.id}`} className="btn-ghost">Embed</Link>
-                <Link to={`/order-connect/submissions?form=${f.id}`} className="btn-ghost">Submissions</Link>
+                <Link to={`/online-orders/forms/${f.id}`} className="btn-primary">{canManage ? "Edit form" : "View form"}</Link>
+                <Link to={`/online-orders/embed?form=${f.id}`} className="btn-ghost">Embed</Link>
+                <Link to={`/online-orders/requests?form=${f.id}`} className="btn-ghost">Requests</Link>
               </div>
             </li>
           ))}
@@ -246,7 +246,7 @@ export function OcBuilderPage() {
     }
   };
 
-  if (!canRead) return <EmptyState title="You don't have access to Order Connect" />;
+  if (!canRead) return <EmptyState title="You don't have access to Online Orders" />;
   if (error) return <div className="card"><ErrorState title="Couldn't load this form" detail={error} onRetry={load} /></div>;
   if (!form || !draft) return <PageSkeleton label="Loading form" />;
   const ro = !canManage;
@@ -385,7 +385,7 @@ function FieldsEditor({ fields, onChange, selected, onSelect }: { fields: FormFi
               </div>
               {open && (
                 <div className="grid grid-cols-1 gap-4 border-t border-line px-4 py-4 sm:grid-cols-2">
-                  <p className="text-xs text-ink-muted sm:col-span-2">{SYSTEM_FIELDS[f.key]?.hint ?? "Custom field (shown to staff on the submission)"}</p>
+                  <p className="text-xs text-ink-muted sm:col-span-2">{SYSTEM_FIELDS[f.key]?.hint ?? "Custom field (shown to staff on the request)"}</p>
                   <div>
                     <label htmlFor="oc-f-label" className="label">Label</label>
                     <input id="oc-f-label" className="input" value={f.label} maxLength={120} onChange={(e) => update(i, { label: e.target.value })} />
@@ -451,7 +451,8 @@ function ContentEditor({ draft, change }: { draft: DraftIn; change: (p: Partial<
     <>
       <div>
         <label htmlFor="oc-title" className="label">Title</label>
-        <input id="oc-title" className="input" value={draft.title} maxLength={120} onChange={(e) => change({ title: e.target.value })} />
+        <input id="oc-title" className="input" value={draft.title} maxLength={120} aria-describedby="oc-title-help" onChange={(e) => change({ title: e.target.value })} />
+        <p id="oc-title-help" className="mt-1 text-sm text-ink-muted">Shown only on the direct link. On your website the page keeps its own title, header and footer.</p>
       </div>
       <div>
         <label htmlFor="oc-intro" className="label">Introduction <span className="font-normal text-ink-muted">(optional)</span></label>
@@ -610,7 +611,7 @@ function ProductsEditor({ draft, change }: { draft: DraftIn; change: (p: Partial
 
 function Preview({ draft, logoUrl, catalog }: { draft: DraftIn; logoUrl: string | null; catalog: PreviewConfig | null }) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
-  const [step, setStep] = useState<"products" | "details" | "review">("products");
+  const [step, setStep] = useState<"shop" | "checkout">("shop");
   const frame = useRef<HTMLIFrameElement>(null);
   const config = useMemo(() => {
     if (!catalog) return null;
@@ -644,9 +645,8 @@ function Preview({ draft, logoUrl, catalog }: { draft: DraftIn; logoUrl: string 
         </div>
         <label className="sr-only" htmlFor="oc-prev-step">Preview step</label>
         <select id="oc-prev-step" className="input w-auto py-1.5" value={step} onChange={(e) => setStep(e.target.value as typeof step)}>
-          <option value="products">Products step</option>
-          <option value="details">Details step</option>
-          <option value="review">Review step</option>
+          <option value="shop">Products and cart</option>
+          <option value="checkout">Checkout</option>
         </select>
       </div>
       <div className="grid place-items-center overflow-hidden rounded-ctl bg-subtle p-3">

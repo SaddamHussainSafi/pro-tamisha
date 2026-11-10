@@ -47,10 +47,10 @@ PERMISSIONS: Final[dict[str, str]] = {
     "document.manage": "File signed delivery proofs and retry Drive sync",
     "supplier.ledger.read": "View supplier ledgers: billed, paid, returned",
     "supplier_payment.record": "Record and void payments made to suppliers",
-    "order_connect.read": "View website order forms and submissions; get submission alerts",
-    "order_connect.manage": "Build/publish order forms, allowed websites, settings, erasure",
-    "order_connect.review": "Move submissions through review (reviewing, reject, spam, duplicate)",
-    "order_connect.approve": "Approve submissions and convert them into draft sales orders",
+    "order_connect.read": "View online order / quote forms and requests; get request alerts",
+    "order_connect.manage": "Build/publish online order forms, allowed websites, settings, erasure",
+    "order_connect.review": "Review online requests (reviewing, reject, spam, duplicate)",
+    "order_connect.approve": "Approve online requests and convert them into draft sales orders",
     "trash.manage": "Move records to the Trash, restore or delete them forever (Super Admin)",
 }
 

@@ -146,13 +146,15 @@ export function App() {
           <Route path="orders" element={<OrdersPage />} />
           <Route path="orders/new" element={<NewOrderPage />} />
           <Route path="orders/:id" element={<OrderPage />} />
-          <Route path="order-connect" element={<OcOverviewPage />} />
-          <Route path="order-connect/forms" element={<OcFormsPage />} />
-          <Route path="order-connect/forms/:id" element={<OcBuilderPage />} />
-          <Route path="order-connect/submissions" element={<OcSubmissionsPage />} />
-          <Route path="order-connect/submissions/:id" element={<OcSubmissionPage />} />
-          <Route path="order-connect/embed" element={<OcEmbedPage />} />
-          <Route path="order-connect/settings" element={<OcSettingsPage />} />
+          <Route path="online-orders" element={<OcOverviewPage />} />
+          <Route path="online-orders/forms" element={<OcFormsPage />} />
+          <Route path="online-orders/forms/:id" element={<OcBuilderPage />} />
+          <Route path="online-orders/requests" element={<OcSubmissionsPage />} />
+          <Route path="online-orders/requests/:id" element={<OcSubmissionPage />} />
+          <Route path="online-orders/embed" element={<OcEmbedPage />} />
+          <Route path="online-orders/settings" element={<OcSettingsPage />} />
+          {/* Old "Order Connect" links (saved notifications, trash entries, bookmarks). */}
+          <Route path="order-connect/*" element={<OldOnlineOrdersLink />} />
           <Route path="picking" element={<PickingPage />} />
           <Route path="picking/:id" element={<PickSheetPage />} />
           <Route path="picking/:id/invoice" element={<IssueInvoicePage />} />
@@ -187,6 +189,13 @@ export function App() {
       </Routes>
     </Suspense>
   );
+}
+
+/** "Order Connect" was renamed "Online Orders": /order-connect/submissions/x → /online-orders/requests/x. */
+function OldOnlineOrdersLink() {
+  const { pathname, search } = useLocation();
+  const rest = pathname.replace(/^\/order-connect/, "").replace(/^\/submissions/, "/requests");
+  return <Navigate to={`/online-orders${rest}${search}`} replace />;
 }
 
 /** Old /pricing/:id links keep working. */

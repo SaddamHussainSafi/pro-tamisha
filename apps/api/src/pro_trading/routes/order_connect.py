@@ -20,7 +20,7 @@ from ..deps import DbDep, Principal, PrincipalDep, authorize
 from ..errors import ApiError
 from ..models import Customer, Employee, SalesOrder, Warehouse
 from ..notifications import Notification, NotificationRecipient, mark_changed
-from ..order_connect import embed, forms, review
+from ..order_connect import embed, forms, intake, review
 from ..order_connect.models import (
     OrderConnectSettings,
     OrderForm,
@@ -223,6 +223,7 @@ def summary_out(
         "id": str(s.id),
         "reference": s.reference,
         "status": s.status,
+        "request_type": intake.request_type(s),
         "form_id": str(s.form_id),
         "form_name": form_name,
         "customer_name": s.customer_name,
@@ -605,17 +606,21 @@ def preview_config(
 def embed_info(form_id: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep) -> dict[str, Any]:
     authorize(request, p, "order_connect.read")
     f = get_form(db, p, form_id)
-    url = f"{get_settings().public_origin}/embed/{f.public_id}"
+    origin = get_settings().public_origin
+    url = f"{origin}/embed/{f.public_id}"
     title = html.escape(f.name, quote=True)
-    snippet = (
-        f'<iframe src="{url}" title="{title}" width="100%" height="900" loading="lazy" '
-        'style="border:0;width:100%;max-width:100%;min-height:900px" '
+    frame_id = f"tt-order-{f.public_id[:8]}"
+    plain = (
+        f'<iframe id="{frame_id}" src="{url}" title="{title}" width="100%" height="900" '
+        'loading="lazy" style="display:block;border:0;width:100%;max-width:100%;min-height:600px" '
         'referrerpolicy="strict-origin-when-cross-origin"></iframe>'
     )
+    snippet = plain + "\n" + embed.resize_script(frame_id, origin)
     hosts = embed.allowed_hosts(db, f)
     return {
         "public_url": url,
         "iframe": snippet,
+        "iframe_only": plain,
         "published": f.published_version_id is not None,
         "accepting": f.accepting,
         "standalone_link": f.standalone_link,
@@ -823,11 +828,15 @@ def list_submissions(
     ),
     q: str = Query("", max_length=100),
     form_id: uuid.UUID | None = None,
+    request_type: str | None = Query(None, alias="type", pattern=r"^(ORDER|QUOTE)$"),
     before: datetime | None = None,
     limit: int = Query(50, ge=1, le=100),
 ) -> dict[str, Any]:
     authorize(request, p, "order_connect.read")
     cond = [OrderFormSubmission.company_id == p.company_id]
+    if request_type is not None:
+        kind = func.coalesce(OrderFormSubmission.raw["request_type"].astext, "ORDER")
+        cond.append(kind == request_type)
     if status in (None, "OPEN"):
         cond.append(OrderFormSubmission.status.in_(OPEN))
     elif status != "ALL":
@@ -1019,6 +1028,7 @@ def convert(
         else:
             assert body.customer_id is not None
             customer_id = body.customer_id
+        what = "quote request" if intake.request_type(s) == "QUOTE" else "order"
         items = {
             i.line_no: i
             for i in db.scalars(
@@ -1031,10 +1041,10 @@ def convert(
             if ln.item_line_no and src is None:
                 raise ApiError(422, "INVALID_ITEM", f"Submission has no line {ln.item_line_no}")
             text = (
-                f"Website order {s.reference} line {src.line_no}: {src.qty.normalize()} "
+                f"Online {what} {s.reference} line {src.line_no}: {src.qty.normalize()} "
                 f"{src.unit_code} {src.product_name} ({src.sku})"
                 if src
-                else f"Added by staff to website order {s.reference}"
+                else f"Added by staff to online {what} {s.reference}"
             )
             lines.append(ln.model_copy(update={"source_line_text": text[:500]}))
         requested = body.requested_for
@@ -1046,7 +1056,7 @@ def convert(
             warehouse_id=body.warehouse_id,
             source="WEB",
             source_text=(
-                f"Website order {s.reference} from {who}".strip()
+                f"Online {what} {s.reference} from {who}".strip()
                 + (f"\nDeliver to: {s.delivery_address}" if s.delivery_address else "")
                 + (f"\nCustomer notes: {s.notes}" if s.notes else "")
             )[:10_000],

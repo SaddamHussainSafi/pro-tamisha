@@ -32,5 +32,6 @@
 | D-28 | Receipt email to customers: wording, sender, provider (D-15) | off; when on, a plain "received, not confirmed, not an invoice" note via the outbox |
 | D-29 | Form publishing rules, duplicate window, reopening rejected/spam | publish needs required Products + a name + a contact; same contact+items within 24 h flagged (not blocked); rejected/spam/duplicate can be reopened |
 | D-30 | Customers created from a website order: group, terms, external ref | created with the submitted name/email/phone, no group, 0 payment-terms days; staff complete it in Customers |
+| D-31 | Online Orders quote requests: should Pro Trading produce a quote document (PDF/email with prices) or is a reply by phone/email enough? Reference prefix stays `OC-`? | quote requests use the same review flow and convert to a DRAFT order; no quote document; `OC-` references |
 
 For each decision record approver, date, selected option, affected schema/APIs and test updates in an ADR. Never silently infer legal/financial answers.

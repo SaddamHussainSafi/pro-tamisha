@@ -41,6 +41,7 @@ from .models import (
 
 TOKEN_MAX_AGE = 12 * 3600
 RECEIVED_EVENT = "order_connect.submission_received"
+KIND_WORDS = {"ORDER": "online order", "QUOTE": "quote request"}
 REF_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32: no I, L, O, U
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
 PHONE_RE = re.compile(r"^[0-9+()\-.\s]{7,32}$")
@@ -67,6 +68,8 @@ class PublicSubmissionIn(BaseModel):
     values: dict[str, str | bool] = Field(default_factory=dict, max_length=forms.MAX_FIELDS)
     items: list[PublicItemIn] = Field(default_factory=list, max_length=MAX_ITEMS)
     consent: bool = False
+    # What the customer asks for: an order, or prices first (a quote). Same review flow for staff.
+    request_type: Literal["ORDER", "QUOTE"] = "ORDER"
     website: str = Field(default="", max_length=500)  # honeypot: people never see it
 
 
@@ -323,6 +326,7 @@ def receive(
             for i in body.items
         ],
         "consent": body.consent,
+        "request_type": body.request_type,
     }
     line_keys = [(str(p.id), it.unit_code, str(it.qty)) for it, p in lines]
     chash = content_hash(form.id, vals, line_keys)
@@ -412,9 +416,9 @@ def receive(
                 db,
                 form.company_id,
                 "order_connect.submission",
-                title=f"New web order {sub.reference}",
+                title=f"New {KIND_WORDS[body.request_type]} {sub.reference}",
                 body=f"{who} · {len(lines)} product{'s' if len(lines) != 1 else ''} · {form.name}",
-                link=f"/order-connect/submissions/{sub.id}",
+                link=f"/online-orders/requests/{sub.id}",
                 target_type="order_form_submission",
                 target_id=sub.id,
                 # Only company-wide holders may open a submission (routes/order_connect.py), so
@@ -461,17 +465,23 @@ def handle_received(ev: OutboxEvent) -> None:
     company = db.get(Company, sub.company_id)
     assert company is not None
     name = sub.customer_name or sub.business_name or "there"
+    what = "quote request" if request_type(sub) == "QUOTE" else "order request"
     deliver(
         db,
         EmailMessage(
             company_id=sub.company_id,
             dedupe_key=f"order-connect-ack:{sub.id}",
             to_addr=sub.email,
-            subject=f"We received your order request {sub.reference}",
+            subject=f"We received your {what} {sub.reference}",
             body=(
-                f"Hello {name},\n\nThank you. {company.legal_name} received your order request "
+                f"Hello {name},\n\nThank you. {company.legal_name} received your {what} "
                 f"{sub.reference}. Our team will review it and contact you to confirm.\n\n"
-                "This email is not an order confirmation or an invoice."
+                "This email is not an order confirmation, a quote or an invoice."
             ),
         ),
     )
+
+
+def request_type(sub: OrderFormSubmission) -> str:
+    """ORDER or QUOTE, as the customer chose (kept in the submitted values, also after erasure)."""
+    return "QUOTE" if (sub.raw or {}).get("request_type") == "QUOTE" else "ORDER"

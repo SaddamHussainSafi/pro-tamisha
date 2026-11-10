@@ -1,23 +1,43 @@
-# Module 13 — Order Connect (website order forms)
+# Module 13 — Online Orders (order & quote requests; code name Order Connect)
 
-Staff build customer order forms, embed them on the company's WordPress site with a plain iframe
-(no plugin), and receive the submissions in Pro Trading. An approved submission becomes **one
-DRAFT sales order** — never an invoice, a stock movement or a reservation.
+Staff build customer order forms, embed them on the company's WordPress (Elementor) site with an
+iframe (no plugin), and receive the requests in Pro Trading. Customers shop from product cards
+into a cart and send it either as an **order request** or a **quote request**. An approved request
+becomes **one DRAFT sales order** — never an invoice, a stock movement or a reservation.
 
-## Screens (sidebar → Sales → Order Connect, `globe` icon, live unread badge)
+Renamed 2026-11-09 from "Order Connect" to **Online Orders** in everything people see (sidebar,
+pages, alerts, emails, URLs `/online-orders/*`; `/order-connect/*` links redirect). Code, tables,
+API paths (`/api/v1/order-connect`) and permission codes (`order_connect.*`) keep the old name.
+
+## Screens (sidebar → Sales → Online Orders, `globe` icon, live unread badge)
 
 | Page | Path | What it does |
 | --- | --- | --- |
-| Overview | `/order-connect` | Open / new counts, received (24 h, 30 d), share converted in 30 d, latest submissions, live forms |
-| Form builder | `/order-connect/forms`, `/forms/:id` | Create forms; add, remove, rename, require and reorder fields (drag-and-drop or arrow buttons); text, colour, corners, logo, product scope, standard prices; draft → publish; live desktop/mobile preview |
-| Submissions | `/order-connect/submissions`, `/submissions/:id` | Searchable inbox (live), status filters, review actions, notes, timeline, customer matching, conversion, privacy erasure |
-| Embed & share | `/order-connect/embed` | iframe code and direct link to copy, allowed websites for a form, WordPress steps |
-| Settings | `/order-connect/settings` | Allowed websites for all forms, staff alerts, receipt email, spam limits, privacy notice, retention |
+| Overview | `/online-orders` | Open / new counts, received (24 h, 30 d), share converted in 30 d, latest submissions, live forms |
+| Form builder | `/online-orders/forms`, `/forms/:id` | Create forms; add, remove, rename, require and reorder fields (drag-and-drop or arrow buttons); text, colour, corners, logo, product scope, standard prices; draft → publish; live desktop/mobile preview |
+| Order & quote requests | `/online-orders/requests`, `/requests/:id` | Searchable inbox (live), status and order/quote filters, review actions, notes, timeline, customer matching, conversion, privacy erasure |
+| Embed & share | `/online-orders/embed` | iframe code and direct link to copy, allowed websites for a form, WordPress steps |
+| Settings | `/online-orders/settings` | Allowed websites for all forms, staff alerts, receipt email, spam limits, privacy notice, retention |
 
 The customer page is `/embed/{public_id}` — served by the API (plain HTML + one script + one
-stylesheet, no framework, no third-party code). Steps: products (search, category filters,
-photo/initials, units from the catalog, quantity stepper) → details → review → sent (reference
-`OC-XXXXXX`). Accessible loading/error states, works at 390 px.
+stylesheet, no framework, no third-party code), designed like a small shop:
+
+- **Products:** search, category filter, cards like Pro Trading's product grid (photo on a soft
+  green tile, name, SKU · category, rows for *Sold by* (unit, or a unit picker), *Case size* (from
+  the packing profiles, only when recorded) and *Price* (standard price, only when the form shows
+  prices, e.g. "CAD 4.49 / lb")), "Add to order" then a quantity stepper.
+- **Cart:** a panel beside the products (follows the page as it scrolls); on phones a "View order"
+  bar at the bottom opens it as a sheet. Steppers, remove, Continue.
+- **Checkout:** *Place an order* or *Request a quote*, the form's fields, privacy notice if set, the
+  cart as a summary, "Send order request" / "Send quote request". Then a reference `OC-XXXXXX`.
+- **No header or footer** inside the website: it starts straight at the products, so it sits
+  between the site's own header and footer. The direct link (opened on its own) shows the form
+  title and logo on a light background.
+- **Website code:** the iframe plus a short script (Elementor "HTML" widget). The form reports its
+  height and the script resizes the frame (the page scrolls, not a box inside it); the script
+  reports which part of the frame is on screen so the cart stays in view, and scrolls the page to
+  the form when it changes step. Both sides check the other's origin/frame; only numbers are
+  exchanged. Without the script (iframe only) the form keeps a fixed height and scrolls inside.
 
 ## Data (migration `0019_order_connect`, after `0018_notifications`)
 
@@ -50,6 +70,13 @@ Customers, products, employees and sales orders are the existing tables.
 
 All are company-level grants (warehouse-scoped grants don't count). Converting also needs
 `sales_order.manage` for the chosen warehouse, and `catalog.manage` to create a new customer.
+
+## Order or quote
+
+The customer's choice is stored in the submitted values (`raw.request_type`, `ORDER` | `QUOTE`;
+kept on privacy erasure, no migration). Staff see a "Quote request" label, can filter the inbox by
+type (`?type=QUOTE`), alerts and receipt emails say "quote request", and a quote converts the same
+way (into a DRAFT order staff can price); there is no separate quote document (D-31).
 
 ## Review workflow
 

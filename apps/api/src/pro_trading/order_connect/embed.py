@@ -6,6 +6,7 @@ carries no secret: the form token it later fetches is a signed timestamp, not a 
 
 import hashlib
 import html
+import json
 from pathlib import Path
 
 from fastapi.responses import HTMLResponse, Response
@@ -85,7 +86,7 @@ def render(
 <main id="oc-app" data-public-id="{e(public_id)}" data-host="{e(host)}" data-mode="{e(mode)}"
   data-staff-origin="{e(staff_origin)}" aria-busy="true">
   <div class="oc-state" role="status" aria-live="polite">
-    <span class="oc-spinner" aria-hidden="true"></span><span>Loading the order form…</span>
+    <span class="oc-spinner" aria-hidden="true"></span><span>Loading products…</span>
   </div>
 </main>
 <noscript><p class="oc-state">This order form needs JavaScript. Please turn it on, or contact
@@ -139,3 +140,26 @@ def asset_response(name: str) -> Response:
             "Cross-Origin-Resource-Policy": "same-origin",
         },
     )
+
+
+# Optional companion of the iframe on the website (an Elementor "HTML" widget runs it). It only
+# exchanges numbers with the form: the form reports its height (the frame grows, so the page
+# scrolls instead of a box inside it) and the page reports which part of the frame is on screen
+# (so the cart can stay in view). Messages are checked against the form's own origin and frame.
+RESIZE_JS = (
+    "<script>(function(){var f=document.getElementById(%(id)s),o=%(origin)s;if(!f)return;"
+    "function v(){if(!f.contentWindow)return;var r=f.getBoundingClientRect();"
+    'f.contentWindow.postMessage({type:"oc-viewport",top:Math.round(-r.top),'
+    "height:window.innerHeight},o)}"
+    'window.addEventListener("message",function(e){if(e.origin!==o||e.source!==f.contentWindow'
+    '||!e.data)return;if(e.data.type==="oc-height"){var h=Number(e.data.height)||0;'
+    'f.style.height=Math.max(400,Math.min(30000,h))+"px";v()}'
+    'else if(e.data.type==="oc-top"){var t=f.getBoundingClientRect().top;'
+    'if(t<0)window.scrollBy({top:t-16,behavior:"smooth"})}});'
+    'window.addEventListener("scroll",v,{passive:true});window.addEventListener("resize",v);'
+    'f.addEventListener("load",v)})();</script>'
+)
+
+
+def resize_script(frame_id: str, origin: str) -> str:
+    return RESIZE_JS % {"id": json.dumps(frame_id), "origin": json.dumps(origin)}

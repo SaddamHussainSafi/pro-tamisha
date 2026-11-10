@@ -97,7 +97,15 @@ def seed_catalog(w):
             )
             db.add(p)
             db.flush()
-            db.add(ProductUnitProfile(product_id=p.id, code="STD", unit_code=unit, is_default=True))
+            db.add(
+                ProductUnitProfile(
+                    product_id=p.id,
+                    code="STD",
+                    unit_code=unit,
+                    is_default=True,
+                    weight_lb_per_unit=Decimal("40") if sku == "CAS" else None,
+                )
+            )
             ids[sku] = p.id
         cust = Customer(company_id=company_id, name="Price Leak Test")
         db.add(cust)
@@ -113,6 +121,14 @@ def seed_catalog(w):
                     unit_code="BOX",
                     scope="STANDARD",
                     rate=Decimal("28.0000"),
+                    currency="CAD",
+                ),
+                PriceEntry(
+                    version_id=ver.id,
+                    product_id=ids["CAS"],
+                    unit_code="LB",
+                    scope="STANDARD",
+                    rate=Decimal("1.5000"),
                     currency="CAD",
                 ),
                 PriceEntry(
@@ -391,7 +407,9 @@ def test_public_config_has_catalog_units_and_no_stock_or_customer_prices(owner, 
     assert names == ["Cassava", "Okra", "Plantain"]  # inactive product hidden
     cas = next(p for p in cfg["products"] if p["sku"] == "CAS")
     assert [u["code"] for u in cas["units"]] == ["BOX"]
-    assert "price" not in cas["units"][0]  # prices off by default
+    assert cas["units"][0]["size"] == "40 lb"  # from the packing profile, nothing invented
+    assert next(p for p in cfg["products"] if p["sku"] == "OKR")["units"][0]["size"] is None
+    assert "price" not in cas["units"][0] and cas["prices"] == []  # prices off by default
     blob = str(cfg)
     assert "19.5" not in blob and "on_hand" not in blob and "stock" not in blob.lower()
     assert {c["name"] for c in cfg["categories"]} == {"Vegetables", "Fruits"}
@@ -400,6 +418,11 @@ def test_public_config_has_catalog_units_and_no_stock_or_customer_prices(owner, 
     publish(owner, live)
     cas = next(p for p in load(owner, live)["products"] if p["sku"] == "CAS")
     assert cas["units"][0]["price"] == "28.00" and "19.5" not in str(cas)
+    # every standard rate, also in units the product isn't ordered in (shown as "per lb")
+    assert cas["prices"] == [
+        {"unit": "BOX", "price": "28.00", "currency": "CAD"},
+        {"unit": "LB", "price": "1.50", "currency": "CAD"},
+    ]
 
 
 def test_product_scope_limits_the_catalog(owner, live, cat):
@@ -435,8 +458,17 @@ def test_embed_page_frame_ancestors_follow_allowed_websites(owner, live):
     dup = owner.post(f"{OC}/domains", json={"host": "shop.example.com"}, headers=idem())
     assert dup.status_code == 409
     info = ok(owner.get(f"{OC}/forms/{live['id']}/embed"))
-    assert info["iframe"].startswith('<iframe src="http://localhost:5173/embed/')
-    assert "token" not in info["iframe"] and "csrf" not in info["iframe"].lower()
+    frame_id = f"tt-order-{live['public_id'][:8]}"
+    assert info["iframe_only"].startswith(
+        f'<iframe id="{frame_id}" src="http://localhost:5173/embed/{live["public_id"]}"'
+    )
+    # the companion script only talks to the form's own origin and its own frame
+    assert info["iframe"].startswith(info["iframe_only"] + "\n<script>")
+    assert f'getElementById("{frame_id}")' in info["iframe"]
+    assert "e.origin!==o||e.source!==f.contentWindow" in info["iframe"]
+    assert '"http://localhost:5173"' in info["iframe"]
+    for code in (info["iframe"], info["iframe_only"]):
+        assert "token" not in code and "csrf" not in code.lower() and "secret" not in code
 
 
 def test_embed_page_escapes_and_handles_closed_and_link_disabled_forms(owner, live):
@@ -736,6 +768,64 @@ def test_submitted_values_are_immutable_in_the_database(api, live, cat):
 # ------------------------------------------------------------------ notifications
 
 
+def test_quote_requests_are_marked_alerted_filtered_and_kept_after_erasure(
+    api, live, cat, owner, world
+):
+    cfg = load(api, live)
+    order_ref = ok(submit(api, live, good_body(cfg, cat)), 201)["reference"]
+    body = good_body(cfg, cat, request_type="QUOTE")
+    body["values"]["email"] = "quote@example.test"  # not a duplicate of the order above
+    quote_ref = ok(submit(api, live, body), 201)["reference"]
+    assert submit(api, live, good_body(cfg, cat, request_type="BUY")).status_code == 422
+    qid = _sid(quote_ref)
+    with get_sessionmaker()() as db:
+        titles = set(
+            db.scalars(select(Notification.title).where(Notification.target_id == qid)).all()
+        )
+    assert titles == {f"New quote request {quote_ref}"}
+    with get_sessionmaker()() as db:
+        oid = _sid(order_ref)
+        assert db.scalar(select(Notification.title).where(Notification.target_id == oid)) == (
+            f"New online order {order_ref}"
+        )
+        link = db.scalar(select(Notification.link).where(Notification.target_id == oid))
+        assert link == f"/online-orders/requests/{oid}"
+    quotes = ok(owner.get(f"{OC}/submissions", params={"type": "QUOTE"}))["items"]
+    orders = ok(owner.get(f"{OC}/submissions", params={"type": "ORDER"}))["items"]
+    assert [i["reference"] for i in quotes] == [quote_ref]
+    assert [i["reference"] for i in orders] == [order_ref]
+    assert quotes[0]["request_type"] == "QUOTE" and orders[0]["request_type"] == "ORDER"
+    assert owner.get(f"{OC}/submissions", params={"type": "x"}).status_code == 422
+    v = ok(owner.get(f"{OC}/submissions/{qid}"))["version"]
+    d = ok(
+        owner.post(
+            f"{OC}/submissions/{qid}/erase",
+            json={"version": v, "reason": "Customer request"},
+            headers=idem(),
+        )
+    )
+    assert d["raw"] == {"erased": True, "request_type": "QUOTE"} and d["request_type"] == "QUOTE"
+
+
+def test_quote_receipt_email_says_quote(api, live, cat, world):
+    from pro_trading.models import EmailMessage
+    from pro_trading.outbox import dispatch_pending
+
+    with get_sessionmaker()() as db, db.begin():
+        db.merge(
+            OrderConnectSettings(company_id=world.company_id, min_fill_seconds=0, ack_email=True)
+        )
+    ref = ok(submit(api, live, good_body(load(api, live), cat, request_type="QUOTE")), 201)[
+        "reference"
+    ]
+    with get_sessionmaker()() as db:
+        dispatch_pending(db, {intake.RECEIVED_EVENT: intake.handle_received}, limit=500)
+    with get_sessionmaker()() as db:
+        msg = db.scalar(select(EmailMessage).where(EmailMessage.subject.contains(ref)))
+        assert msg.subject == f"We received your quote request {ref}"
+        assert "not an order confirmation, a quote or an invoice" in msg.body
+
+
 def test_alerts_persist_for_authorized_staff_only(api, live, cat, world, as_):
     ref = ok(submit(api, live, good_body(load(api, live), cat)), 201)["reference"]
     sid = _sid(ref)
@@ -895,7 +985,7 @@ def test_conversion_creates_one_draft_order_and_nothing_else(received, owner, wo
             ("BOX", Decimal("3.0000"), None),
             ("PIECE", Decimal("12.0000"), None),
         ]
-        assert all("Website order" in ln.source_line_text for ln in lines)
+        assert all("Online order" in ln.source_line_text for ln in lines)
         assert (
             db.scalar(
                 select(func.count())
@@ -1070,7 +1160,7 @@ def test_erasure_blanks_personal_data_once(received, owner, as_):
         )
     )
     assert d["email"] == d["customer_name"] == d["delivery_address"] == "" and d["erased"]
-    assert d["raw"] == {"erased": True} and len(d["items"]) == 2
+    assert d["raw"] == {"erased": True, "request_type": "ORDER"} and len(d["items"]) == 2
     with get_sessionmaker()() as db:
         assert db.scalar(select(Notification.body).where(Notification.target_id == received)) == (
             "Personal data erased"

@@ -1,4 +1,5 @@
-// Order Connect (website order forms): types, API calls and the pure helpers the pages share.
+// Online Orders (order and quote request forms; internally "order_connect"): types, API calls
+// and the pure helpers the pages share.
 import { apiRequest as request } from "../api";
 import type { Tone } from "../ui/primitives";
 
@@ -53,6 +54,7 @@ export type SubSummary = {
   id: string;
   reference: string;
   status: SubStatus;
+  request_type: "ORDER" | "QUOTE";
   form_id: string;
   form_name: string;
   customer_name: string;
@@ -90,6 +92,7 @@ export type SubDetail = SubSummary & {
   erased_at: string | null;
   allowed: SubStatus[];
 };
+export type RequestType = "ORDER" | "QUOTE";
 export type CustomerMatch = {
   id: string;
   name: string;
@@ -117,6 +120,7 @@ export type Domain = { id: string; form_id: string | null; host: string; created
 export type EmbedInfo = {
   public_url: string;
   iframe: string;
+  iframe_only: string;
   published: boolean;
   accepting: boolean;
   standalone_link: boolean;
@@ -169,9 +173,10 @@ export const oc = {
   removeDomain: (id: string) => request<undefined>("DELETE", `${B}/domains/${e(id)}`),
   settings: () => request<OcSettings>("GET", `${B}/settings`),
   saveSettings: (s: OcSettings) => request<OcSettings>("PUT", `${B}/settings`, s, true),
-  submissions: (p: { status?: string; q?: string; form_id?: string; before?: string | null; limit?: number }) => {
+  submissions: (p: { status?: string; type?: "ORDER" | "QUOTE"; q?: string; form_id?: string; before?: string | null; limit?: number }) => {
     const u = new URLSearchParams();
     if (p.status) u.set("status", p.status);
+    if (p.type) u.set("type", p.type);
     if (p.q?.trim()) u.set("q", p.q.trim());
     if (p.form_id) u.set("form_id", p.form_id);
     if (p.before) u.set("before", p.before);
@@ -231,6 +236,8 @@ export const INBOX_FILTERS = [
   { value: "ALL", label: "All" },
 ] as const;
 export type InboxFilter = (typeof INBOX_FILTERS)[number]["value"];
+
+export const REQUEST_LABEL: Record<"ORDER" | "QUOTE", string> = { ORDER: "Order", QUOTE: "Quote request" };
 
 export const sender = (s: Pick<SubSummary, "business_name" | "customer_name" | "erased">) =>
   s.erased ? "Personal data erased" : s.business_name || s.customer_name || "No name given";
@@ -341,10 +348,10 @@ export function normalizeHost(raw: string): { host: string } | { error: string }
 }
 
 export const wordpressSteps = [
-  "In WordPress, open the page where customers should order and click Edit.",
-  "Add a block (+), search for “Custom HTML” and insert it.",
-  "Paste the iframe code from this page into the block.",
-  "Click Preview to check it, then Update. No plugin is needed.",
+  "In WordPress, open the page where customers should order and click “Edit with Elementor”.",
+  "Drag an “HTML” widget where the order form should be (the page keeps its own header and footer).",
+  "Paste the website code from this page into the widget.",
+  "Click Update, open the page and send a test order. No plugin is needed.",
 ];
 
 export function relTime(iso: string, now = new Date()): string {

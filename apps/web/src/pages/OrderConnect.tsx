@@ -14,6 +14,7 @@ import {
   normalizeHost,
   oc,
   pct,
+  REQUEST_LABEL,
   qtyText,
   relTime,
   sender,
@@ -55,7 +56,7 @@ function NoAccess({ title }: { title: string }) {
   return (
     <div className="space-y-5">
       <PageHeader title={title} />
-      <div className="card"><EmptyState title="You don't have access to Order Connect" hint="Ask an administrator for the Order Connect permissions." /></div>
+      <div className="card"><EmptyState title="You don't have access to Online Orders" hint="Ask an administrator for the Online Orders permissions." /></div>
     </div>
   );
 }
@@ -78,12 +79,13 @@ const entryLabel = (s: Pick<SubSummary, "reference" | "business_name" | "custome
 function SubRow({ s, deletable = false }: { s: SubSummary; deletable?: boolean }) {
   return (
     <li className="flex items-center gap-1">
-      <Link to={`/order-connect/submissions/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4 rounded-ctl px-3 py-3 transition-colors duration-150 hover:bg-subtle" data-testid={`oc-row-${s.reference}`}>
+      <Link to={`/online-orders/requests/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4 rounded-ctl px-3 py-3 transition-colors duration-150 hover:bg-subtle" data-testid={`oc-row-${s.reference}`}>
         <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${s.unread ? "bg-brand-primary" : "bg-transparent"}`} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2">
             <span className={`truncate ${s.unread ? "font-semibold" : "font-medium"}`}>{sender(s)}</span>
             {s.unread && <span className="sr-only">(unread)</span>}
+            {s.request_type === "QUOTE" && <StatusChip tone="info">Quote request</StatusChip>}
             {s.possible_duplicate && <StatusChip tone="warning">Possible duplicate</StatusChip>}
           </span>
           <span className="block truncate text-sm text-ink-muted">
@@ -113,23 +115,23 @@ export function OcOverviewPage() {
   }, [a.read, load]);
   useOcLive(() => a.read && load());
 
-  if (!a.read) return <NoAccess title="Order Connect" />;
+  if (!a.read) return <NoAccess title="Online Orders" />;
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Order Connect"
+        title="Online Orders"
         subtitle="Orders customers send from your website. Approved ones become draft sales orders — never invoices or stock moves."
         actions={
           <>
-            <Link to="/order-connect/forms" className="btn-ghost">Form builder</Link>
-            <Link to="/order-connect/submissions" className="btn-primary">Open inbox</Link>
+            <Link to="/online-orders/forms" className="btn-ghost">Form builder</Link>
+            <Link to="/online-orders/requests" className="btn-primary">Open requests</Link>
           </>
         }
       />
       {error ? (
-        <div className="card"><ErrorState title="Couldn't load Order Connect" detail={error} onRetry={load} /></div>
+        <div className="card"><ErrorState title="Couldn't load Online Orders" detail={error} onRetry={load} /></div>
       ) : !o ? (
-        <PageSkeleton label="Loading Order Connect" />
+        <PageSkeleton label="Loading Online Orders" />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -140,11 +142,11 @@ export function OcOverviewPage() {
           </div>
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <section className="card p-5 sm:p-6" aria-labelledby="oc-latest">
-              <CardTitle id="oc-latest" title="Latest submissions" to="/order-connect/submissions" />
+              <CardTitle id="oc-latest" title="Latest requests" to="/online-orders/requests" />
               {o.latest.length ? (
                 <ul className="mt-3 divide-y divide-line">{o.latest.map((s) => <SubRow key={s.id} s={s} />)}</ul>
               ) : (
-                <EmptyState icon="inbox" title="No submissions yet" hint="Publish a form and add it to your website; orders appear here the moment they are sent." />
+                <EmptyState icon="inbox" title="No requests yet" hint="Publish a form and add it to your website; orders appear here the moment they are sent." />
               )}
             </section>
             <section className="card p-5 sm:p-6" aria-labelledby="oc-status">
@@ -152,14 +154,14 @@ export function OcOverviewPage() {
               <ul className="mt-3 space-y-2">
                 {(Object.keys(STATUS) as SubStatus[]).map((k) => (
                   <li key={k} className="flex items-center justify-between gap-3">
-                    <Link to={`/order-connect/submissions?status=${k}`} className="hover:underline"><Status s={k} /></Link>
+                    <Link to={`/online-orders/requests?status=${k}`} className="hover:underline"><Status s={k} /></Link>
                     <span className="num font-semibold">{o.by_status[k] ?? 0}</span>
                   </li>
                 ))}
               </ul>
               <div className="mt-5 rounded-ctl bg-subtle p-4 text-sm">
                 <div className="font-medium">{o.forms_live} of {o.forms_total} forms live</div>
-                <Link to="/order-connect/embed" className={link}>Get the website code</Link>
+                <Link to="/online-orders/embed" className={link}>Get the website code</Link>
               </div>
             </section>
           </div>
@@ -176,6 +178,7 @@ export function OcSubmissionsPage() {
   const [params, setParams] = useSearchParams();
   const status = (params.get("status") as InboxFilter | null) ?? "OPEN";
   const formId = params.get("form") ?? "";
+  const kind = (params.get("type") as "ORDER" | "QUOTE" | null) ?? undefined;
   const [q, setQ] = useState("");
   const dq = useDebounced(q, 250);
   const [items, setItems] = useState<SubSummary[] | null>(null);
@@ -184,11 +187,11 @@ export function OcSubmissionsPage() {
   const [forms, setForms] = useState<OcForm[]>([]);
 
   const load = useCallback(() => {
-    oc.submissions({ status, q: dq, form_id: formId || undefined, limit: 50 }).then(
+    oc.submissions({ status, type: kind, q: dq, form_id: formId || undefined, limit: 50 }).then(
       (r) => { setItems(r.items); setNext(r.next_before); setError(""); },
       (e) => setError(errText(e)),
     );
-  }, [status, dq, formId]);
+  }, [status, kind, dq, formId]);
   useEffect(() => {
     if (a.read) load();
   }, [a.read, load]);
@@ -200,7 +203,7 @@ export function OcSubmissionsPage() {
 
   const more = async () => {
     if (!next) return;
-    const r = await oc.submissions({ status, q: dq, form_id: formId || undefined, before: next, limit: 50 });
+    const r = await oc.submissions({ status, type: kind, q: dq, form_id: formId || undefined, before: next, limit: 50 });
     setItems((cur) => [...(cur ?? []), ...r.items]);
     setNext(r.next_before);
   };
@@ -211,10 +214,10 @@ export function OcSubmissionsPage() {
     setParams(p, { replace: true });
   };
 
-  if (!a.read) return <NoAccess title="Submissions" />;
+  if (!a.read) return <NoAccess title="Order & quote requests" />;
   return (
     <div className="space-y-5">
-      <PageHeader title="Submissions" subtitle="New website orders appear here live. Open one to review it." />
+      <PageHeader title="Order & quote requests" subtitle="Orders and quote requests from your website appear here live. Open one to review it." />
       <FilterBar
         search={q}
         onSearch={setQ}
@@ -223,6 +226,12 @@ export function OcSubmissionsPage() {
         value={status}
         onChange={(v) => set("status", v === "OPEN" ? "" : v)}
       >
+        <label htmlFor="oc-type-filter" className="sr-only">Request type</label>
+        <select id="oc-type-filter" className="input w-auto rounded-full py-2" value={kind ?? ""} onChange={(e) => set("type", e.target.value)}>
+          <option value="">Orders and quotes</option>
+          <option value="ORDER">Orders only</option>
+          <option value="QUOTE">Quote requests only</option>
+        </select>
         {forms.length > 1 && (
           <>
             <label htmlFor="oc-form-filter" className="sr-only">Form</label>
@@ -233,13 +242,13 @@ export function OcSubmissionsPage() {
           </>
         )}
       </FilterBar>
-      <section className="card p-3 sm:p-4" aria-label="Submission list" aria-live="polite" aria-busy={items === null}>
+      <section className="card p-3 sm:p-4" aria-label="Request list" aria-live="polite" aria-busy={items === null}>
         {error ? (
-          <ErrorState title="Couldn't load submissions" detail={error} onRetry={load} />
+          <ErrorState title="Couldn't load requests" detail={error} onRetry={load} />
         ) : items === null ? (
           <LoadingRows rows={6} cols={3} />
         ) : items.length === 0 ? (
-          <EmptyState icon="inbox" title={dq ? "Nothing matches your search" : "No submissions here"} hint={status === "OPEN" ? "New website orders will appear here the moment they arrive." : undefined} />
+          <EmptyState icon="inbox" title={dq ? "Nothing matches your search" : "No requests here"} hint={status === "OPEN" ? "New website orders will appear here the moment they arrive." : undefined} />
         ) : (
           <>
             <ul className="divide-y divide-line">{items.map((s) => <SubRow key={s.id} s={s} deletable />)}</ul>
@@ -283,7 +292,7 @@ export function OcSubmissionPage() {
       setMsg({ tone: "ok", text: ok });
       announceChange();
     } catch (e) {
-      setMsg({ tone: "error", text: e instanceof ApiError && e.code === "VERSION_CONFLICT" ? "Someone else just changed this submission. It has been reloaded." : errText(e) });
+      setMsg({ tone: "error", text: e instanceof ApiError && e.code === "VERSION_CONFLICT" ? "Someone else just changed this request. It has been reloaded." : errText(e) });
       load();
     } finally {
       setBusy(false);
@@ -295,9 +304,9 @@ export function OcSubmissionPage() {
     if (d && note.trim()) void act(() => oc.addNote(d.id, note.trim()), "Note added.").then(() => setNote(""));
   };
 
-  if (!a.read) return <NoAccess title="Submission" />;
-  if (error) return <div className="card"><ErrorState title="Couldn't load this submission" detail={error} onRetry={load} /></div>;
-  if (!d) return <PageSkeleton label="Loading submission" />;
+  if (!a.read) return <NoAccess title="Request" />;
+  if (error) return <div className="card"><ErrorState title="Couldn't load this request" detail={error} onRetry={load} /></div>;
+  if (!d) return <PageSkeleton label="Loading request" />;
 
   const can = (to: SubStatus) => (movePermission(d.status, to) === "order_connect.approve" ? a.approve : a.review);
   // Side moves first, the forward step (start review / approve) last and primary.
@@ -308,18 +317,19 @@ export function OcSubmissionPage() {
 
   return (
     <div className="space-y-5">
-      <Link to="/order-connect/submissions" className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink"><Icon name="chevronLeft" size={16} />Submissions</Link>
+      <Link to="/online-orders/requests" className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink"><Icon name="chevronLeft" size={16} />Order & quote requests</Link>
       <PageHeader
         title={sender(d)}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             <Status s={d.status} />
+            <StatusChip tone={d.request_type === "QUOTE" ? "info" : "neutral"}>{REQUEST_LABEL[d.request_type]}</StatusChip>
             <span>{d.reference} · received {when(d.created_at)} · {d.form_name} (version {d.form_version_no})</span>
           </span>
         }
         actions={
           <>
-            {d.status !== "CONVERTED" && <DeleteAction kind="website_entry" id={d.id} label={entryLabel(d)} onDone={() => navigate("/order-connect/submissions")} />}
+            {d.status !== "CONVERTED" && <DeleteAction kind="website_entry" id={d.id} label={entryLabel(d)} onDone={() => navigate("/online-orders/requests")} />}
             {moves.map((to) => (
               <button
                 key={to}
@@ -336,7 +346,7 @@ export function OcSubmissionPage() {
       <Notice msg={msg} />
       {d.possible_duplicate_of && (
         <p className="alert-warning">
-          Looks like a repeat of <Link className={link} to={`/order-connect/submissions/${d.possible_duplicate_of.id}`}>{d.possible_duplicate_of.reference}</Link> (same contact and products within a day). Check before converting.
+          Looks like a repeat of <Link className={link} to={`/online-orders/requests/${d.possible_duplicate_of.id}`}>{d.possible_duplicate_of.reference}</Link> (same contact and products within a day). Check before converting.
         </p>
       )}
       {d.spam_reasons.length > 0 && (
@@ -367,12 +377,12 @@ export function OcSubmissionPage() {
                 </tbody>
               </table>
             ) : (
-              <p className="mt-3 text-sm text-ink-muted">No products were accepted with this submission.</p>
+              <p className="mt-3 text-sm text-ink-muted">No products were accepted with this request.</p>
             )}
             <p className="mt-2 text-xs text-ink-muted">As submitted. Prices are never taken from the website; they are set when the order is confirmed.</p>
           </section>
           {d.status === "APPROVED" && a.approve && <ConvertPanel d={d} onDone={(v) => { setD(v); setMsg(null); announceChange(); }} />}
-          {d.status === "APPROVED" && !a.approve && <p className="alert-warning">Someone with approval rights converts approved submissions into draft orders.</p>}
+          {d.status === "APPROVED" && !a.approve && <p className="alert-warning">Someone with approval rights converts approved requests into draft orders.</p>}
           <section className="card p-5 sm:p-6" aria-labelledby="oc-timeline">
             <CardTitle id="oc-timeline" title="Timeline" />
             <ol className="mt-3 space-y-3">
@@ -541,7 +551,7 @@ function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => v
   return (
     <form onSubmit={submit} className="card space-y-4 p-5 sm:p-6" aria-labelledby="oc-convert">
       <CardTitle id="oc-convert" title="Create draft sales order" />
-      <p className="text-sm text-ink-muted">Creates one DRAFT order. It is not confirmed, priced, reserved or invoiced; that happens in Orders as usual. The submission keeps what the customer sent.</p>
+      <p className="text-sm text-ink-muted">Creates one DRAFT order. It is not confirmed, priced, reserved or invoiced; that happens in Orders as usual. The request keeps what the customer sent.</p>
       {!a.orders && <p className="alert-warning">You also need permission to manage sales orders for the chosen warehouse.</p>}
       <fieldset className="space-y-2">
         <legend className="label">Customer</legend>
@@ -579,7 +589,7 @@ function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => v
                   <input type="radio" name="oc-cust" className="mt-1" checked={choice === "new"} onChange={() => setChoice("new")} />
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">New customer</span>
-                    <span className="block text-ink-muted">Created with the email and phone from this submission.</span>
+                    <span className="block text-ink-muted">Created with the email and phone from this request.</span>
                   </span>
                 </label>
                 {choice === "new" && (
@@ -735,7 +745,7 @@ export function OcEmbedPage() {
     return (
       <div className="space-y-5">
         <PageHeader title="Embed & share" />
-        <div className="card"><EmptyState icon="globe" title="Create a form first" action={<button className="btn-primary" onClick={() => navigate("/order-connect/forms")}>Go to Form builder</button>} /></div>
+        <div className="card"><EmptyState icon="globe" title="Create a form first" action={<button className="btn-primary" onClick={() => navigate("/online-orders/forms")}>Go to Form builder</button>} /></div>
       </div>
     );
 
@@ -757,17 +767,27 @@ export function OcEmbedPage() {
       />
       {form && !form.published && (
         <p className="alert-warning">
-          “{form.name}” is not published yet, so the code below shows “not available”. <Link className={link} to={`/order-connect/forms/${form.id}`}>Publish it</Link> first.
+          “{form.name}” is not published yet, so the code below shows “not available”. <Link className={link} to={`/online-orders/forms/${form.id}`}>Publish it</Link> first.
         </p>
       )}
       {info && form && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="oc-code">
             <CardTitle id="oc-code" title="Website code" action={<Copy text={info.iframe} label="Copy code" />} />
+            <p className="text-sm text-ink-muted">The form has no header or footer of its own, so it sits inside your page between your site's header and footer. The short script makes the form as tall as its content (no box that scrolls inside the page) and keeps the cart in view.</p>
             <label htmlFor="oc-iframe" className="sr-only">Iframe code</label>
-            <textarea id="oc-iframe" readOnly className="input min-h-28 font-mono text-xs" value={info.iframe} onFocus={(e) => e.currentTarget.select()} />
+            <textarea id="oc-iframe" readOnly className="input min-h-36 font-mono text-xs" value={info.iframe} onFocus={(e) => e.currentTarget.select()} />
             <ol className="list-decimal space-y-1 pl-5 text-sm text-ink-muted">{wordpressSteps.map((s) => <li key={s}>{s}</li>)}</ol>
-            <p className="text-sm text-ink-muted">Not tested against a live WordPress site from here: after pasting, open the page and send a test order.</p>
+            <details className="text-sm">
+              <summary className="cursor-pointer font-medium">Site doesn't allow scripts?</summary>
+              <p className="mt-2 text-ink-muted">Use only the iframe: the form then has a fixed height and scrolls inside its box.</p>
+              <div className="mt-2 flex items-start gap-2">
+                <label htmlFor="oc-iframe-only" className="sr-only">Iframe only</label>
+                <textarea id="oc-iframe-only" readOnly className="input min-h-20 flex-1 font-mono text-xs" value={info.iframe_only} onFocus={(e) => e.currentTarget.select()} />
+                <Copy text={info.iframe_only} label="Copy" />
+              </div>
+            </details>
+            <p className="text-sm text-ink-muted">Not tested against your live WordPress site from here: after pasting, open the page and send a test order.</p>
           </section>
           <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="oc-link">
             <CardTitle id="oc-link" title="Direct link" action={info.standalone_link ? <Copy text={info.public_url} label="Copy link" /> : undefined} />
@@ -816,14 +836,14 @@ export function OcSettingsPage() {
       setBusy(false);
     }
   };
-  if (!a.read) return <NoAccess title="Order Connect settings" />;
+  if (!a.read) return <NoAccess title="Online Orders settings" />;
   if (!s) return msg ? <Notice msg={msg} /> : <PageSkeleton label="Loading settings" />;
   const ro = !a.manage;
   const num = (v: string, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(v) || 0)));
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Order Connect settings" subtitle="Rules for every website order form." />
+      <PageHeader title="Online Orders settings" subtitle="Rules for every online order and quote form." />
       <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="oc-sites-all">
         <CardTitle id="oc-sites-all" title="Allowed websites (all forms)" />
         <p className="text-sm text-ink-muted">Forms can be shown inside these sites. Add a site for one form only on Embed & share.</p>
@@ -832,11 +852,11 @@ export function OcSettingsPage() {
       <form onSubmit={save} className="space-y-5">
         <fieldset disabled={ro} className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <Section title="Notifications">
-            <Check checked={s.notify_staff} onChange={(v) => set({ notify_staff: v })} label="Alert staff about new submissions" hint="Everyone with Order Connect access gets an in-app alert (also when they were offline)." />
-            <Check checked={s.ack_email} onChange={(v) => set({ ack_email: v })} label="Email the customer a receipt" hint="Sent through the outbox after the submission is saved. It says the order is not confirmed yet." />
+            <Check checked={s.notify_staff} onChange={(v) => set({ notify_staff: v })} label="Alert staff about new requests" hint="Everyone with Order Connect access gets an in-app alert (also when they were offline)." />
+            <Check checked={s.ack_email} onChange={(v) => set({ ack_email: v })} label="Email the customer a receipt" hint="Sent through the outbox after the request is saved. It says the order is not confirmed yet." />
           </Section>
           <Section title="Spam protection">
-            <Num id="oc-min" label="Minimum seconds to fill the form" value={s.min_fill_seconds} onChange={(v) => set({ min_fill_seconds: num(v, 0, 120) })} hint="Faster submissions are filed as spam (bots). 0 turns this off." />
+            <Num id="oc-min" label="Minimum seconds to fill the form" value={s.min_fill_seconds} onChange={(v) => set({ min_fill_seconds: num(v, 0, 120) })} hint="Faster requests are filed as spam (bots). 0 turns this off." />
             <Num id="oc-ip" label="Orders per connection per hour" value={s.ip_limit_per_hour} onChange={(v) => set({ ip_limit_per_hour: num(v, 1, 1000) })} />
             <Num id="oc-form" label="Orders per form per hour" value={s.form_limit_per_hour} onChange={(v) => set({ form_limit_per_hour: num(v, 1, 10000) })} />
             <p className="text-sm text-ink-muted">A hidden “honeypot” field also catches bots. Captcha services are not used (see open decisions).</p>
@@ -855,7 +875,7 @@ export function OcSettingsPage() {
                 <option value="">Keep (no automatic erasure)</option>
                 {[30, 90, 180, 365, 730, 1095, 2555].map((d) => <option key={d} value={d}>{d < 365 ? `${d} days` : `${Math.round(d / 365)} year${d >= 730 ? "s" : ""}`}</option>)}
               </select>
-              <p className="mt-1 text-sm text-ink-muted">Only finished submissions (converted, rejected, duplicate, spam). Products and linked orders stay.</p>
+              <p className="mt-1 text-sm text-ink-muted">Only finished requests (converted, rejected, duplicate, spam). Products and linked orders stay.</p>
             </div>
           </Section>
         </fieldset>

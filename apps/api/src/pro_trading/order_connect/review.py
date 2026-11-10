@@ -148,7 +148,8 @@ def erase(db: Session, sub: OrderFormSubmission, actor: uuid.UUID | None, reason
     sub.customer_name = sub.business_name = sub.email = sub.phone = ""
     sub.delivery_address = sub.notes = sub.user_agent = sub.ip_hash = ""
     sub.custom = []
-    sub.raw = dict(ERASED_RAW)
+    # The order/quote choice is not personal data: keep it so the inbox still shows it.
+    sub.raw = {**ERASED_RAW, "request_type": (sub.raw or {}).get("request_type", "ORDER")}
     sub.erased_at = forms.now()
     sub.version += 1
     sub.updated_at = sub.erased_at

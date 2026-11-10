@@ -69,7 +69,7 @@ ACCENTS = (
     ("#7A4E0A", "Brown"),
 )
 RADII = ("none", "small", "large")
-DEFAULT_THEME = {"accent": "#1B7A30", "radius": "small"}
+DEFAULT_THEME = {"accent": "#1B7A30", "radius": "large"}
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "notify_staff": True,
@@ -352,6 +352,45 @@ def products_in_scope(db: Session, company_id: uuid.UUID, ver: OrderFormVersion)
     return list(db.scalars(q.order_by(Product.name)).all())
 
 
+def _qty(v: Decimal) -> str:
+    return format(v.normalize(), "f")
+
+
+def case_sizes(db: Session, products: list[Product]) -> dict[tuple[uuid.UUID, str], str]:
+    """A short case description per (product, unit) from the active packing profiles, e.g.
+    "40 lb" or "24 pieces"; a range when a product packs several sizes. Nothing is invented:
+    a unit with no recorded weight or count gets no description."""
+    if not products:
+        return {}
+    rows = db.execute(
+        select(
+            ProductUnitProfile.product_id,
+            ProductUnitProfile.unit_code,
+            ProductUnitProfile.weight_lb_per_unit,
+            ProductUnitProfile.pieces_per_unit,
+        ).where(
+            ProductUnitProfile.product_id.in_([p.id for p in products]),
+            ProductUnitProfile.active.is_(True),
+        )
+    ).all()
+    weights: dict[tuple[uuid.UUID, str], set[Decimal]] = {}
+    pieces: dict[tuple[uuid.UUID, str], set[Decimal]] = {}
+    for pid, unit, w, n in rows:
+        if w is not None:
+            weights.setdefault((pid, unit), set()).add(w)
+        if n is not None:
+            pieces.setdefault((pid, unit), set()).add(n)
+    out: dict[tuple[uuid.UUID, str], str] = {}
+    for key in set(weights) | set(pieces):
+        parts = []
+        for vals, word in ((weights.get(key), "lb"), (pieces.get(key), "pieces")):
+            if vals:
+                lo, hi = min(vals), max(vals)
+                parts.append(f"{_qty(lo)} {word}" if lo == hi else f"{_qty(lo)}–{_qty(hi)} {word}")
+        out[key] = " · ".join(parts)
+    return out
+
+
 def standard_prices(
     db: Session, company_id: uuid.UUID, product_ids: list[uuid.UUID]
 ) -> dict[tuple[uuid.UUID, str], tuple[Decimal, str]]:
@@ -393,6 +432,7 @@ def public_config(
     non-standard prices."""
     products = products_in_scope(db, form.company_id, ver)
     units = _units(db, products)
+    sizes = case_sizes(db, products)
     prices = (
         standard_prices(db, form.company_id, [p.id for p in products]) if ver.show_prices else {}
     )
@@ -442,6 +482,7 @@ def public_config(
                 "units": [
                     {
                         "code": u,
+                        "size": sizes.get((p.id, u)),
                         **(
                             {"price": money(prices[(p.id, u)][0]), "currency": prices[(p.id, u)][1]}
                             if (p.id, u) in prices
@@ -449,6 +490,15 @@ def public_config(
                         ),
                     }
                     for u in units[p.id]
+                ],
+                # Standard prices in every unit they are kept in (e.g. per lb for a product sold
+                # by the box); empty unless the form shows prices.
+                "prices": [
+                    {"unit": u, "price": money(r), "currency": c}
+                    for (pid, u), (r, c) in sorted(
+                        prices.items(), key=lambda kv: UNIT_ORDER.get(kv[0][1], 9)
+                    )
+                    if pid == p.id
                 ],
             }
             for p in products
