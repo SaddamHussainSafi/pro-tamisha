@@ -2992,6 +2992,19 @@
       },
       "DirectInvoiceLineIn": {
         "properties": {
+          "lot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Batch handed over; none = oldest expiry first (FEFO)",
+            "title": "Lot Id"
+          },
           "note": {
             "default": "",
             "maxLength": 500,
@@ -3088,6 +3101,14 @@
           "deduct_qty": {
             "title": "Deduct Qty",
             "type": "string"
+          },
+          "lots": {
+            "description": "Batches issuing takes (FEFO)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Lots",
+            "type": "array"
           },
           "ok": {
             "title": "Ok",
@@ -5676,6 +5697,305 @@
         "title": "LineCancelIn",
         "type": "object"
       },
+      "LinePreviewIn": {
+        "description": "Rows being typed on Create invoice \u203a Direct or New sales order. Nothing is written.",
+        "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LinePreviewLineIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouse_id",
+          "lines"
+        ],
+        "title": "LinePreviewIn",
+        "type": "object"
+      },
+      "LinePreviewLineIn": {
+        "properties": {
+          "lot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lot Id"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Qty"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "unit_code"
+        ],
+        "title": "LinePreviewLineIn",
+        "type": "object"
+      },
+      "LinePreviewLineOut": {
+        "properties": {
+          "available_qty": {
+            "title": "Available Qty",
+            "type": "string"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "line_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Amount"
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/LotOptionOut"
+            },
+            "title": "Lots",
+            "type": "array"
+          },
+          "pack_lb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Lb"
+          },
+          "price_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Scope"
+          },
+          "price_version_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Version Code"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineProblemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "stock_ok": {
+            "title": "Stock Ok",
+            "type": "boolean"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          },
+          "weight_lb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb"
+          }
+        },
+        "required": [
+          "line",
+          "product_id",
+          "sku",
+          "unit_code",
+          "qty",
+          "rate",
+          "line_amount",
+          "basis",
+          "price_scope",
+          "price_version_code",
+          "pack_lb",
+          "weight_lb",
+          "available_qty",
+          "stock_ok",
+          "lots",
+          "problem"
+        ],
+        "title": "LinePreviewLineOut",
+        "type": "object"
+      },
+      "LinePreviewOut": {
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LinePreviewLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "subtotal": {
+            "title": "Subtotal",
+            "type": "string"
+          },
+          "tax_amount": {
+            "title": "Tax Amount",
+            "type": "string"
+          },
+          "tax_code": {
+            "title": "Tax Code",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "subtotal",
+          "tax_code",
+          "tax_amount",
+          "total",
+          "complete"
+        ],
+        "title": "LinePreviewOut",
+        "type": "object"
+      },
+      "LineProblemOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "LineProblemOut",
+        "type": "object"
+      },
       "LoginIn": {
         "properties": {
           "email": {
@@ -5758,6 +6078,55 @@
           "csrf_token"
         ],
         "title": "LoginOut",
+        "type": "object"
+      },
+      "LotOptionOut": {
+        "properties": {
+          "available_qty": {
+            "title": "Available Qty",
+            "type": "string"
+          },
+          "batch_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Ref"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "lot_code": {
+            "title": "Lot Code",
+            "type": "string"
+          },
+          "lot_id": {
+            "format": "uuid",
+            "title": "Lot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lot_id",
+          "lot_code",
+          "batch_ref",
+          "expires_at",
+          "available_qty"
+        ],
+        "title": "LotOptionOut",
         "type": "object"
       },
       "LotOut": {
@@ -14561,6 +14930,14 @@
           "deduct_qty": {
             "title": "Deduct Qty",
             "type": "string"
+          },
+          "lots": {
+            "description": "Batches issuing takes (FEFO)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Lots",
+            "type": "array"
           },
           "ok": {
             "title": "Ok",
@@ -25208,6 +25585,32 @@
         ]
       }
     },
+    "/api/v1/product-lookup": {
+      "get": {
+        "description": "Every active product with its case sizes and aliases, in one call, so the entry grid\ncan autocomplete by name, SKU or alias and fill units/case weights without a round trip.",
+        "operationId": "product_lookup_api_v1_product_lookup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProductOut"
+                  },
+                  "title": "Response Product Lookup Api V1 Product Lookup Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Product Lookup",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/products": {
       "get": {
         "operationId": "list_products_api_v1_products_get",
@@ -26987,6 +27390,48 @@
           }
         },
         "summary": "Create Order",
+        "tags": [
+          "sales-orders"
+        ]
+      }
+    },
+    "/api/v1/sales-orders/preview": {
+      "post": {
+        "description": "Live figures for the entry grid on New sales order and Create invoice \u203a Direct: per line\nthe rate confirming would fix now, the amount, pounds, and saleable batches oldest expiry\nfirst; per-line problems instead of a 422. Nothing is written. Provisional: confirming an\norder or issuing an invoice prices and checks stock again.",
+        "operationId": "preview_lines_api_v1_sales_orders_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinePreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinePreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Lines",
         "tags": [
           "sales-orders"
         ]

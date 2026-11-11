@@ -9,9 +9,11 @@ Only an explicit, reasoned amendment (sales_order.close) cancels quantity.
 """
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import partial
 from typing import Any
 
 from sqlalchemy import func, select
@@ -386,41 +388,58 @@ def price_lines(db: Session, company_id: uuid.UUID, o: SalesOrder, at: datetime)
                 422, "PRODUCT_INACTIVE", f"Line {ln.line_no}: {prod.sku} is inactive",
                 line=ln.line_no,
             )  # fmt: skip
-        try:
-            qt = pricing.resolve(db, company_id, ln.product_id, ln.unit_code, cust, at)
-        except pricing.NoPriceError:
-            if ln.unit_code != "BOX":
-                msg = f"Line {ln.line_no}: no active price for {prod.sku} per {ln.unit_code}"
-                raise ApiError(422, "NO_PRICE", msg, line=ln.line_no) from None
-            ln.rate, ln.price_snapshot = _box_from_lb(db, company_id, o, ln, prod, cust, at)
-            continue
-        ln.rate, ln.price_snapshot = qt.rate, qt.snapshot()
+        ln.rate, ln.price_snapshot = quote(
+            db, company_id, prod, ln.unit_code, cust, at, ln.line_no,
+            partial(_ordered_box_lb, db, o, ln),
+        )  # fmt: skip
+
+
+def quote(
+    db: Session,
+    company_id: uuid.UUID,
+    prod: Product,
+    unit_code: str,
+    cust: Customer,
+    at: datetime,
+    line_no: int,
+    ordered_box_lb: Callable[[], Decimal | None] | None = None,
+) -> tuple[Decimal, dict[str, Any]]:
+    """Rate + snapshot for one line as of `at`, exactly as confirming would freeze it. Raises
+    NO_PRICE (with `line`) when nothing prices it. Also used by the order/invoice line preview."""
+    try:
+        qt = pricing.resolve(db, company_id, prod.id, unit_code, cust, at)
+    except pricing.NoPriceError:
+        if unit_code != "BOX":
+            msg = f"Line {line_no}: no active price for {prod.sku} per {unit_code}"
+            raise ApiError(422, "NO_PRICE", msg, line=line_no) from None
+        return _box_from_lb(db, company_id, prod, cust, at, line_no, ordered_box_lb)
+    return qt.rate, qt.snapshot()
 
 
 def _box_from_lb(
     db: Session,
     company_id: uuid.UUID,
-    o: SalesOrder,
-    ln: SalesOrderLine,
     prod: Product,
     cust: Customer,
     at: datetime,
+    line_no: int,
+    ordered_box_lb: Callable[[], Decimal | None] | None,
 ) -> tuple[Decimal, dict[str, Any]]:
     """A box with no box price is priced per lb x the box's weight (owner, 2026-11-10): the
     size the customer picked on the online order form, else the product's default case size.
     The snapshot keeps the per-lb price and the weight used, so the invoice shows the box size."""
     try:
-        lb = pricing.resolve(db, company_id, ln.product_id, "LB", cust, at)
+        lb = pricing.resolve(db, company_id, prod.id, "LB", cust, at)
     except pricing.NoPriceError:
-        msg = f"Line {ln.line_no}: no active price for {prod.sku} per BOX or per LB"
-        raise ApiError(422, "NO_PRICE", msg, line=ln.line_no) from None
-    box_lb = _ordered_box_lb(db, o, ln) or _default_box_lb(db, ln.product_id)
+        msg = f"Line {line_no}: no active price for {prod.sku} per BOX or per LB"
+        raise ApiError(422, "NO_PRICE", msg, line=line_no) from None
+    box_lb = (ordered_box_lb() if ordered_box_lb else None) or _default_box_lb(db, prod.id)
     if box_lb is None:
         msg = (
-            f"Line {ln.line_no}: {prod.sku} has a price per lb but no box price, and the box "
+            f"Line {line_no}: {prod.sku} has a price per lb but no box price, and the box "
             "weight is unknown. Add a case size or a box price, then confirm again."
         )
-        raise ApiError(422, "NO_PRICE", msg, line=ln.line_no)
+        raise ApiError(422, "NO_PRICE", msg, line=line_no)
     rate = (lb.rate * box_lb).quantize(pricing.Q4)
     snap = lb.snapshot() | {
         "unit_code": "BOX",

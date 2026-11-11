@@ -309,8 +309,9 @@ def invoice_settings(request: Request, db: DbDep, p: PrincipalDep) -> dict[str, 
 
 def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrder, PickingAttempt]:
     """Small sale without a picking sheet: a CONFIRMED order (prices frozen now) and a VERIFIED
-    sheet marked "Direct invoice", every line packed in full with no lot chosen, so the issue
-    path takes stock first-expiry-first-out under the usual locks. Caller owns the transaction."""
+    sheet marked "Direct invoice", every line packed in full. A line with a batch takes stock
+    from that batch only; the rest first-expiry-first-out, under the usual issue-path locks.
+    Caller owns the transaction."""
     lines = [
         OrderLineIn(product_id=ln.product_id, unit_code=ln.unit_code, qty=ln.qty,
                     source_line_text="Direct invoice", note=ln.note)
@@ -340,7 +341,9 @@ def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrde
     )
     db.add(a)
     db.flush()
-    for ln in osvc.order_lines(db, o.id):
+    for ln, src in zip(osvc.order_lines(db, o.id), body.lines, strict=True):
+        if src.lot_id is not None:  # the batch handed over; else first-expiry-first-out
+            osvc.check_lot(db, a, ln, src.lot_id)
         db.add(
             PickingLine(
                 attempt_id=a.id,
@@ -348,6 +351,7 @@ def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrde
                 requested_qty=ln.ordered_qty,
                 picked_qty=ln.ordered_qty,
                 outcome="PICKED",
+                lot_id=src.lot_id,
             )
         )
     db.flush()

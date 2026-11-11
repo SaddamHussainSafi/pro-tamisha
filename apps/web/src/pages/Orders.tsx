@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
+  ApiError,
   canInWarehouse,
   has,
   type Customer,
@@ -10,17 +11,21 @@ import {
   type OrderStatus,
   type OrderSummary,
   type InvoiceSummary,
-  type Product,
-  type ProductSummary,
   type UnitCode,
+  type Warehouse,
 } from "../api";
 import { useAuth } from "../auth";
-import { qtyText, stockUnits, wholeOnly } from "../lib/inventory";
+import { qtyText, wholeOnly } from "../lib/inventory";
+import { billable, ensureRows, gridProblem, rowProblem, type GridLine } from "../lib/lineGrid";
 import { AMENDMENT_LABEL, lineAmount, ORDER_STATUS, ordersMessage, PICK_STATUS } from "../lib/orders";
 import { rateText } from "../lib/pricingErrors";
 import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { DeleteAction } from "../ui/DeleteAction";
+import { figureColumns, useGridProducts, useLinePreview } from "../lib/gridData";
+import { GridProblems, TotalsBar } from "../ui/gridParts";
+import { Icon } from "../ui/Icon";
+import { LineGrid, type GridColumn, type LineGridHandle } from "../ui/LineGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
@@ -130,137 +135,201 @@ export function OrdersPage() {
 
 /* ================================ New order ================================ */
 
-type DraftLine = { key: number; product_id: string; unit_code: UnitCode | ""; qty: string; text: string };
+const MAX_ORDER_LINES = 200; // the order API takes up to 200 lines
+const UNIT_SHORT: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
 
+/** New sales order: the same always-open entry grid as Create invoice › Direct. Saved as a
+ * DRAFT (no prices kept); the rate and gross shown are today's, fixed only on Confirm. */
 export function NewOrderPage() {
   const { session } = useAuth();
   const nav = useNavigate();
+  const { products } = useGridProducts();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<ProductSummary[]>([]);
-  const [details, setDetails] = useState<Record<string, Product>>({});
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [customer, setCustomer] = useState("");
   const [wh, setWh] = useState("");
+  const [wanted, setWanted] = useState("");
   const [sourceText, setSourceText] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([{ key: 1, product_id: "", unit_code: "", qty: "", text: "" }]);
+  const [note, setNote] = useState("");
+  const [lines, setLines] = useState<GridLine[]>(() => ensureRows([], MAX_ORDER_LINES));
+  const [activeRow, setActiveRow] = useState<number | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const grid = useRef<LineGridHandle>(null);
+  const saveBtn = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active)), () => setCustomers([]));
-    api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
-    // No warehouse field: new orders go to the first warehouse this user may manage orders in.
     api.warehouses().then((w) => {
       const ok = w.filter((x) => x.active && session && canInWarehouse(session, "sales_order.manage", x.id));
-      setWh((cur) => cur || (ok[0]?.id ?? ""));
+      setWarehouses(ok);
+      setWh((cur) => (ok.some((x) => x.id === cur) ? cur : (ok[0]?.id ?? "")));
     }, () => setWh(""));
   }, [session]);
+  const lp = useLinePreview(customer, wh, lines);
 
-  const pick = async (key: number, product_id: string) => {
-    let p = details[product_id];
-    if (!p && product_id) {
-      p = await api.product(product_id);
-      setDetails((d) => ({ ...d, [product_id]: p as Product }));
-    }
-    const unit = p ? (stockUnits(p).includes(p.stock_unit) ? p.stock_unit : stockUnits(p)[0] ?? "") : "";
-    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, product_id, unit_code: unit } : l)));
+  const serverProblem = (l: GridLine): string | null => {
+    const e = lp.entry(l);
+    if (!e) return null;
+    if (e.problem && e.problem.code !== "DUPLICATE_LINE") return e.problem.message.replace(/^Line \d+: /, "");
+    if (l.qty.trim() && !e.stock_ok) return `Only ${qtyText(e.available_qty)} ${UNIT_SHORT[e.unit_code]} in stock now (the order can still be saved).`;
+    return null;
   };
-  const patch = (key: number, v: Partial<DraftLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...v } : l)));
+  const problemFor = (l: GridLine, i: number) => (i === activeRow && !l.product_id ? null : (rowProblem(l, i, lines) ?? serverProblem(l)));
+  const problems = lines.flatMap((l, row) => {
+    const text = problemFor(l, row);
+    return text ? [{ row, text }] : [];
+  });
+  const toGrid = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    grid.current?.focusFirstEmpty();
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    const filled = lines.filter((l) => l.product_id);
-    if (!customer || !wh || filled.length === 0) return setError(wh ? "Choose a customer and at least one product." : "Your account can't create orders.");
-    if (filled.some((l) => !l.qty || !l.unit_code)) return setError("Every line needs a unit and a quantity.");
+    const problem = !wh ? "Your account can't create orders." : !customer ? "Choose the customer." : gridProblem(lines);
+    if (problem) return setError(problem);
+    const used = billable(lines);
     setBusy(true);
     try {
       const o = await api.createOrder({
         customer_id: customer,
         warehouse_id: wh,
         source_text: sourceText,
-        lines: filled.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty, source_line_text: l.text })),
+        note: note.trim(),
+        requested_for: wanted ? new Date(`${wanted}T12:00:00`).toISOString() : null,
+        lines: used.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim(), source_line_text: l.note.trim() })),
       });
       nav(`/orders/${o.id}`);
     } catch (err) {
-      setError(ordersMessage(err));
+      // "Line N" from the server counts saved lines; say the grid row instead.
+      const msg = ordersMessage(err);
+      const n = err instanceof ApiError && typeof err.extra.line === "number" ? err.extra.line : null;
+      const row = n ? lines.findIndex((l) => l.key === used[n - 1]?.key) : -1;
+      if (row !== -1) grid.current?.focusRow(row);
+      setError(row === -1 ? msg : msg.replace(/^Line \d+:/, `Line ${row + 1}:`));
       setBusy(false);
     }
   };
 
+  const columns: GridColumn[] = [
+    { key: "sn", header: "S/N", kind: "sn", width: "3rem" },
+    { key: "item", header: "Item", kind: "item", enter: true, label: "Item" },
+    { key: "qty", header: "Qty", kind: "qty", enter: true, align: "right", width: "5rem", label: "Quantity" },
+    { key: "unit", header: "Unit", kind: "unit", width: "5.25rem", label: "Unit" },
+    { key: "written", header: "As written", kind: "note", width: "12rem", label: "As written", title: "The line as the customer wrote or said it (optional)" },
+    ...figureColumns(lp.entry, undefined, { rateTitle: "Today's price for this customer. It is fixed when the order is confirmed." }),
+  ];
+  const used = billable(lines);
+
   return (
     <div className="space-y-5">
+      <nav aria-label="Breadcrumb" className="text-sm">
+        <Link className="text-brand-primary underline" to="/orders">
+          Sales orders
+        </Link>{" "}
+        / New
+      </nav>
       <PageHeader title="New sales order" subtitle="Saved as a draft. Prices are fixed when you confirm." />
-      <form className="card space-y-4 p-6" onSubmit={(e) => void submit(e)} aria-label="New sales order">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="so-cust">Customer</label>
-            <select id="so-cust" className="input" value={customer} onChange={(e) => setCustomer(e.target.value)} required>
+      <form className="card space-y-5 p-6" onSubmit={(e) => void submit(e)} aria-label="New sales order">
+        <div className="grid gap-x-5 gap-y-4 md:grid-cols-12">
+          <div className="md:col-span-8">
+            <label className="label" htmlFor="so-cust">
+              Customer
+            </label>
+            <select id="so-cust" className="input" value={customer} onChange={(e) => setCustomer(e.target.value)} onKeyDown={toGrid}>
               <option value="">Choose…</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.external_ref ? `${c.external_ref} — ` : ""}{c.name}</option>)}
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.external_ref ? `${c.external_ref} — ` : ""}
+                  {c.name}
+                </option>
+              ))}
             </select>
           </div>
+          <div className="md:col-span-4">
+            <label className="label" htmlFor="so-wanted">
+              Wanted for (optional)
+            </label>
+            <input id="so-wanted" type="date" className="input" value={wanted} onChange={(e) => setWanted(e.target.value)} onKeyDown={toGrid} />
+          </div>
+          <div className="md:col-span-4">
+            <label className="label" htmlFor="so-wh">
+              Warehouse
+            </label>
+            <select id="so-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)} onKeyDown={toGrid}>
+              {!warehouses.length && <option value="">None you can take orders in</option>}
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-8">
+            <label className="label" htmlFor="so-note">
+              Note (optional)
+            </label>
+            <input id="so-note" className="input" maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={toGrid} />
+          </div>
+          <div className="md:col-span-12">
+            <label className="label" htmlFor="so-src">
+              Original request (as the customer wrote or said it)
+            </label>
+            <textarea id="so-src" className="input min-h-16" value={sourceText} onChange={(e) => setSourceText(e.target.value)} maxLength={10000} />
+          </div>
         </div>
-        <div>
-          <label className="label" htmlFor="so-src">Original request (as the customer wrote or said it)</label>
-          <textarea id="so-src" className="input min-h-20" value={sourceText} onChange={(e) => setSourceText(e.target.value)} maxLength={10000} />
+        <div className="space-y-2">
+          <LineGrid
+            label="Order lines"
+            columns={columns}
+            lines={lines}
+            setLines={(fn) => {
+              setNotice(null);
+              setLines(fn);
+            }}
+            products={products}
+            maxRows={MAX_ORDER_LINES}
+            problem={problemFor}
+            handle={grid}
+            onActiveRow={setActiveRow}
+            onDone={() => saveBtn.current?.focus()}
+            onPasted={(n, bad) => setNotice(`Pasted ${n} ${n === 1 ? "row" : "rows"}.${bad ? ` ${bad} ${bad === 1 ? "item doesn't" : "items don't"} match a product — fix the lines marked !` : ""}`)}
+          />
+          <p className="flex items-start gap-2 text-xs text-ink-muted">
+            <Icon name="info" size={14} className="mt-0.5 shrink-0" />
+            <span>Rows are active by default — start typing to add items. Enter moves Item → Qty → next line, Tab moves across, arrows move around; paste rows from Excel straight into the grid.</span>
+          </p>
+          {notice && (
+            <p className="text-sm text-ink" role="status">
+              {notice}
+            </p>
+          )}
+          <GridProblems items={problems} />
         </div>
-        <fieldset className="space-y-2">
-          <legend className="label">Lines</legend>
-          {lines.map((l, i) => {
-            const p = details[l.product_id];
-            const units = p ? stockUnits(p) : [];
-            return (
-              <div key={l.key} className="grid items-end gap-2 md:grid-cols-[2fr_1fr_1fr_2fr_auto]" data-testid={`line-${i + 1}`}>
-                <div>
-                  <label className="label" htmlFor={`ln-p-${l.key}`}>Product {i + 1}</label>
-                  <select id={`ln-p-${l.key}`} className="input" value={l.product_id} onChange={(e) => void pick(l.key, e.target.value)}>
-                    <option value="">Choose…</option>
-                    {products.map((x) => <option key={x.id} value={x.id}>{x.sku} — {x.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label" htmlFor={`ln-u-${l.key}`}>Unit</label>
-                  <select id={`ln-u-${l.key}`} className="input" value={l.unit_code} onChange={(e) => patch(l.key, { unit_code: e.target.value as UnitCode })}>
-                    {units.length === 0 && <option value="">—</option>}
-                    {units.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-                <NumericInput
-                  label="Quantity"
-                  value={l.qty}
-                  onChange={(v) => patch(l.key, { qty: v })}
-                  places={l.unit_code && wholeOnly(l.unit_code) ? 0 : 4}
-                  invalidHint={l.unit_code && wholeOnly(l.unit_code) ? "Whole numbers only" : undefined}
-                />
-                <div>
-                  <label className="label" htmlFor={`ln-t-${l.key}`}>As written</label>
-                  <input id={`ln-t-${l.key}`} className="input" value={l.text} onChange={(e) => patch(l.key, { text: e.target.value })} maxLength={500} />
-                </div>
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  aria-label={`Remove line ${i + 1}`}
-                  disabled={lines.length === 1}
-                  onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
-                >
-                  Remove
-                </button>
-              </div>
-            );
-          })}
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => setLines((ls) => [...ls, { key: Math.max(...ls.map((x) => x.key)) + 1, product_id: "", unit_code: "", qty: "", text: "" }])}
-          >
-            Add line
+        {error && (
+          <p className="alert-danger" role="alert">
+            {error}
+          </p>
+        )}
+        <TotalsBar
+          subtotal={lp.data?.subtotal ?? null}
+          tax={lp.data?.tax_amount ?? null}
+          taxLabel="Tax (not assessed)"
+          total={lp.data?.total ?? null}
+          checked={false}
+          status={!customer ? "Choose the customer to see prices." : used.length ? "Estimate at today's prices — fixed when the order is confirmed." : "Type or paste products to start."}
+        >
+          <Link className="btn-ghost" to="/orders">
+            Cancel
+          </Link>
+          <button ref={saveBtn} className="btn-primary" disabled={busy}>
+            {busy ? "Saving…" : "Save draft"}
           </button>
-        </fieldset>
-        {error && <p className="alert-danger" role="alert">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Link className="btn-ghost" to="/orders">Cancel</Link>
-          <button className="btn-primary" disabled={busy}>{busy ? "Saving…" : "Save draft"}</button>
-        </div>
+        </TotalsBar>
       </form>
     </div>
   );

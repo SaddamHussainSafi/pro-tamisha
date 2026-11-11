@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .. import idempotency
+from .. import idempotency, line_preview
 from .. import inventory as inv
 from .. import orders as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize
@@ -29,6 +29,8 @@ from ..models import (
 )
 from ..schemas import (
     LineCancelIn,
+    LinePreviewIn,
+    LinePreviewOut,
     OrderDraftIn,
     OrderIn,
     OrderOut,
@@ -241,6 +243,25 @@ def insert_order(
     write_lines(db, o, body)
     db.flush()
     return o
+
+
+@router.post("/sales-orders/preview", response_model=LinePreviewOut)
+def preview_lines(body: LinePreviewIn, request: Request, db: DbDep, p: PrincipalDep) -> Any:
+    """Live figures for the entry grid on New sales order and Create invoice › Direct: per line
+    the rate confirming would fix now, the amount, pounds, and saleable batches oldest expiry
+    first; per-line problems instead of a 422. Nothing is written. Provisional: confirming an
+    order or issuing an invoice prices and checks stock again."""
+    if not any(
+        p.can(x, body.warehouse_id)
+        for x in ("sales_order.manage", "invoice.prepare", "invoice.issue")
+    ):
+        authorize(request, p, "sales_order.manage", body.warehouse_id)
+    warehouse(db, p, body.warehouse_id)
+    cust = svc.get_customer(db, p.company_id, body.customer_id) if body.customer_id else None
+    try:
+        return line_preview.preview(db, p.company_id, body, cust)
+    finally:
+        db.rollback()
 
 
 @router.post("/sales-orders", status_code=201, response_model=OrderOut)

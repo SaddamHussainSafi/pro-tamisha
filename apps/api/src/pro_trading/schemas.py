@@ -1007,6 +1007,7 @@ class StockCheckOut(BaseModel):
     deduct_qty: Decimal
     available_qty: Decimal
     ok: bool
+    lots: list[str] = Field(default_factory=list, description="Batches issuing takes (FEFO)")
 
 
 class InvoicePreviewOut(BaseModel):
@@ -2187,6 +2188,9 @@ class DirectInvoiceLineIn(BaseModel):
     unit_code: UnitCode
     qty: Qty
     note: str = Field(default="", max_length=500)
+    lot_id: uuid.UUID | None = Field(
+        default=None, description="Batch handed over; none = oldest expiry first (FEFO)"
+    )
 
 
 class DirectInvoiceIn(InvoiceHeaderIn):
@@ -2209,6 +2213,7 @@ class DirectStockOut(BaseModel):
     deduct_qty: Decimal
     available_qty: Decimal
     ok: bool
+    lots: list[str] = Field(default_factory=list, description="Batches issuing takes (FEFO)")
 
 
 class DirectPreviewOut(BaseModel):
@@ -2218,6 +2223,63 @@ class DirectPreviewOut(BaseModel):
     total: Decimal
     stock: list[DirectStockOut]
     stock_ok: bool
+
+
+# ---------------------------------------------------------------- line preview (fast entry grid)
+class LinePreviewLineIn(BaseModel):
+    product_id: uuid.UUID
+    unit_code: UnitCode
+    qty: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=4)] = Decimal(0)
+    lot_id: uuid.UUID | None = None
+
+
+class LinePreviewIn(BaseModel):
+    """Rows being typed on Create invoice › Direct or New sales order. Nothing is written."""
+
+    customer_id: uuid.UUID | None = None
+    warehouse_id: uuid.UUID
+    lines: list[LinePreviewLineIn] = Field(min_length=1, max_length=200)
+
+
+class LotOptionOut(BaseModel):
+    lot_id: uuid.UUID
+    lot_code: str
+    batch_ref: str | None
+    expires_at: datetime | None
+    available_qty: Decimal
+
+
+class LineProblemOut(BaseModel):
+    code: str
+    message: str
+
+
+class LinePreviewLineOut(BaseModel):
+    line: int
+    product_id: uuid.UUID
+    sku: str
+    unit_code: UnitCode
+    qty: Decimal
+    rate: Decimal | None
+    line_amount: Decimal | None
+    basis: str | None
+    price_scope: str | None
+    price_version_code: str | None
+    pack_lb: Decimal | None
+    weight_lb: Decimal | None
+    available_qty: Decimal
+    stock_ok: bool
+    lots: list[LotOptionOut]
+    problem: LineProblemOut | None
+
+
+class LinePreviewOut(BaseModel):
+    lines: list[LinePreviewLineOut]
+    subtotal: Decimal
+    tax_code: str
+    tax_amount: Decimal
+    total: Decimal
+    complete: bool
 
 
 class OcrToReceivingIn(BaseModel):

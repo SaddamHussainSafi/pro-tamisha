@@ -1,15 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { flushSync } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, canInWarehouse, type Customer, type DirectPreview, type PickSummary, type Product, type ProductSummary, type UnitCode } from "../api";
+import { api, ApiError, canInWarehouse, type Customer, type DirectInvoiceIn, type DirectPreview, type PickSummary, type UnitCode, type Warehouse } from "../api";
 import { termsLabel } from "../lib/customers";
 import { useAuth } from "../auth";
-import { cad, dec, qty } from "../lib/decimal";
-import { billable, formProblem, productsFromInvoice, unitsFor, untouched, withPrefill, type DraftLine } from "../lib/directInvoice";
+import { cad, dec } from "../lib/decimal";
+import { productsFromInvoice } from "../lib/directInvoice";
+import { qtyText } from "../lib/inventory";
 import { invoiceMessage } from "../lib/invoices";
+import { billable, blankLine, ensureRows, gridProblem, isFilled, nextKey, pickProduct, rowProblem, untouched, withPrefill, type GridLine } from "../lib/lineGrid";
 import { DataGrid, type Column } from "../ui/DataGrid";
-import { CardTitle, ConfirmDialog, EmptyState, LoadingRows, PageHeader, StatusChip } from "../ui/primitives";
+import { batchColumn, figureColumns, useGridProducts, useLinePreview } from "../lib/gridData";
+import { GridProblems, TotalsBar } from "../ui/gridParts";
+import { Icon } from "../ui/Icon";
+import { LineGrid, type GridColumn, type LineGridHandle } from "../ui/LineGrid";
+import { CardTitle, ConfirmDialog, EmptyState, LoadingRows, PageHeader } from "../ui/primitives";
 
-const UNIT: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const tabs = [
   { key: "sheet", label: "From a picking sheet" },
@@ -85,28 +91,43 @@ function FromSheet() {
   );
 }
 
-let nextKey = 1;
-const blank = (): DraftLine => ({ key: nextKey++, product_id: "", unit_code: "", qty: "" });
+const MAX_LINES = 100; // a direct invoice takes up to 100 lines
+const draftKey = (employee: string) => `pt.direct-invoice-draft.v1:${employee}`;
+type Draft = { at: string; customer: string; salesperson: string; po: string; note: string; wh: string; lines: GridLine[] };
+const UNIT_SHORT: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
+const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
+/** Direct invoice: header prefilled from the customer, then a spreadsheet grid that is always
+ * open. Live figures come from the server line preview; "Check prices and stock" runs the
+ * issue preview (the figures the invoice will carry) before Issue invoice. */
 function Direct() {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const { products } = useGridProducts();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<ProductSummary[]>([]);
-  const [details, setDetails] = useState<Record<string, Product>>({});
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [wh, setWh] = useState("");
   const [customer, setCustomer] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([blank()]);
+  const [lines, setLines] = useState<GridLine[]>(() => ensureRows([], MAX_LINES));
   const [note, setNote] = useState("");
   const [salesperson, setSalesperson] = useState("");
   const [po, setPo] = useState("");
   const [lastInvoice, setLastInvoice] = useState<string | null>(null);
   const prefillFor = useRef("");
-  const [pv, setPv] = useState<DirectPreview | null>(null);
+  const linesNow = useRef(lines);
+  linesNow.current = lines;
+  const [pv, setPv] = useState<{ sig: string; keys: number[]; data: DirectPreview } | null>(null);
   const [handed, setHanded] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [draftAt, setDraftAt] = useState<string | null>(null);
+  const [activeRow, setActiveRow] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const grid = useRef<LineGridHandle>(null);
+  const checkBtn = useRef<HTMLButtonElement>(null);
+  const handedBox = useRef<HTMLInputElement>(null);
+  const storeKey = session ? draftKey(session.employee.id) : "";
 
   useEffect(() => {
     api.customers({ active: true, limit: 500 }).then(setCustomers, () => setCustomers([]));
@@ -114,83 +135,124 @@ function Direct() {
       (st) => setSalesperson((cur) => cur || st.default_salesperson),
       () => undefined,
     );
-    api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
     api.warehouses().then((w) => {
       const ok = w.filter((x) => x.active && session && (canInWarehouse(session, "invoice.issue", x.id) || canInWarehouse(session, "invoice.prepare", x.id)));
-      setWh(ok[0]?.id ?? "");
-    }, () => setWh(""));
+      setWarehouses(ok);
+      setWh((cur) => (ok.some((x) => x.id === cur) ? cur : (ok[0]?.id ?? "")));
+    }, () => setWarehouses([]));
   }, [session]);
 
+  // A draft saved on this computer comes back (per user). Storage may be blocked: start empty.
+  useEffect(() => {
+    if (!storeKey) return;
+    try {
+      const raw = localStorage.getItem(storeKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Draft;
+      prefillFor.current = d.customer;
+      setCustomer(d.customer);
+      setSalesperson(d.salesperson);
+      setPo(d.po);
+      setNote(d.note);
+      if (d.wh) setWh(d.wh);
+      setLines(ensureRows(d.lines.map((l) => ({ ...l, key: nextKey() })), MAX_LINES));
+      setDraftAt(d.at);
+    } catch {
+      /* no draft */
+    }
+  }, [storeKey]);
+
+  const lp = useLinePreview(customer, wh, lines);
   if (!session) return null;
   const canIssue = !!wh && canInWarehouse(session, "invoice.issue", wh);
   const used = billable(lines);
   const cust = customers.find((c) => c.id === customer);
-  const changed = () => {
-    setPv(null);
-    setHanded(false);
-  };
-
-  async function setProduct(key: number, product_id: string) {
-    changed();
-    // Record the pick at once (a prefill arriving meanwhile must see the list as touched).
-    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, product_id, unit_code: "", prefilled: false } : l)));
-    let d = details[product_id];
-    if (!d && product_id) {
-      d = await api.product(product_id);
-      setDetails((x) => ({ ...x, [product_id]: d as Product }));
-    }
-    setLines((ls) => ls.map((l) => (l.key === key && l.product_id === product_id ? { ...l, unit_code: d ? (unitsFor(d)[0] ?? "") : "" } : l)));
-  }
-  const setLine = (key: number, patch: Partial<DraftLine>) => {
-    changed();
-    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  };
-  /** Start the product list from the customer's last invoice, so staff only enter quantities.
-   * Only while the list is untouched (no quantity typed, nothing added by hand). */
-  async function chooseCustomer(id: string) {
-    changed();
-    setCustomer(id);
-    prefillFor.current = id;
-    if (!untouched(lines)) return;
-    setLastInvoice(null);
-    if (!id) return setLines((cur) => withPrefill(cur, [], blank));
-    try {
-      const page = await api.invoices({ customer_id: id, limit: 1 });
-      const last = page.items[0];
-      const rows = last ? productsFromInvoice(await api.invoice(last.id)).filter((r) => products.some((p) => p.id === r.product_id)) : [];
-      const fetched = await Promise.all(rows.filter((r) => !details[r.product_id]).map((r) => api.product(r.product_id)));
-      if (prefillFor.current !== id) return; // another customer was chosen meanwhile
-      const all = { ...details, ...Object.fromEntries(fetched.map((d) => [d.id, d])) };
-      setDetails(all);
-      const pre: DraftLine[] = rows.map((r) => {
-        const units = all[r.product_id] ? unitsFor(all[r.product_id] as Product) : [];
-        return { key: nextKey++, product_id: r.product_id, unit_code: units.includes(r.unit_code) ? r.unit_code : (units[0] ?? ""), qty: "", prefilled: true };
-      });
-      setLines((cur) => withPrefill(cur, pre, blank)); // keeps anything typed or picked meanwhile
-      setLastInvoice(last ? last.invoice_no : null);
-    } catch {
-      if (prefillFor.current === id) setLines((cur) => withPrefill(cur, [], blank)); // no invoice access
-    }
-  }
-
-  const body = () => ({
+  const body = (): DirectInvoiceIn => ({
     customer_id: customer,
     warehouse_id: wh,
     salesperson: salesperson.trim(),
     customer_po: po.trim(),
     note: note.trim(),
-    lines: used.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim() })),
+    lines: used.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim(), ...(l.lot_id ? { lot_id: l.lot_id } : {}) })),
   });
+  const sig = JSON.stringify(body());
+  const checked = pv && pv.sig === sig ? pv : null; // any edit after checking needs a new check
+  const checkedFor = (l: GridLine) => {
+    const i = checked ? checked.keys.indexOf(l.key) : -1;
+    const ln = checked?.data.lines[i];
+    const st = checked?.data.stock[i];
+    return ln && st ? { rate: ln.unit_rate, amount: ln.line_amount, weight: null, ok: st.ok, available: st.available_qty, lots: st.lots } : undefined;
+  };
+  const serverProblem = (l: GridLine): string | null => {
+    const e = lp.entry(l);
+    if (!e || (l.prefilled && !l.qty.trim())) return null;
+    if (e.problem && e.problem.code !== "DUPLICATE_LINE") return e.problem.message.replace(/^Line \d+: /, "");
+    if (l.qty.trim() && !e.stock_ok) return `Only ${qtyText(e.available_qty)} ${UNIT_SHORT[e.unit_code]} in stock${l.lot_id ? " in this batch" : ""}.`;
+    return null;
+  };
+  // The row being typed in: no "no product matches" until the cursor leaves it.
+  const problemFor = (l: GridLine, i: number) => (i === activeRow && !l.product_id ? null : (rowProblem(l, i, lines) ?? serverProblem(l)));
+  const problems = lines.flatMap((l, row) => {
+    const text = problemFor(l, row);
+    return text ? [{ row, text }] : [];
+  });
+
+  const edit = (fn: (ls: GridLine[]) => GridLine[]) => {
+    setNotice(null);
+    setLines(fn);
+  };
+  /** Start the grid from the customer's last invoice, so staff only enter quantities.
+   * Only while the grid is untouched (no quantity typed, nothing added by hand). */
+  async function chooseCustomer(id: string) {
+    setCustomer(id);
+    prefillFor.current = id;
+    if (!untouched(linesNow.current)) return;
+    setLastInvoice(null);
+    if (!id) return setLines((cur) => withPrefill(cur, [], MAX_LINES));
+    try {
+      const page = await api.invoices({ customer_id: id, limit: 1 });
+      const last = page.items[0];
+      const rows = last ? productsFromInvoice(await api.invoice(last.id)) : [];
+      if (prefillFor.current !== id) return; // another customer was chosen meanwhile
+      const pre = rows.flatMap((r) => {
+        const p = products.find((x) => x.id === r.product_id);
+        if (!p) return [];
+        const l = pickProduct(blankLine(), p);
+        return [{ ...l, unit_code: p.units.includes(r.unit_code) ? r.unit_code : l.unit_code, prefilled: true }];
+      });
+      setLines((cur) => withPrefill(cur, pre, MAX_LINES)); // keeps anything typed meanwhile
+      setLastInvoice(last && pre.length ? last.invoice_no : null);
+    } catch {
+      if (prefillFor.current === id) setLines((cur) => withPrefill(cur, [], MAX_LINES)); // no invoice access
+    }
+  }
+
+  /** "Line 2: ..." from the server counts billed lines; say the grid row instead. */
+  function lineMessage(err: unknown, keys: number[]): string {
+    const msg = invoiceMessage(err);
+    const n = err instanceof ApiError && typeof err.extra.line === "number" ? err.extra.line : null;
+    const row = n ? lines.findIndex((l) => l.key === keys[n - 1]) : -1;
+    if (row === -1) return msg;
+    grid.current?.focusRow(row);
+    return msg.replace(/^Line \d+:/, `Line ${row + 1}:`);
+  }
 
   async function check() {
     setError(null);
-    const problem = !wh ? "You can't invoice in any warehouse." : formProblem(customer, lines);
+    const problem = !wh ? "You can't invoice in any warehouse." : !customer ? "Choose the customer." : gridProblem(lines);
     if (problem) return setError(problem);
     setBusy(true);
+    const b = body();
+    const keys = used.map((l) => l.key);
     try {
-      setPv(await api.previewDirectInvoice(body()));
+      const data = await api.previewDirectInvoice(b);
+      flushSync(() => {
+        setPv({ sig: JSON.stringify(b), keys, data });
+        setHanded(false);
+      });
+      handedBox.current?.focus(); // next: tick the hand-over, Tab, Enter to issue
     } catch (err) {
-      setError(invoiceMessage(err));
+      setError(lineMessage(err, keys));
     } finally {
       setBusy(false);
     }
@@ -202,32 +264,103 @@ function Direct() {
     setBusy(true);
     try {
       const inv = await api.issueDirectInvoice({ ...body(), dispatch_confirmed: handed });
+      try {
+        localStorage.removeItem(storeKey);
+      } catch {
+        /* storage blocked */
+      }
       navigate(`/invoices/${inv.id}`);
     } catch (err) {
-      setError(invoiceMessage(err));
+      setError(lineMessage(err, checked?.keys ?? []));
       setPv(null);
     } finally {
       setBusy(false);
     }
   }
 
+  function saveDraft() {
+    const at = new Date().toISOString();
+    try {
+      localStorage.setItem(storeKey, JSON.stringify({ at, customer, salesperson, po, note, wh, lines: lines.filter(isFilled) } satisfies Draft));
+      setDraftAt(at);
+      setNotice(`Draft saved on this computer at ${clock(at)}. It opens here again until the invoice is issued.`);
+    } catch {
+      setNotice("This browser can't keep a draft (site storage is blocked).");
+    }
+  }
+  function discardDraft() {
+    try {
+      localStorage.removeItem(storeKey);
+    } catch {
+      /* storage blocked */
+    }
+    setDraftAt(null);
+    setCustomer("");
+    prefillFor.current = "";
+    setPo("");
+    setNote("");
+    setLastInvoice(null);
+    setLines(ensureRows([], MAX_LINES));
+    setNotice("Draft discarded.");
+  }
+  const toGrid = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    grid.current?.focusFirstEmpty();
+  };
+
+  const columns: GridColumn[] = [
+    { key: "sn", header: "S/N", kind: "sn", width: "3rem" },
+    { key: "item", header: "Item", kind: "item", enter: true, label: "Item" },
+    { key: "qty", header: "Qty", kind: "qty", enter: true, align: "right", width: "5rem", label: "Quantity" },
+    { key: "unit", header: "Unit", kind: "unit", width: "5.25rem", label: "Unit" },
+    batchColumn(lp.entry, (l) => checkedFor(l)?.lots),
+  ];
+  const figures = figureColumns(lp.entry, checkedFor, { stock: false });
+  columns.push({
+    key: "so",
+    header: "SO Link",
+    kind: "display",
+    width: "5rem",
+    title: "A direct invoice opens its own sales order when it is issued",
+    render: (l) => (l.product_id && !(l.prefilled && !l.qty.trim()) ? <span className="text-ink-muted">New</span> : null),
+  }, ...figures);
+
+  const totals = checked?.data ?? lp.data;
+  const status = checked
+    ? checked.data.stock_ok
+      ? "Checked against today's prices and stock."
+      : "Checked — not enough stock for every line."
+    : !customer
+      ? "Choose the customer to see prices."
+      : lp.failed
+        ? `Live prices unavailable: ${lp.failed}`
+        : used.length
+          ? "Provisional — Check prices and stock before issuing."
+          : "Type or paste products to start.";
+
   return (
     <>
-      <section className="card space-y-4 p-6" aria-labelledby="ni-direct">
-        <CardTitle id="ni-direct" title="Direct invoice" />
-        <p className="text-sm text-ink-muted">For small sales handed over without a picking sheet. Prices come from the price book; stock is taken from the oldest expiry first.</p>
-        {error && (
-          <p role="alert" className="alert-danger">
-            {error}
+      <section className="card space-y-5 p-6" aria-labelledby="ni-direct">
+        <div className="space-y-1">
+          <CardTitle id="ni-direct" title="Direct invoice" />
+          <p className="text-sm text-ink-muted">For small sales handed over without a picking sheet. Prices come from the price book; stock is taken from the oldest expiry first.</p>
+        </div>
+        {draftAt && (
+          <p className="alert-success flex flex-wrap items-center justify-between gap-2" role="status">
+            {`Draft from ${new Date(draftAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} is open.`}
+            <button type="button" className="btn-ghost px-3 py-1 text-xs" onClick={discardDraft}>
+              Discard draft
+            </button>
           </p>
         )}
-        <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div>
+        <div className="grid gap-x-5 gap-y-4 md:grid-cols-12">
+          <div className="md:col-span-8">
             <label className="label" htmlFor="ni-customer">
               Customer
             </label>
-            <select id="ni-customer" className="input" value={customer} onChange={(e) => void chooseCustomer(e.target.value)}>
-            <option value="">Choose…</option>
+            <select id="ni-customer" className="input" value={customer} onChange={(e) => void chooseCustomer(e.target.value)} onKeyDown={toGrid}>
+              <option value="">Choose…</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -236,202 +369,175 @@ function Direct() {
               ))}
             </select>
           </div>
-          <div>
-            <span className="label" id="ni-date-label">
-              Invoice date
-            </span>
-            <p className="input bg-subtle" aria-labelledby="ni-date-label">
-              {today()}
-            </p>
-          </div>
-          <div>
+          <ReadOnly className="md:col-span-4" id="ni-date" label="Invoice date" value={today()} title="Invoices are dated the day they are issued" />
+          <div className="md:col-span-8">
             <label className="label" htmlFor="ni-salesperson">
               Salesperson
             </label>
-            <input id="ni-salesperson" className="input" maxLength={100} value={salesperson} onChange={(e) => setSalesperson(e.target.value)} />
+            <input id="ni-salesperson" className="input" maxLength={100} value={salesperson} onChange={(e) => setSalesperson(e.target.value)} onKeyDown={toGrid} />
           </div>
-          <div>
+          <div className="md:col-span-4">
             <label className="label" htmlFor="ni-po">
               Customer PO No. (optional)
             </label>
-            <input id="ni-po" className="input" maxLength={64} value={po} onChange={(e) => setPo(e.target.value)} />
+            <input id="ni-po" className="input" maxLength={64} value={po} onChange={(e) => setPo(e.target.value)} onKeyDown={toGrid} />
+          </div>
+          <div className="md:col-span-4">
+            <label className="label" htmlFor="ni-wh">
+              Warehouse
+            </label>
+            <select
+              id="ni-wh"
+              className="input"
+              value={wh}
+              onKeyDown={toGrid}
+              onChange={(e) => {
+                setWh(e.target.value);
+                edit((ls) => ls.map((l) => ({ ...l, lot_id: "" }))); // batches belong to a warehouse
+              }}
+            >
+              {!warehouses.length && <option value="">None you can invoice in</option>}
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <ReadOnly className="md:col-span-2" id="ni-tax" label="Tax code" value="Not assessed" title="Tax rules are waiting for the accountant's sign-off (D-03); tax is 0.00 until then" />
+          <ReadOnly className="md:col-span-3" id="ni-terms" label="Payment terms" value={cust ? termsLabel(cust.payment_terms_days) : "—"} title="From the customer record" />
+          <ReadOnly className="md:col-span-3" id="ni-cur" label="Currency" value="CAD" title="Invoices are in Canadian dollars" />
+          <div className="md:col-span-12">
+            <label className="label" htmlFor="ni-note">
+              Narration / Note (optional)
+            </label>
+            <input id="ni-note" className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={toGrid} />
           </div>
         </div>
         {cust && <CustomerOnInvoice c={cust} />}
-        <fieldset className="space-y-3">
-          <legend className="label">Products</legend>
+        <div className="space-y-2">
           {lastInvoice && lines.some((l) => l.prefilled) && (
             <p className="text-sm text-ink-muted" role="status">
               {`Products from ${cust?.name ?? "this customer"}'s last invoice (${lastInvoice}) are listed. Enter the quantities; products left empty are not billed.`}
             </p>
           )}
-          {lines.map((l, i) => {
-            const units = l.product_id && details[l.product_id] ? unitsFor(details[l.product_id] as Product) : [];
-            return (
-              <div key={l.key} className="grid items-end gap-2 sm:grid-cols-[minmax(0,2fr)_9rem_8rem_auto]">
-                <div>
-                  <label className="sr-only" htmlFor={`ni-p-${l.key}`}>{`Product, line ${i + 1}`}</label>
-                  <select id={`ni-p-${l.key}`} className="input" value={l.product_id} onChange={(e) => void setProduct(l.key, e.target.value)}>
-                    <option value="">Choose a product…</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="sr-only" htmlFor={`ni-u-${l.key}`}>{`Unit, line ${i + 1}`}</label>
-                  <select id={`ni-u-${l.key}`} className="input" value={l.unit_code} disabled={!units.length} onChange={(e) => setLine(l.key, { unit_code: e.target.value as UnitCode })}>
-                    {units.map((u) => (
-                      <option key={u} value={u}>
-                        {UNIT[u]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="sr-only" htmlFor={`ni-q-${l.key}`}>{`Quantity, line ${i + 1}`}</label>
-                  <input id={`ni-q-${l.key}`} className="input num" inputMode="decimal" placeholder="Qty" value={l.qty} autoFocus={i === 0 && !!l.prefilled} onChange={(e) => setLine(l.key, { qty: e.target.value })} />
-                </div>
-                <button
-                  type="button"
-                  className="btn-ghost px-3"
-                  aria-label={`Remove line ${i + 1}`}
-                  disabled={lines.length === 1}
-                  onClick={() => {
-                    changed();
-                    setLines((ls) => ls.filter((x) => x.key !== l.key));
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            );
-          })}
-          <button type="button" className="btn-ghost" onClick={() => setLines((ls) => [...ls, blank()])}>
-            Add product
-          </button>
-        </fieldset>
-        <div>
-          <label className="label" htmlFor="ni-note">
-            Note on the invoice (optional)
-          </label>
-          <input id="ni-note" className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-        <div className="flex justify-end">
-          <button type="button" className="btn-primary" disabled={busy} onClick={() => void check()}>
-            Check prices and stock
-          </button>
-        </div>
-      </section>
-
-      {pv && (
-        <section className="card space-y-4 p-6" aria-labelledby="ni-preview">
-          <CardTitle id="ni-preview" title="Invoice preview" />
-          <table className="w-full text-sm">
-            <caption className="sr-only">Invoice preview lines</caption>
-            <thead>
-              <tr className="text-left text-ink-muted">
-                <th className="py-2 font-medium">Product</th>
-                <th className="py-2 text-right font-medium">Quantity</th>
-                <th className="py-2 text-right font-medium">Price</th>
-                <th className="py-2 text-right font-medium">Amount</th>
-                <th className="py-2 font-medium">Stock</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pv.lines.map((l, i) => {
-                const st = pv.stock[i];
-                return (
-                  <tr key={`${l.sku}-${l.unit_code}`} className="border-t border-line">
-                    <td className="py-2.5">
-                      {l.description} <span className="text-ink-muted">· {l.sku}</span>
-                    </td>
-                    <td className="num py-2.5 text-right">
-                      {qty(dec(l.billed_qty))} {UNIT[l.unit_code]}
-                    </td>
-                    <td className="num py-2.5 text-right">{cad(dec(l.unit_rate))}</td>
-                    <td className="num py-2.5 text-right font-semibold">{cad(dec(l.line_amount))}</td>
-                    <td className="py-2.5">{st && (st.ok ? <StatusChip tone="success">In stock</StatusChip> : <StatusChip tone="danger">{`Only ${qty(dec(st.available_qty))}`}</StatusChip>)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-line">
-                <td colSpan={3} className="py-2.5 text-right text-ink-muted">
-                  Tax
-                </td>
-                <td className="num py-2.5 text-right">{cad(dec(pv.tax_amount))}</td>
-                <td />
-              </tr>
-              <tr>
-                <td colSpan={3} className="py-2.5 text-right font-semibold">
-                  Total
-                </td>
-                <td className="num py-2.5 text-right text-lg font-semibold" data-testid="direct-total">
-                  {cad(dec(pv.total))}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-          {!pv.stock_ok && (
-            <p role="alert" className="alert-warning">
-              Not enough stock for every line. Lower the quantities or count the stock first.
+          <LineGrid
+            label="Invoice lines"
+            columns={columns}
+            lines={lines}
+            setLines={edit}
+            products={products}
+            maxRows={MAX_LINES}
+            problem={problemFor}
+            handle={grid}
+            onActiveRow={setActiveRow}
+            onDone={() => checkBtn.current?.focus()}
+            onPasted={(n, bad) => setNotice(`Pasted ${n} ${n === 1 ? "row" : "rows"}.${bad ? ` ${bad} ${bad === 1 ? "item doesn't" : "items don't"} match a product — fix the lines marked !` : ""}`)}
+          />
+          <p className="flex items-start gap-2 text-xs text-ink-muted">
+            <Icon name="info" size={14} className="mt-0.5 shrink-0" />
+            <span>Rows are active by default — start typing to add items. Enter moves Item → Qty → next line, Tab moves across, arrows move around; paste rows from Excel straight into the grid.</span>
+          </p>
+          {notice && (
+            <p className="text-sm text-ink" role="status">
+              {notice}
             </p>
           )}
-          {canIssue ? (
+          <GridProblems items={problems} />
+        </div>
+        {error && (
+          <p role="alert" className="alert-danger">
+            {error}
+          </p>
+        )}
+        {checked && !checked.data.stock_ok && (
+          <p role="alert" className="alert-warning">
+            Not enough stock for every line. Lower the quantities, choose another batch, or count the stock first.
+          </p>
+        )}
+        <TotalsBar
+          left={
+            <button type="button" className="btn-ghost" onClick={saveDraft} disabled={!lines.some(isFilled) && !customer}>
+              Save draft
+            </button>
+          }
+          subtotal={totals?.subtotal ?? null}
+          tax={totals?.tax_amount ?? null}
+          taxLabel="Tax (not assessed)"
+          total={totals?.total ?? null}
+          checked={!!checked}
+          status={status}
+        >
+          {checked && checked.data.stock_ok && canIssue ? (
             <>
               <label className="flex items-center gap-2.5 text-sm">
-                <input type="checkbox" className="size-4 accent-brand-primary" checked={handed} onChange={(e) => setHanded(e.target.checked)} />
-                The goods have been handed over to the customer
+                <input ref={handedBox} type="checkbox" className="size-4 accent-brand-primary" checked={handed} onChange={(e) => setHanded(e.target.checked)} />
+                Goods handed over to the customer
               </label>
-              <div className="flex justify-end">
-                <button type="button" className="btn-accent" disabled={busy || !pv.stock_ok || !handed} onClick={() => setConfirm(true)}>
-                  Issue invoice
-                </button>
-              </div>
+              <button type="button" className="btn-accent" disabled={busy || !handed} onClick={() => setConfirm(true)}>
+                Issue invoice
+              </button>
             </>
           ) : (
-            <p className="text-sm text-ink-muted">A manager issues the invoice. You can check prices and stock here.</p>
+            <>
+              {checked && !canIssue && <span className="text-sm text-ink-muted">A manager issues the invoice. You can check prices and stock here.</span>}
+              <button ref={checkBtn} type="button" className="btn-primary" disabled={busy} onClick={() => void check()}>
+                {busy ? "Checking…" : "Check prices and stock"}
+              </button>
+            </>
           )}
-        </section>
-      )}
+        </TotalsBar>
+      </section>
       <ConfirmDialog open={confirm} title="Issue this invoice?" confirmLabel="Issue invoice" onConfirm={() => void issue()} onClose={() => setConfirm(false)}>
         <p>
-          It gets its number now, the stock leaves the warehouse and the invoice is emailed if the customer has an email. Total {pv ? cad(dec(pv.total)) : ""}. Issued invoices can't be edited.
+          It gets its number now, the stock leaves the warehouse and the invoice is emailed if the customer has an email. Total {checked ? cad(dec(checked.data.total)) : ""}. Issued invoices can't be edited.
         </p>
       </ConfirmDialog>
     </>
   );
 }
 
+function ReadOnly({ id, label, value, title, className = "" }: { id: string; label: string; value: string; title?: string; className?: string }) {
+  return (
+    <div className={className}>
+      <span className="label" id={`${id}-label`}>
+        {label}
+      </span>
+      <p className="input bg-subtle" aria-labelledby={`${id}-label`} title={title}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 const today = () => new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
-/** What the invoice prints from the customer record (Bill To, Ship To, Terms, Vendor #). */
+/** What the invoice prints from the customer record (Bill To, Ship To, Terms, Vendor #), on
+ * one compact strip so the grid stays near the top. */
 function CustomerOnInvoice({ c }: { c: Customer }) {
+  const one = (s: string) => s.split(/\n+/).map((x) => x.trim()).filter(Boolean).join(", ");
   const bill = c.bill_to_address ?? "";
   const ship = [c.ship_to_name ?? c.name, c.ship_to_address ?? bill].filter(Boolean).join("\n");
   const items = [
-    { label: "Bill to", value: [c.name, bill].filter(Boolean).join("\n") },
-    { label: "Ship to", value: ship },
+    { label: "Bill to", value: one([c.name, bill].filter(Boolean).join("\n")) },
+    { label: "Ship to", value: one(ship) },
     { label: "Terms", value: termsLabel(c.payment_terms_days) },
     { label: "Vendor #", value: c.vendor_no ?? "—" },
   ];
   return (
-    <div className="rounded-lg border border-line bg-subtle p-4" aria-label="From the customer record">
-      <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+    <div className="rounded-[var(--radius-ctl)] border border-line bg-subtle px-4 py-2.5" aria-label="From the customer record">
+      <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_auto_auto]">
         {items.map((x) => (
-          <div key={x.label}>
-            <dt className="text-ink-muted">{x.label}</dt>
-            <dd className="whitespace-pre-line">{x.value}</dd>
+          <div key={x.label} className="flex min-w-0 gap-1.5">
+            <dt className="shrink-0 text-ink-muted">{x.label}</dt>
+            <dd className="truncate" title={x.value}>
+              {x.value}
+            </dd>
           </div>
         ))}
       </dl>
       {!bill && (
-        <p className="mt-3 text-sm text-ink-muted">
+        <p className="mt-1 text-xs text-ink-muted">
           No address on file.{" "}
           <Link className="text-brand-primary underline" to={`/customers/${c.id}`}>
             Add the bill-to address

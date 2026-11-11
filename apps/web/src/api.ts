@@ -1042,6 +1042,10 @@ export const api = {
   invoice: (id: string) => request<Invoice>("GET", `/invoices/${id}`),
   resendInvoiceEmail: (id: string) => request<Invoice>("POST", `/invoices/${id}/email`, undefined, true),
   previewDirectInvoice: (b: DirectInvoiceIn) => request<DirectPreview>("POST", "/invoices/direct/preview", b),
+  /** Entry grid: every active product with case sizes and aliases, in one call. */
+  productLookup: () => request<Product[]>("GET", "/product-lookup"),
+  /** Entry grid: live prices, pounds, batches and stock per line. Writes nothing. */
+  previewLines: (b: LinePreviewIn) => request<LinePreview>("POST", "/sales-orders/preview", b),
   issueDirectInvoice: (b: DirectInvoiceIn & { dispatch_confirmed: boolean }) => request<Invoice>("POST", "/invoices/direct", b, true),
   invoiceSettings: () => request<InvoiceSettings>("GET", "/invoice-settings"),
   scanDevices: (q: { warehouse_id?: string; include_revoked?: boolean } = {}) =>
@@ -1509,7 +1513,8 @@ export type SupplierLedger = {
 /* ---------- Direct invoices (no picking sheet) ---------- */
 /** Salesperson / Customer PO No. printed on the invoice; blank salesperson = company default. */
 export type InvoiceHeaderIn = { salesperson?: string; customer_po?: string };
-export type DirectInvoiceIn = InvoiceHeaderIn & { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string }[]; note?: string };
+/** `lot_id`: the batch handed over; left out = oldest expiry first (FEFO). */
+export type DirectInvoiceIn = InvoiceHeaderIn & { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string; lot_id?: string | null }[]; note?: string };
 /** Letterhead and the defaults the Create invoice form starts from. */
 export type InvoiceSettings = {
   legal_name: string;
@@ -1522,12 +1527,37 @@ export type InvoiceSettings = {
   invoice_prefix: string;
 };
 export type DirectPreview = {
-  lines: { sku: string; description: string; unit_code: UnitCode; billed_qty: string; unit_rate: string; line_amount: string; tax_amount: string }[];
+  lines: { product_id: string; sku: string; description: string; unit_code: UnitCode; billed_qty: string; unit_rate: string; line_amount: string; tax_amount: string; pack_lb: string | null }[];
   subtotal: string;
   tax_amount: string;
   total: string;
-  stock: { sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean }[];
+  /** `lots`: the batches issuing takes, in order. */
+  stock: { sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean; lots?: string[] }[];
   stock_ok: boolean;
 };
+
+/* ---------- Entry grid: live per-line preview (POST /sales-orders/preview) ---------- */
+/** Provisional: confirming an order or issuing an invoice prices and checks stock again. */
+export type LineLot = { lot_id: string; lot_code: string; batch_ref: string | null; expires_at: string | null; available_qty: string };
+export type LinePreviewLine = {
+  line: number;
+  product_id: string;
+  sku: string;
+  unit_code: UnitCode;
+  qty: string;
+  rate: string | null;
+  line_amount: string | null;
+  basis: string | null;
+  price_scope: string | null;
+  price_version_code: string | null;
+  pack_lb: string | null;
+  weight_lb: string | null;
+  available_qty: string;
+  stock_ok: boolean;
+  lots: LineLot[];
+  problem: { code: string; message: string } | null;
+};
+export type LinePreview = { lines: LinePreviewLine[]; subtotal: string; tax_code: string; tax_amount: string; total: string; complete: boolean };
+export type LinePreviewIn = { customer_id: string | null; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; lot_id?: string | null }[] };
 
 export type OcrHeaderValue = { value: string | null; confidence: string | null; corrected?: string | null; matched?: boolean; ambiguous?: boolean; supplier_default?: string };

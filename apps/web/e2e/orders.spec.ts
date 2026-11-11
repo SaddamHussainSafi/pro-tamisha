@@ -46,12 +46,16 @@ test("sales captures 15 boxes, confirms (price frozen) and prints a picking shee
   const form = page.getByRole("form", { name: "New sales order" });
   await form.getByLabel("Customer", { exact: true }).selectOption(await optionValue(page, "#so-cust", "Island Grocers"));
   await form.getByLabel(/Original request/).fill("15 box cassava please");
-  await form.getByLabel("Product 1").selectOption(await optionValue(page, "#ln-p-1", "CFZ"));
-  await form.getByLabel("Unit", { exact: true }).selectOption("BOX");
-  await form.getByLabel("Quantity").fill("15.5");
-  await expect(form.getByText("Whole numbers only")).toBeVisible();
-  await form.getByLabel("Quantity").fill("15");
-  await form.getByLabel("As written").fill("15 box cassava");
+  // The entry grid: type the SKU, Enter picks it and moves to the quantity.
+  await form.getByLabel("Item, line 1", { exact: true }).fill("CFZ");
+  await form.getByLabel("Item, line 1", { exact: true }).press("Enter");
+  await expect(form.getByLabel("Quantity, line 1", { exact: true })).toBeFocused();
+  await form.getByLabel("Unit, line 1", { exact: true }).selectOption("BOX");
+  await form.getByLabel("Quantity, line 1", { exact: true }).fill("15.5");
+  await expect(form.getByRole("list", { name: "Lines to fix" })).toContainText("Line 1: Boxes and pieces are whole numbers.");
+  await form.getByLabel("Quantity, line 1", { exact: true }).fill("15");
+  await form.getByLabel("As written, line 1", { exact: true }).fill("15 box cassava");
+  await expect(page.getByTestId("net-total")).toHaveText("CAD 435.00"); // today's 29.00/box, an estimate
   await form.getByRole("button", { name: "Save draft" }).click();
 
   await expect(page.getByRole("heading", { name: /^SO-/ })).toBeVisible();

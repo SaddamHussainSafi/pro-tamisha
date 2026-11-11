@@ -272,16 +272,19 @@ def _lots(db: Session, order: SalesOrder, deds: list[Deduction]) -> dict[Any, li
         if dd.pick_line.lot_id is not None:
             q = q.where(InventoryLot.id == dd.pick_line.lot_id)
         lots = [lot for lot in db.scalars(q).all() if inv.is_sellable(lot)]
-        lots.sort(
-            key=lambda lot: (
-                lot.expires_at is None,
-                lot.expires_at or datetime.max.replace(tzinfo=UTC),
-                lot.received_at or lot.created_at,
-                lot.lot_code,
-            )
-        )
+        lots.sort(key=fefo_key)
         out[dd.pick_line.id] = lots
     return out
+
+
+def fefo_key(lot: InventoryLot) -> tuple[bool, datetime, datetime, str]:
+    """First-expiry-first-out: earliest expiry, then no expiry; ties by receipt, then code."""
+    return (
+        lot.expires_at is None,
+        lot.expires_at or datetime.max.replace(tzinfo=UTC),
+        lot.received_at or lot.created_at,
+        lot.lot_code,
+    )
 
 
 def stock_check(db: Session, order: SalesOrder, draft: Draft) -> list[dict[str, Any]]:
@@ -299,7 +302,16 @@ def stock_check(db: Session, order: SalesOrder, draft: Draft) -> list[dict[str, 
             if ids
             else []
         )
-        avail = sum((b.qty - b.reserved_qty for b in bals), ZERO)
+        free = {b.lot_id: b.qty - b.reserved_qty for b in bals}
+        avail = sum(free.values(), ZERO)
+        # The batches issuing would take, in the order allocate() takes them.
+        plan, need = [], dd.qty
+        for lot in lots[dd.pick_line.id]:
+            if need <= 0:
+                break
+            if free.get(lot.id, ZERO) > 0:
+                plan.append(lot.lot_code)
+                need -= free[lot.id]
         res.append(
             {
                 "pick_line_id": str(dd.pick_line.id),
@@ -308,6 +320,7 @@ def stock_check(db: Session, order: SalesOrder, draft: Draft) -> list[dict[str, 
                 "deduct_qty": str(inv.q4(dd.qty)),
                 "available_qty": str(inv.q4(avail)),
                 "ok": avail >= dd.qty,
+                "lots": plan,
             }
         )
     return res

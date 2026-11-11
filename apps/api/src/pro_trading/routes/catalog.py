@@ -212,6 +212,45 @@ def list_products(
     return ProductPage(items=items, next_cursor=items[-1].sku if more else None)
 
 
+@router.get("/product-lookup", response_model=list[ProductOut])
+def product_lookup(request: Request, db: DbDep, p: PrincipalDep) -> list[dict[str, Any]]:
+    """Every active product with its case sizes and aliases, in one call, so the entry grid
+    can autocomplete by name, SKU or alias and fill units/case weights without a round trip."""
+    _read(request, p)
+    prods = db.scalars(
+        select(Product)
+        .where(Product.company_id == p.company_id, Product.active.is_(True))
+        .order_by(Product.sku)
+        .limit(2000)
+    ).all()
+    ids = [x.id for x in prods]
+    profiles: dict[uuid.UUID, list[ProductUnitProfile]] = {i: [] for i in ids}
+    aliases: dict[uuid.UUID, list[ProductAlias]] = {i: [] for i in ids}
+    if ids:
+        for pr in db.scalars(
+            select(ProductUnitProfile)
+            .where(ProductUnitProfile.product_id.in_(ids))
+            .order_by(ProductUnitProfile.active.desc(), ProductUnitProfile.code)
+        ):
+            profiles[pr.product_id].append(pr)
+        for a in db.scalars(
+            select(ProductAlias)
+            .where(ProductAlias.product_id.in_(ids))
+            .order_by(ProductAlias.alias)
+        ):
+            aliases[a.product_id].append(a)
+    return [
+        ProductOut(
+            **ProductSummary.model_validate(x).model_dump(),
+            created_at=x.created_at,
+            updated_at=x.updated_at,
+            unit_profiles=[UnitProfileOut.model_validate(u) for u in profiles[x.id]],
+            aliases=[AliasOut.model_validate(a) for a in aliases[x.id]],
+        ).model_dump(mode="json")
+        for x in prods
+    ]
+
+
 @router.get("/products/{product_id}", response_model=ProductOut)
 def get_product(
     product_id: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep

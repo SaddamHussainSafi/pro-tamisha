@@ -30,15 +30,18 @@ async function axe(page: Page) {
 
 async function fillDirect(page: Page) {
   await page.getByLabel("Customer", { exact: true }).selectOption({ label: "Island Grocers (synthetic) (C-1001)" });
-  // Prefilled from the customer record (D-12): salesperson default and the bill-to panel.
+  // Prefilled from the customer record (D-12): salesperson default and the bill-to strip.
   await expect(page.getByLabel("Salesperson")).toHaveValue("Sam Synthetic");
   await expect(page.getByLabel("From the customer record")).toContainText("Net");
-  await page.getByLabel("Product, line 1").selectOption({ label: "Cassava frozen (CFZ)" });
-  await page.getByLabel("Unit, line 1").selectOption({ label: "boxes" });
-  await page.getByLabel("Quantity, line 1").fill("2");
+  const item = page.getByLabel("Item, line 1", { exact: true });
+  await item.fill("Cassava frozen");
+  await item.press("Enter");
+  await expect(page.getByLabel("Quantity, line 1", { exact: true })).toBeFocused();
+  await page.keyboard.type("2");
+  await expect(page.getByLabel("Unit, line 1", { exact: true })).toHaveValue("BOX");
   await page.getByRole("button", { name: "Check prices and stock" }).click();
-  await expect(page.getByTestId("direct-total")).toHaveText("CAD 58.00");
-  await expect(page.getByText("In stock")).toBeVisible();
+  await expect(page.getByTestId("net-total")).toHaveText("CAD 58.00");
+  await expect(page.getByText("Checked against today's prices and stock.")).toBeVisible();
 }
 
 test("owner creates invoices from a sheet or directly", async ({ page }) => {
@@ -56,7 +59,7 @@ test("owner creates invoices from a sheet or directly", async ({ page }) => {
   await page.getByRole("navigation", { name: "How to invoice" }).getByRole("link", { name: /Direct invoice/ }).click();
   await fillDirect(page);
   await expect(page.getByRole("button", { name: "Issue invoice" })).toBeDisabled(); // hand-over not ticked
-  await page.getByLabel("The goods have been handed over to the customer").check();
+  await page.getByLabel("Goods handed over to the customer").check();
   await axe(page);
   await page.getByRole("button", { name: "Issue invoice" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Issue invoice" }).click();
