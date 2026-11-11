@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   canInWarehouse,
@@ -16,8 +16,10 @@ import {
   type Warehouse,
 } from "../api";
 import { useAuth } from "../auth";
-import { DocViewer, PriceList, SupplierHeader, ToReceiving, type Flag } from "./OcrSupplier";
+import { PriceList, SupplierHeader, ToReceiving } from "./OcrSupplier";
 import { ScanProcessing } from "../components/scanner/ScanProcessing";
+import { ScanLens } from "../components/scanner/ScanLens";
+import { lensBox } from "../lib/scanLens";
 import { stockUnits, wholeOnly } from "../lib/inventory";
 import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, selectable, trimQty, warningText, engineText, lineNotes } from "../lib/ocr";
 import { DataGrid, type Column } from "../ui/DataGrid";
@@ -264,9 +266,38 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const [rejecting, setRejecting] = useState(false);
   const [rereading, setRereading] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [lens, setLens] = useState<{ seq: number; rect: DOMRect } | null>(null);
+  const lensTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** Show the magnifier for this row after `delay` ms (a short pause, so passing over rows
+   * with the mouse doesn't flash it). */
+  const lensFor = (tr: HTMLElement, delay: number) => {
+    const seq = Number(tr.getAttribute("data-testid")?.slice(9));
+    clearTimeout(lensTimer.current);
+    if (lens?.seq === seq) return;
+    lensTimer.current = setTimeout(() => setLens({ seq, rect: tr.getBoundingClientRect() }), lens ? 60 : delay);
+  };
+  const lensAway = () => {
+    clearTimeout(lensTimer.current);
+    lensTimer.current = setTimeout(() => setLens(null), 180);
+  };
+  const lensKeep = () => clearTimeout(lensTimer.current);
+  // The window sits beside its row: hide it when the page scrolls or a key closes it.
+  useEffect(() => {
+    if (!lens) return;
+    const close = () => setLens(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    const main = document.getElementById("main");
+    main?.addEventListener("scroll", close, { passive: true });
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      main?.removeEventListener("scroll", close);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [lens]);
+  useEffect(() => () => clearTimeout(lensTimer.current), []);
   const nav = useNavigate();
-  const [search] = useSearchParams();
-  const startPage = Math.max(1, Number(search.get("page")) || 1);
 
   const load = useCallback(async () => {
     try {
@@ -334,22 +365,13 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const kept = ex.fields.filter((f) => f.resolution === "CONFIRMED" || f.resolution === "CORRECTED");
   const supplierDoc = !!ex.header && Object.keys(ex.header).length > 0;
   const canReceive = canInWarehouse(session, "grn.record", ex.warehouse_id);
-  const lit = ex.fields.find((f) => f.seq === focusSeq)?.bbox as { page: number; x0: string; y0: string; x1: string; y1: string } | undefined;
   const url = scanDocumentUrl(ex.document_id);
   const tickable = ex.fields.filter(selectable);
   const nPicked = tickable.filter((f) => picked.has(f.id)).length;
-  // Every line still to check is outlined on the original: amber = unclear quantity, red = unknown
-  // product or nothing readable. Clicking an outline brings its line into view.
-  const flags: Flag[] = ex.fields.flatMap((f) => {
-    const b = f.bbox as { page?: number; x0?: string; y0?: string; x1?: string; y1?: string } | null;
-    if (f.resolution !== "NONE" || f.status === "OK" || !b?.page || !b.x0 || !b.y0 || !b.x1 || !b.y1) return [];
-    return [{ page: b.page, x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, seq: f.seq, tone: f.status === "LOW_CONFIDENCE" ? "warning" : "danger", label: FIELD_STATUS[f.status].label }];
-  });
-  const showLine = (seq: number) => {
-    setFocusSeq(seq);
-    document.querySelector(`[data-testid='ocr-line-${seq}']`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
+  // Magnifier: hovering (or tabbing into) a line shows its area on the original, zoomed, in a
+  // small window beside the row, so nobody has to scroll to the scan to check a line.
+  const lensRow = lens ? ex.fields.find((f) => f.seq === lens.seq) : undefined;
+  const lensAt = lensRow ? lensBox(lensRow.bbox) : null;
   const startEdit = async (f: OcrField | null) => {
     const pid = f ? (f.final_product_id ?? f.read_product_id ?? "") : "";
     const p = await product(pid);
@@ -457,10 +479,9 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
           />
         ))}
 
-      <div className={embedded ? "space-y-5" : "grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"}>
-        {!embedded && <section aria-label="Original scan" className="card min-h-[24rem] overflow-hidden xl:sticky xl:top-4 xl:h-[calc(100vh-8rem)]">
-          <DocViewer documentId={ex.document_id} title={`Original scan ${ex.scan_job_no}`} highlight={lit ?? null} flags={reviewing ? flags : []} initialPage={startPage} onFlag={showLine} />
-        </section>}
+      {/* No full-page scan beside the lines (owner, 2026-11-11): hovering a line shows its row of
+          the original in the magnifier instead. The whole file stays one click away (Open original). */}
+      <div className="space-y-5">
 
         <div className="min-w-0 space-y-4">
           {supplierDoc && <SupplierHeader ex={ex} threshold={0.9} editable={reviewing} onFixed={setEx} />}
@@ -532,13 +553,21 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
                   </thead>
                   <tbody
                     onMouseOver={(e) => {
-                      const tr = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
-                      if (tr) setFocusSeq(Number(tr.getAttribute("data-testid")?.slice(9)));
+                      const tr = (e.target as HTMLElement).closest<HTMLElement>("[data-testid^='ocr-line-']");
+                      if (tr) {
+                        setFocusSeq(Number(tr.getAttribute("data-testid")?.slice(9)));
+                        lensFor(tr, 220);
+                      }
                     }}
+                    onMouseLeave={() => lensAway()}
                     onFocus={(e) => {
-                      const tr = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
-                      if (tr) setFocusSeq(Number(tr.getAttribute("data-testid")?.slice(9)));
+                      const tr = (e.target as HTMLElement).closest<HTMLElement>("[data-testid^='ocr-line-']");
+                      if (tr) {
+                        setFocusSeq(Number(tr.getAttribute("data-testid")?.slice(9)));
+                        lensFor(tr, 0);
+                      }
                     }}
+                    onBlur={() => lensAway()}
                   >
                     {ex.fields.map((f, i) => (
                       <FieldRow
@@ -663,6 +692,16 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
           void run(() => api.rejectOcr(ex.id, ex.version, reason.trim()), "Rejected.");
         }}
       />
+      {lensAt && lensRow && (
+        <ScanLens
+          documentId={ex.document_id}
+          box={lensAt}
+          anchor={(lens as { rect: DOMRect }).rect}
+          label={`line ${lensRow.seq}, ${lensRow.label || lensRow.raw_text || "added by hand"}`}
+          onKeep={lensKeep}
+          onLeave={lensAway}
+        />
+      )}
       <ConfirmDialog
         open={rereading}
         title="Read this scan again?"

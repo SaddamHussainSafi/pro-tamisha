@@ -219,3 +219,14 @@ def test_pdf_guard_cannot_be_dodged():
     with pytest.raises(ocr.ProviderError) as pe:
         ocr.tesseract_provider(b"%PDF-1.4 not really", "application/pdf")
     assert pe.value.code == "UNREADABLE"
+
+
+def test_page_renders_sharper_only_at_allowed_resolutions():
+    """The review magnifier asks for 220 / 300 dpi copies; anything else is refused."""
+    pdf = _pdf_with_page(612, 792)
+    small, n = scanning.render_page(pdf, "application/pdf", 1)
+    big, _ = scanning.render_page(pdf, "application/pdf", 1, 300)
+    assert n == 1 and len(big) > len(small)
+    with pytest.raises(ApiError) as e:
+        scanning.render_page(pdf, "application/pdf", 1, 1200)
+    assert e.value.code == "VALIDATION"

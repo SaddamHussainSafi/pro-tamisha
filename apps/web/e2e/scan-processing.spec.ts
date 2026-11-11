@@ -146,18 +146,22 @@ test("a 1-page PDF goes through every step to review, and the review shows the o
   await axe(page);
   await shot(page, "01-one-page-review-ready");
 
-  // Review screen: original next to the lines; unclear quantity and unknown product are marked.
+  // Review screen: the lines use the full width (no full-page scan, owner 2026-11-11); hovering a
+  // line shows its row of the original in the magnifier; unclear quantity and unknown product are
+  // marked.
   await page.getByRole("link", { name: "Scan details" }).first().click();
   await hero(page).getByRole("link", { name: "Review now" }).click();
   await expect(page.getByRole("heading", { name: /Review scan/ })).toBeVisible();
-  await expect(page.getByRole("img", { name: /^Original scan .*page 1$/ })).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Original scan .*page 1$/ })).toHaveCount(0);
   const lines = page.locator("[data-testid^='ocr-line-']");
   await expect(lines).toHaveCount(3);
   const plantain = lines.filter({ hasText: "PLG" });
+  await plantain.hover();
+  await expect(page.getByTestId("scan-lens")).toBeVisible();
+  await expect(page.getByTestId("scan-lens-spot")).toBeVisible();
   const mango = lines.filter({ hasText: /Mango/ });
   await expect(plantain.locator("[data-uncertain=quantity]")).toBeVisible();
   await expect(mango.locator("[data-uncertain=product]").first()).toBeVisible();
-  await expect(page.getByTestId("doc-flag")).toHaveCount(2);
   await expect(page.getByRole("button", { name: "Create draft order" })).toBeDisabled(); // approval unchanged
   await axe(page);
   await page.screenshot({ path: `${SHOTS}/02-review-original-and-fields.png`, fullPage: true, animations: "disabled" });

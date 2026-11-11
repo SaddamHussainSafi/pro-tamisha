@@ -602,7 +602,7 @@ def _readable_doc(
     return doc
 
 
-_PAGE_CACHE: dict[tuple[str, int], tuple[bytes, int]] = {}
+_PAGE_CACHE: dict[tuple[str, int, int], tuple[bytes, int]] = {}
 _PAGE_CACHE_LOCK = threading.Lock()  # sync routes run on many threads at once
 
 
@@ -617,20 +617,24 @@ def document_page(
     request: Request,
     db: DbDep,
     p: PrincipalDep,
+    dpi: Annotated[
+        int, Query(description="PDF pages only: 110 normal, 220 or 300 for the review magnifier")
+    ] = 110,
 ) -> Response:
-    """One page as a PNG for the review viewer (PDF pages rendered at 110 dpi; TIFF/JPEG/PNG
-    converted). The original stays untouched. Header X-Page-Count gives the number of pages."""
+    """One page as a PNG for the review viewer (PDF pages rendered at `dpi`, default 110;
+    TIFF/JPEG/PNG converted). The original stays untouched. Header X-Page-Count gives the
+    number of pages."""
     doc = _readable_doc(db, request, p, document_id)
     if page < 1 or page > 500:
         raise ApiError(404, "NOT_FOUND", "No such page")
-    key = (doc.sha256, page)
+    key = (doc.sha256, page, dpi)
     with _PAGE_CACHE_LOCK:
         hit = _PAGE_CACHE.get(key)
     if hit is None:
-        hit = svc.render_page(doc.content, doc.mime_type, page)
+        hit = svc.render_page(doc.content, doc.mime_type, page, dpi)
         with _PAGE_CACHE_LOCK:
             _PAGE_CACHE[key] = hit
-            while len(_PAGE_CACHE) > 64:
+            while len(_PAGE_CACHE) > 48:
                 _PAGE_CACHE.pop(next(iter(_PAGE_CACHE)))
     png, count = hit
     return Response(

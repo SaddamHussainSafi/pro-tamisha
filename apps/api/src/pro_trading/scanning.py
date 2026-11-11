@@ -437,8 +437,14 @@ def pdf_page_too_large(sizes: list[tuple[float, float]], dpi: int, expected: int
     return any(image_too_large(w / 72 * dpi, h / 72 * dpi) for w, h in sizes)
 
 
-def render_page(content: bytes, mime: str, page: int) -> tuple[bytes, int]:
-    """(PNG bytes of one page, page count). Raises 404-style ApiError for a missing page."""
+PAGE_DPIS = (110, 220, 300)  # normal view; sharper copies for the review magnifier
+
+
+def render_page(content: bytes, mime: str, page: int, dpi: int = 110) -> tuple[bytes, int]:
+    """(PNG bytes of one page, page count). Raises 404-style ApiError for a missing page.
+    `dpi` (PDF only) is one of PAGE_DPIS; pictures are always sent at their own size."""
+    if dpi not in PAGE_DPIS:
+        raise ApiError(422, "VALIDATION", "Unsupported resolution")
     import io
     import subprocess
     import tempfile
@@ -466,10 +472,10 @@ def render_page(content: bytes, mime: str, page: int) -> tuple[bytes, int]:
             raise ApiError(422, "UNREADABLE", "The PDF could not be opened")
         if page > count:
             raise ApiError(404, "NOT_FOUND", "No such page")
-        if pdf_page_too_large(sizes, 110, 1):
+        if pdf_page_too_large(sizes, dpi, 1):
             raise ApiError(422, "IMAGE_TOO_LARGE", "This page is too large to show")
         subprocess.run(  # noqa: S603
-            ["pdftoppm", "-cropbox", "-f", str(page), "-l", str(page), "-r", "110", "-png",  # noqa: S607
+            ["pdftoppm", "-cropbox", "-f", str(page), "-l", str(page), "-r", str(dpi), "-png",  # noqa: S607
              "-singlefile", str(src), str(Path(tmp) / "p")],
             capture_output=True, timeout=60, check=False,
         )  # fmt: skip

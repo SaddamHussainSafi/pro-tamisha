@@ -31130,7 +31130,7 @@
     },
     "/api/v1/scans/documents/{document_id}/pages/{page}": {
       "get": {
-        "description": "One page as a PNG for the review viewer (PDF pages rendered at 110 dpi; TIFF/JPEG/PNG\nconverted). The original stays untouched. Header X-Page-Count gives the number of pages.",
+        "description": "One page as a PNG for the review viewer (PDF pages rendered at `dpi`, default 110;\nTIFF/JPEG/PNG converted). The original stays untouched. Header X-Page-Count gives the\nnumber of pages.",
         "operationId": "document_page_api_v1_scans_documents__document_id__pages__page__get",
         "parameters": [
           {
@@ -31149,6 +31149,18 @@
             "required": true,
             "schema": {
               "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "PDF pages only: 110 normal, 220 or 300 for the review magnifier",
+            "in": "query",
+            "name": "dpi",
+            "required": false,
+            "schema": {
+              "default": 110,
+              "description": "PDF pages only: 110 normal, 220 or 300 for the review magnifier",
+              "title": "Dpi",
               "type": "integer"
             }
           }

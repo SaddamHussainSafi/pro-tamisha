@@ -48,10 +48,12 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
   await row.click();
 
   await expect(page.getByRole("heading", { name: /Review scan/ })).toBeVisible();
-  await expect(page.getByRole("img", { name: /^Original scan .*page 1$/ })).toBeVisible();
   const lines = page.locator("[data-testid^='ocr-line-']");
   await expect(lines).toHaveCount(3);
   const cassava = lines.filter({ hasText: "CFZ" });
+  // the original: hovering a line shows its row of the scan, zoomed (no full-page view)
+  await cassava.hover();
+  await expect(page.getByTestId("scan-lens")).toBeVisible();
   const plantain = lines.filter({ hasText: "PLG" });
   const writeIn = lines.filter({ hasText: "Mango" });
   await expect(plantain).toContainText(/Unclear|Unreadable/); // fake engine vs real OCR: both need a person
