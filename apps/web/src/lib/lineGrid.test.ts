@@ -12,8 +12,10 @@ import {
   parseClipboard,
   pickProduct,
   resolveProduct,
+  previewRows,
   rowProblem,
   searchProducts,
+  weightOf,
   type GridLine,
   type GridProduct,
   type NavCol,
@@ -191,5 +193,20 @@ describe("last-invoice prefill", () => {
     expect(withPrefill(filled, [], 100).some((l) => l.prefilled)).toBe(false); // another customer: prefill gone
     const typed = filled.map((l, i) => (i === 0 ? { ...l, qty: "3", prefilled: false } : l));
     expect(withPrefill(typed, [], 100)).toBe(typed); // someone typed: kept as it is
+  });
+});
+
+describe("weight (boxes are sold per lb)", () => {
+  it("reads pounds, refuses anything else, and only boxes carry one", () => {
+    expect(weightOf(line({ weight: " 35 " }))).toBe("35");
+    expect(weightOf(line({ weight: "41.5 lb" }))).toBe("41.5");
+    expect(weightOf(line({ weight: "" }))).toBeNull();
+    for (const bad of ["0", "-3", "3/4", "abc", "35 kg"]) expect(weightOf(line({ weight: bad }))).toBe("bad");
+    const box = line({ product_id: "okr", text: "Okra", unit_code: "BOX", qty: "1", weight: "35" });
+    expect(rowProblem(box, 0, [box])).toBeNull();
+    expect(rowProblem({ ...box, weight: "lots" }, 0, [box])).toMatch(/pounds/);
+    expect(rowProblem({ ...box, unit_code: "LB" }, 0, [box])).toMatch(/only for boxes/);
+    const rows = previewRows([box, { ...box, key: 99, weight: "x" }, line({ product_id: "lb", unit_code: "LB", qty: "2", weight: "2" })]);
+    expect(rows.lines.map((l) => l.weight_lb)).toEqual(["35", undefined, undefined]); // bad or not a box: not sent
   });
 });

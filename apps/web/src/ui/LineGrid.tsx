@@ -25,7 +25,7 @@ import {
 export type GridColumn = {
   key: string;
   header: ReactNode;
-  kind: "sn" | "item" | "qty" | "unit" | "lot" | "note" | "display";
+  kind: "sn" | "item" | "qty" | "unit" | "lot" | "note" | "weight" | "display";
   /** CSS width for the <col>; the Item column takes the rest. */
   width?: string;
   align?: "right";
@@ -39,12 +39,14 @@ export type GridColumn = {
   options?: (l: GridLine, i: number) => { value: string; label: string }[];
   /** Tint the cell (e.g. not enough stock in the batch). */
   warn?: (l: GridLine) => boolean;
+  /** Greyed hint shown in an empty input cell (e.g. the weight the case size gives). */
+  placeholder?: (l: GridLine) => string | undefined;
 };
 
 export type LineGridHandle = { focusFirstEmpty: () => void; focusRow: (row: number) => void };
 
 const UNIT_LABEL: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
-const PASTE: Record<GridColumn["kind"], PasteField> = { sn: null, item: "item", qty: "qty", unit: "unit", lot: null, note: "note", display: null };
+const PASTE: Record<GridColumn["kind"], PasteField> = { sn: null, item: "item", qty: "qty", unit: "unit", lot: null, note: "note", weight: null, display: null };
 const editable = (c: GridColumn) => !["sn", "display"].includes(c.kind);
 /** Dropdown cells show their chevron only on the row being worked on (hover / cursor). */
 const CHEVRON = (
@@ -337,6 +339,24 @@ export function LineGrid({
                           />
                         </td>
                       );
+                    case "weight": {
+                      // boxes are weighed (sold per lb); other units just show what they weigh
+                      const fixed = l.unit_code !== "BOX" && !(l.weight ?? "").trim();
+                      return (
+                        <td key={c.key} className={td}>
+                          <input
+                            {...common}
+                            inputMode="decimal"
+                            autoComplete="off"
+                            readOnly={fixed}
+                            className={`${cellCls} num text-right placeholder:text-ink-muted`}
+                            placeholder={c.placeholder?.(l)}
+                            value={l.weight ?? ""}
+                            onChange={(e) => update(row, (x) => ({ ...x, weight: e.target.value }))}
+                          />
+                        </td>
+                      );
+                    }
                     case "note":
                       return (
                         <td key={c.key} className={td}>

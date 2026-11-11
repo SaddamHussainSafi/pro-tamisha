@@ -8,7 +8,7 @@ import { cad, dec } from "../lib/decimal";
 import { productsFromInvoice } from "../lib/directInvoice";
 import { qtyText } from "../lib/inventory";
 import { invoiceMessage } from "../lib/invoices";
-import { billable, blankLine, ensureRows, gridProblem, isFilled, nextKey, pickProduct, rowProblem, untouched, withPrefill, type GridLine } from "../lib/lineGrid";
+import { billable, blankLine, ensureRows, gridProblem, isFilled, nextKey, pickProduct, rowProblem, untouched, weightOf, withPrefill, type GridLine } from "../lib/lineGrid";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { batchColumn, figureColumns, useGridProducts, useLinePreview } from "../lib/gridData";
 import { GridProblems, TotalsBar } from "../ui/gridParts";
@@ -173,7 +173,10 @@ function Direct() {
     salesperson: salesperson.trim(),
     customer_po: po.trim(),
     note: note.trim(),
-    lines: used.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim(), ...(l.lot_id ? { lot_id: l.lot_id } : {}) })),
+    lines: used.map((l) => {
+      const w = weightOf(l);
+      return { product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim(), ...(l.lot_id ? { lot_id: l.lot_id } : {}), ...(w && w !== "bad" ? { weight_lb: w } : {}) };
+    }),
   });
   const sig = JSON.stringify(body());
   const checked = pv && pv.sig === sig ? pv : null; // any edit after checking needs a new check
@@ -316,7 +319,7 @@ function Direct() {
     { key: "unit", header: "Unit", kind: "unit", width: "5.25rem", label: "Unit" },
     batchColumn(lp.entry, (l) => checkedFor(l)?.lots),
   ];
-  const figures = figureColumns(lp.entry, checkedFor, { stock: false });
+  const figures = figureColumns(lp.entry, checkedFor, { stock: false, weighable: true });
   columns.push({
     key: "so",
     header: "SO Link",

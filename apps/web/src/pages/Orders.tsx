@@ -16,7 +16,7 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 import { qtyText, wholeOnly } from "../lib/inventory";
-import { billable, ensureRows, gridProblem, rowProblem, type GridLine } from "../lib/lineGrid";
+import { billable, blankLine, ensureRows, gridProblem, rowProblem, weightOf, type GridLine } from "../lib/lineGrid";
 import { AMENDMENT_LABEL, lineAmount, ORDER_STATUS, ordersMessage, PICK_STATUS } from "../lib/orders";
 import { rateText } from "../lib/pricingErrors";
 import { useTrashChanges } from "../lib/trash";
@@ -141,39 +141,75 @@ const UNIT_SHORT: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB
 /** New sales order: the same always-open entry grid as Create invoice › Direct. Saved as a
  * DRAFT (no prices kept); the rate and gross shown are today's, fixed only on Confirm. */
 export function NewOrderPage() {
+  return (
+    <div className="space-y-5">
+      <nav aria-label="Breadcrumb" className="text-sm">
+        <Link className="text-brand-primary underline" to="/orders">
+          Sales orders
+        </Link>{" "}
+        / New
+      </nav>
+      <PageHeader title="New sales order" subtitle="Saved as a draft. Prices are fixed when you confirm." />
+      <OrderForm />
+    </div>
+  );
+}
+
+/** A draft's lines in the grid (the "as written" text rides along unseen and is kept). */
+function draftRows(o: Order): GridLine[] {
+  const rows = o.lines.map((l) => ({
+    ...blankLine(),
+    product_id: l.product_id,
+    unit_code: l.unit_code,
+    qty: qtyText(l.ordered_qty),
+    text: l.product_name,
+    note: l.source_line_text,
+    weight: l.weight_lb ? qtyText(l.weight_lb) : "",
+  }));
+  return ensureRows(rows, MAX_ORDER_LINES);
+}
+
+const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+
+/**
+ * The order entry form, laid out like Create invoice: New sales order, and a draft being
+ * checked and confirmed (a scanned sheet, a typed or online order). Boxes are sold per lb: LB is
+ * what the line weighs (the sheet's WEIGHT), and Rate × LB makes the line's gross.
+ */
+function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Promise<void> }) {
   const { session } = useAuth();
   const nav = useNavigate();
   const { products } = useGridProducts();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [customer, setCustomer] = useState("");
-  const [wh, setWh] = useState("");
-  const [wanted, setWanted] = useState("");
+  const [customer, setCustomer] = useState(draft?.customer_id ?? "");
+  const [wh, setWh] = useState(draft?.warehouse_id ?? "");
+  const [wanted, setWanted] = useState(day(draft?.requested_for ?? null));
   const [sourceText, setSourceText] = useState("");
-  const [note, setNote] = useState("");
-  const [lines, setLines] = useState<GridLine[]>(() => ensureRows([], MAX_ORDER_LINES));
+  const [note, setNote] = useState(draft?.note ?? "");
+  const [lines, setLines] = useState<GridLine[]>(() => (draft ? draftRows(draft) : ensureRows([], MAX_ORDER_LINES)));
   const [activeRow, setActiveRow] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"save" | "confirm" | null>(null);
   const grid = useRef<LineGridHandle>(null);
   const saveBtn = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active)), () => setCustomers([]));
+    api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active || x.id === draft?.customer_id)), () => setCustomers([]));
     api.warehouses().then((w) => {
       const ok = w.filter((x) => x.active && session && canInWarehouse(session, "sales_order.manage", x.id));
       setWarehouses(ok);
       setWh((cur) => (ok.some((x) => x.id === cur) ? cur : (ok[0]?.id ?? "")));
     }, () => setWh(""));
-  }, [session]);
+  }, [session, draft?.customer_id]);
   const lp = useLinePreview(customer, wh, lines);
 
   const serverProblem = (l: GridLine): string | null => {
     const e = lp.entry(l);
     if (!e) return null;
     if (e.problem && e.problem.code !== "DUPLICATE_LINE") return e.problem.message.replace(/^Line \d+: /, "");
-    if (l.qty.trim() && !e.stock_ok) return `Only ${qtyText(e.available_qty)} ${UNIT_SHORT[e.unit_code]} in stock now (the order can still be saved).`;
+    if (!draft && l.qty.trim() && !e.stock_ok) return `Only ${qtyText(e.available_qty)} ${UNIT_SHORT[e.unit_code]} in stock now (the order can still be saved).`;
     return null;
   };
   const problemFor = (l: GridLine, i: number) => (i === activeRow && !l.product_id ? null : (rowProblem(l, i, lines) ?? serverProblem(l)));
@@ -187,31 +223,51 @@ export function NewOrderPage() {
     grid.current?.focusFirstEmpty();
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const used = billable(lines);
+  const body = () => ({
+    customer_id: customer,
+    warehouse_id: wh,
+    note: note.trim(),
+    requested_for: wanted ? new Date(`${wanted}T12:00:00`).toISOString() : null,
+    lines: used.map((l) => {
+      const w = weightOf(l);
+      return { product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim(), source_line_text: l.note.trim(), weight_lb: w && w !== "bad" ? w : null };
+    }),
+  });
+  // the draft as last saved (and its version): unchanged means confirm without saving first
+  const saved = useRef({ sig: draft ? JSON.stringify(body()) : "", version: draft?.version ?? 0 });
+
+  const fail = (err: unknown) => {
+    // "Line N" from the server counts saved lines; say the grid row instead.
+    const msg = ordersMessage(err);
+    const n = err instanceof ApiError && typeof err.extra.line === "number" ? err.extra.line : null;
+    const row = n ? lines.findIndex((l) => l.key === used[n - 1]?.key) : -1;
+    if (row !== -1) grid.current?.focusRow(row);
+    setError(row === -1 ? msg : msg.replace(/^Line \d+:/, `Line ${row + 1}:`));
+  };
+
+  const submit = async (mode: "save" | "confirm") => {
     setError(null);
     const problem = !wh ? "Your account can't create orders." : !customer ? "Choose the customer." : gridProblem(lines);
     if (problem) return setError(problem);
-    const used = billable(lines);
-    setBusy(true);
+    setBusy(mode);
     try {
-      const o = await api.createOrder({
-        customer_id: customer,
-        warehouse_id: wh,
-        source_text: sourceText,
-        note: note.trim(),
-        requested_for: wanted ? new Date(`${wanted}T12:00:00`).toISOString() : null,
-        lines: used.map((l) => ({ product_id: l.product_id, unit_code: l.unit_code as UnitCode, qty: l.qty.trim(), source_line_text: l.note.trim() })),
-      });
-      nav(`/orders/${o.id}`);
+      if (!draft) {
+        const o = await api.createOrder({ ...body(), source_text: sourceText });
+        return nav(`/orders/${o.id}`);
+      }
+      const sig = JSON.stringify(body());
+      if (sig !== saved.current.sig || mode === "save") {
+        const o = await api.updateOrder(draft.id, { ...body(), version: saved.current.version });
+        saved.current = { sig, version: o.version };
+      }
+      if (mode === "confirm") await api.confirmOrder(draft.id, saved.current.version);
+      await onChanged?.();
     } catch (err) {
-      // "Line N" from the server counts saved lines; say the grid row instead.
-      const msg = ordersMessage(err);
-      const n = err instanceof ApiError && typeof err.extra.line === "number" ? err.extra.line : null;
-      const row = n ? lines.findIndex((l) => l.key === used[n - 1]?.key) : -1;
-      if (row !== -1) grid.current?.focusRow(row);
-      setError(row === -1 ? msg : msg.replace(/^Line \d+:/, `Line ${row + 1}:`));
-      setBusy(false);
+      fail(err);
+      if (draft && err instanceof ApiError && err.code === "VERSION_CONFLICT") await onChanged?.();
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -220,118 +276,128 @@ export function NewOrderPage() {
     { key: "item", header: "Item", kind: "item", enter: true, label: "Item" },
     { key: "qty", header: "Qty", kind: "qty", enter: true, align: "right", width: "5rem", label: "Quantity" },
     { key: "unit", header: "Unit", kind: "unit", width: "5.25rem", label: "Unit" },
-    { key: "written", header: "As written", kind: "note", width: "12rem", label: "As written", title: "The line as the customer wrote or said it (optional)" },
-    ...figureColumns(lp.entry, undefined, { rateTitle: "Today's price for this customer. It is fixed when the order is confirmed." }),
+    ...(draft ? [] : [{ key: "written", header: "As written", kind: "note", width: "12rem", label: "As written", title: "The line as the customer wrote or said it (optional)" } as GridColumn]),
+    ...figureColumns(lp.entry, undefined, { stock: !draft, weighable: true, rateTitle: "Today's price for this customer. It is fixed when the order is confirmed." }),
   ];
-  const used = billable(lines);
+  const cust = customers.find((c) => c.id === customer);
 
   return (
-    <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm">
-        <Link className="text-brand-primary underline" to="/orders">
-          Sales orders
-        </Link>{" "}
-        / New
-      </nav>
-      <PageHeader title="New sales order" subtitle="Saved as a draft. Prices are fixed when you confirm." />
-      <form className="card space-y-5 p-6" onSubmit={(e) => void submit(e)} aria-label="New sales order">
-        <div className="grid gap-x-5 gap-y-4 md:grid-cols-12">
-          <div className="md:col-span-8">
-            <label className="label" htmlFor="so-cust">
-              Customer
-            </label>
-            <select id="so-cust" className="input" value={customer} onChange={(e) => setCustomer(e.target.value)} onKeyDown={toGrid}>
-              <option value="">Choose…</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.external_ref ? `${c.external_ref} — ` : ""}
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-4">
-            <label className="label" htmlFor="so-wanted">
-              Wanted for (optional)
-            </label>
-            <input id="so-wanted" type="date" className="input" value={wanted} onChange={(e) => setWanted(e.target.value)} onKeyDown={toGrid} />
-          </div>
-          <div className="md:col-span-4">
-            <label className="label" htmlFor="so-wh">
-              Warehouse
-            </label>
-            <select id="so-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)} onKeyDown={toGrid}>
-              {!warehouses.length && <option value="">None you can take orders in</option>}
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-8">
-            <label className="label" htmlFor="so-note">
-              Note (optional)
-            </label>
-            <input id="so-note" className="input" maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={toGrid} />
-          </div>
+    <form className="card space-y-5 p-6" onSubmit={(e: FormEvent) => (e.preventDefault(), void submit(draft ? "confirm" : "save"))} aria-label={draft ? `Order ${draft.order_no}` : "New sales order"}>
+      <div className="grid gap-x-5 gap-y-4 md:grid-cols-12">
+        <div className="md:col-span-8">
+          <label className="label" htmlFor="so-cust">
+            Customer
+          </label>
+          <select id="so-cust" className="input" value={customer} onChange={(e) => setCustomer(e.target.value)} onKeyDown={toGrid}>
+            <option value="">Choose…</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.external_ref ? `${c.external_ref} — ` : ""}
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="md:col-span-4">
+          <label className="label" htmlFor="so-wanted">
+            Wanted for (optional)
+          </label>
+          <input id="so-wanted" type="date" className="input" value={wanted} onChange={(e) => setWanted(e.target.value)} onKeyDown={toGrid} />
+        </div>
+        <div className="md:col-span-4">
+          <label className="label" htmlFor="so-wh">
+            Warehouse
+          </label>
+          <select id="so-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)} onKeyDown={toGrid}>
+            {!warehouses.length && <option value="">None you can take orders in</option>}
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="md:col-span-3">
+          <span className="label">Payment terms</span>
+          <p className="input bg-subtle text-ink-muted">{cust?.payment_terms_days ? `${cust.payment_terms_days} days` : "—"}</p>
+        </div>
+        <div className="md:col-span-5">
+          <label className="label" htmlFor="so-note">
+            Note (optional)
+          </label>
+          <input id="so-note" className="input" maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={toGrid} />
+        </div>
+        {!draft && (
           <div className="md:col-span-12">
             <label className="label" htmlFor="so-src">
               Original request (as the customer wrote or said it)
             </label>
             <textarea id="so-src" className="input min-h-16" value={sourceText} onChange={(e) => setSourceText(e.target.value)} maxLength={10000} />
           </div>
-        </div>
-        <div className="space-y-2">
-          <LineGrid
-            label="Order lines"
-            columns={columns}
-            lines={lines}
-            setLines={(fn) => {
-              setNotice(null);
-              setLines(fn);
-            }}
-            products={products}
-            maxRows={MAX_ORDER_LINES}
-            problem={problemFor}
-            handle={grid}
-            onActiveRow={setActiveRow}
-            onDone={() => saveBtn.current?.focus()}
-            onPasted={(n, bad) => setNotice(`Pasted ${n} ${n === 1 ? "row" : "rows"}.${bad ? ` ${bad} ${bad === 1 ? "item doesn't" : "items don't"} match a product — fix the lines marked !` : ""}`)}
-          />
-          <p className="flex items-start gap-2 text-xs text-ink-muted">
-            <Icon name="info" size={14} className="mt-0.5 shrink-0" />
-            <span>Rows are active by default — start typing to add items. Enter moves Item → Qty → next line, Tab moves across, arrows move around; paste rows from Excel straight into the grid.</span>
-          </p>
-          {notice && (
-            <p className="text-sm text-ink" role="status">
-              {notice}
-            </p>
-          )}
-          <GridProblems items={problems} />
-        </div>
-        {error && (
-          <p className="alert-danger" role="alert">
-            {error}
+        )}
+      </div>
+      <div className="space-y-2">
+        <LineGrid
+          label="Order lines"
+          columns={columns}
+          lines={lines}
+          setLines={(fn) => {
+            setNotice(null);
+            setLines(fn);
+          }}
+          products={products}
+          maxRows={MAX_ORDER_LINES}
+          problem={problemFor}
+          handle={grid}
+          onActiveRow={setActiveRow}
+          onDone={() => saveBtn.current?.focus()}
+          onPasted={(n, bad) => setNotice(`Pasted ${n} ${n === 1 ? "row" : "rows"}.${bad ? ` ${bad} ${bad === 1 ? "item doesn't" : "items don't"} match a product — fix the lines marked !` : ""}`)}
+        />
+        <p className="flex items-start gap-2 text-xs text-ink-muted">
+          <Icon name="info" size={14} className="mt-0.5 shrink-0" />
+          <span>Sold per lb: LB is what the line weighs. Enter moves Item → Qty → next line, Tab moves across; paste rows from Excel straight into the grid.</span>
+        </p>
+        {notice && (
+          <p className="text-sm text-ink" role="status">
+            {notice}
           </p>
         )}
-        <TotalsBar
-          subtotal={lp.data?.subtotal ?? null}
-          tax={lp.data?.tax_amount ?? null}
-          taxLabel="Tax (not assessed)"
-          total={lp.data?.total ?? null}
-          checked={false}
-          status={!customer ? "Choose the customer to see prices." : used.length ? "Estimate at today's prices — fixed when the order is confirmed." : "Type or paste products to start."}
-        >
-          <Link className="btn-ghost" to="/orders">
-            Cancel
-          </Link>
-          <button ref={saveBtn} className="btn-primary" disabled={busy}>
-            {busy ? "Saving…" : "Save draft"}
-          </button>
-        </TotalsBar>
-      </form>
-    </div>
+        <GridProblems items={problems} />
+      </div>
+      {error && (
+        <p className="alert-danger" role="alert">
+          {error}
+        </p>
+      )}
+      <TotalsBar
+        subtotal={lp.data?.subtotal ?? null}
+        tax={lp.data?.tax_amount ?? null}
+        taxLabel="Tax (not assessed)"
+        total={lp.data?.total ?? null}
+        checked={false}
+        status={!customer ? "Choose the customer to see prices." : used.length ? "Today's prices — fixed when the order is confirmed." : "Type or paste products to start."}
+      >
+        {draft ? (
+          <>
+            <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void submit("save")}>
+              {busy === "save" ? "Saving…" : "Save draft"}
+            </button>
+            <button ref={saveBtn} className="btn-primary" disabled={!!busy}>
+              {busy === "confirm" ? "Confirming…" : "Confirm order"}
+            </button>
+          </>
+        ) : (
+          <>
+            <Link className="btn-ghost" to="/orders">
+              Cancel
+            </Link>
+            <button ref={saveBtn} className="btn-primary" disabled={!!busy}>
+              {busy ? "Saving…" : "Save draft"}
+            </button>
+          </>
+        )}
+      </TotalsBar>
+    </form>
   );
 }
 
@@ -379,6 +445,43 @@ export function OrderPage() {
   if (!o) return <PageSkeleton />;
   const manage = canInWarehouse(session, "sales_order.manage", o.warehouse_id);
   const close = canInWarehouse(session, "sales_order.close", o.warehouse_id);
+  if (o.status === "DRAFT" && manage)
+    return (
+      <div className="space-y-5">
+        <nav aria-label="Breadcrumb" className="text-sm">
+          <Link className="text-brand-primary underline" to="/orders">
+            Sales orders
+          </Link>{" "}
+          / {o.order_no}
+        </nav>
+        <PageHeader
+          title={o.order_no}
+          subtitle={
+            <>
+              <OrderChip status={o.status} />
+              {o.source !== "MANUAL" && <span className="ml-2 text-ink-muted">{o.source === "SCAN" ? "from a scanned sheet" : "from the website"}</span>}
+            </>
+          }
+          actions={
+            <>
+              <DeleteAction kind="sales_order" id={o.id} label={`Order ${o.order_no}`} warehouseId={o.warehouse_id} onDone={() => nav("/orders")} />
+              <button className="btn-ghost" onClick={() => setDialog("cancel")}>
+                Cancel draft
+              </button>
+            </>
+          }
+        />
+        {error && (
+          <p className="alert-danger" role="alert">
+            {error}
+          </p>
+        )}
+        <OrderForm key={o.version} draft={o} onChanged={load} />
+        <ConfirmDialog open={dialog === "cancel"} title="Cancel this draft?" confirmLabel="Cancel draft" danger onClose={() => setDialog("none")} onConfirm={() => void run(() => api.cancelOrder(o.id, o.version, "Draft cancelled"))}>
+          It stays on record as cancelled.
+        </ConfirmDialog>
+      </div>
+    );
   const open = ["CONFIRMED", "PICKING", "PARTIALLY_FULFILLED"].includes(o.status);
   const pending = o.lines.some((l) => Number(l.pending_qty) > 0);
   const awaiting = o.lines.some((l) => Number(l.awaiting_invoice_qty) > 0);

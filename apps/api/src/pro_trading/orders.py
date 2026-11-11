@@ -141,6 +141,13 @@ def validate_lines(db: Session, company_id: uuid.UUID, lines: list[Any]) -> list
             e.extra["line"] = i
             e.message = f"Line {i}: {e.message}"
             raise
+        if getattr(ln, "weight_lb", None) is not None and ln.unit_code != "BOX":
+            raise ApiError(
+                422,
+                "WEIGHT_NOT_ALLOWED",
+                f"Line {i}: a weight is for boxes; {prod.sku} is ordered by {ln.unit_code}",
+                line=i,
+            )
         k = (prod.id, ln.unit_code)
         if k in seen:
             raise ApiError(
@@ -271,6 +278,8 @@ def order_out(db: Session, o: SalesOrder) -> dict[str, Any]:
                 "price_scope": snap.get("scope"),
                 "price_version_code": snap.get("version_code"),
                 "note": ln.note,
+                "weight_lb": d(ln.weight_lb) if ln.weight_lb is not None else None,
+                "lb_rate": snap.get("lb_rate"),
             }
         )
     amends = db.scalars(
@@ -390,7 +399,7 @@ def price_lines(db: Session, company_id: uuid.UUID, o: SalesOrder, at: datetime)
             )  # fmt: skip
         ln.rate, ln.price_snapshot = quote(
             db, company_id, prod, ln.unit_code, cust, at, ln.line_no,
-            partial(_ordered_box_lb, db, o, ln),
+            partial(_ordered_box_lb, db, o, ln), line_box_lb(ln.weight_lb, ln.ordered_qty),
         )  # fmt: skip
 
 
@@ -403,9 +412,19 @@ def quote(
     at: datetime,
     line_no: int,
     ordered_box_lb: Callable[[], Decimal | None] | None = None,
+    weighed_box_lb: Decimal | None = None,
 ) -> tuple[Decimal, dict[str, Any]]:
     """Rate + snapshot for one line as of `at`, exactly as confirming would freeze it. Raises
-    NO_PRICE (with `line`) when nothing prices it. Also used by the order/invoice line preview."""
+    NO_PRICE / WEIGHT_REQUIRED (with `line`) when nothing prices it. Also used by the
+    order/invoice line preview. `weighed_box_lb` is the line's weight / boxes: boxes whose weight
+    is known are sold per lb (owner, 2026-11-11: "all products go as per pound")."""
+    if unit_code == "BOX" and weighed_box_lb is not None:
+        try:
+            pricing.resolve(db, company_id, prod.id, "LB", cust, at)
+        except pricing.NoPriceError:
+            pass  # no per-lb price: a box price, if any, still applies
+        else:
+            return _box_from_lb(db, company_id, prod, cust, at, line_no, lambda: weighed_box_lb)
     try:
         qt = pricing.resolve(db, company_id, prod.id, unit_code, cust, at)
     except pricing.NoPriceError:
@@ -414,6 +433,13 @@ def quote(
             raise ApiError(422, "NO_PRICE", msg, line=line_no) from None
         return _box_from_lb(db, company_id, prod, cust, at, line_no, ordered_box_lb)
     return qt.rate, qt.snapshot()
+
+
+def line_box_lb(weight_lb: Decimal | None, qty: Decimal) -> Decimal | None:
+    """Pounds per box from the weight of the whole line, when one was entered."""
+    if weight_lb is None or qty <= 0:
+        return None
+    return (weight_lb / qty).quantize(pricing.Q4)
 
 
 def _box_from_lb(
@@ -435,11 +461,8 @@ def _box_from_lb(
         raise ApiError(422, "NO_PRICE", msg, line=line_no) from None
     box_lb = (ordered_box_lb() if ordered_box_lb else None) or _default_box_lb(db, prod.id)
     if box_lb is None:
-        msg = (
-            f"Line {line_no}: {prod.sku} has a price per lb but no box price, and the box "
-            "weight is unknown. Add a case size or a box price, then confirm again."
-        )
-        raise ApiError(422, "NO_PRICE", msg, line=line_no)
+        msg = f"Line {line_no}: {prod.sku} is sold per lb. Enter the weight (LB) for this line."
+        raise ApiError(422, "WEIGHT_REQUIRED", msg, line=line_no)
     rate = (lb.rate * box_lb).quantize(pricing.Q4)
     snap = lb.snapshot() | {
         "unit_code": "BOX",

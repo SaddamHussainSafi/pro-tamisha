@@ -314,7 +314,7 @@ def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrde
     Caller owns the transaction."""
     lines = [
         OrderLineIn(product_id=ln.product_id, unit_code=ln.unit_code, qty=ln.qty,
-                    source_line_text="Direct invoice", note=ln.note)
+                    source_line_text="Direct invoice", note=ln.note, weight_lb=ln.weight_lb)
         for ln in body.lines
     ]  # fmt: skip
     o = insert_order(

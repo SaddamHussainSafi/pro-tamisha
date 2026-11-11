@@ -1,8 +1,8 @@
 # ruff: noqa: F811 - pytest fixtures are imported and re-used by name
 """Boxes with no box price (owner, 2026-11-10): on confirm, a BOX line is priced per lb x the box
 weight (the size picked on the online order form, else the product's default case size). An
-explicit box price always wins; with no per-lb price or no known weight the order still refuses
-with NO_PRICE. The invoice prints the box size the price was worked out from. Synthetic data."""
+explicit box price wins unless the line was weighed (tests/test_order_weights.py); with no
+per-lb price the order refuses with NO_PRICE, with no known weight with WEIGHT_REQUIRED. The invoice prints the box size the price was worked out from. Synthetic data."""
 
 import re
 import uuid
@@ -102,8 +102,8 @@ def test_box_needs_a_per_lb_price_and_a_known_weight(owner, sales, world, setup)
     setup["p"]["LBX"] = lbx
     lb_prices(owner, setup, {lbx: "3.00"})
     r = confirm(sales, world, setup, [("LBX", "BOX", "1")])
-    assert r.status_code == 422 and code(r) == "NO_PRICE"
-    assert "box weight is unknown" in r.json()["error"]["message"]
+    assert r.status_code == 422 and code(r) == "WEIGHT_REQUIRED"  # 2026-11-11: weigh it
+    assert "Enter the weight (LB)" in r.json()["error"]["message"]
     r = confirm(sales, world, setup, [("NOP", "BOX", "1")])  # no box price, no lb price
     assert r.status_code == 422 and code(r) == "NO_PRICE"
     assert "per BOX or per LB" in r.json()["error"]["message"]

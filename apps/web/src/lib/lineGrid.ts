@@ -16,6 +16,8 @@ export type GridLine = {
   lot_id: string;
   note: string;
   prefilled?: boolean;
+  /** Pounds the whole line weighs (boxes; e.g. the WEIGHT on the order sheet): priced per lb. */
+  weight?: string;
 };
 
 export const MIN_ROWS = 20;
@@ -296,11 +298,21 @@ export function applyPaste(
 export const billable = (lines: GridLine[]) => lines.filter((l) => l.product_id && !(l.prefilled && !l.qty.trim()));
 
 /** Per-row problem shown on the grid before anything is sent (null = fine or empty). */
+/** The weight typed on a row as pounds, or null when blank. "bad" when it isn't a weight. */
+export function weightOf(l: GridLine): string | null | "bad" {
+  const w = (l.weight ?? "").trim().replace(/\s*lbs?$/i, "");
+  if (!w) return null;
+  return /^\d{1,10}(\.\d{1,4})?$/.test(w) && Number(w) > 0 ? w : "bad";
+}
+
 export function rowProblem(l: GridLine, i: number, lines: GridLine[]): string | null {
   if (!isFilled(l) || (l.prefilled && !l.qty.trim())) return null;
   if (!l.product_id) return l.text.trim() ? `No product matches “${l.text.trim()}”.` : "Choose the product.";
   const q = qtyProblem(l.unit_code, l.qty);
   if (q) return q;
+  const w = weightOf(l);
+  if (w === "bad") return "Enter the weight in pounds, e.g. 35.";
+  if (w && l.unit_code !== "BOX") return "A weight is only for boxes.";
   const first = lines.findIndex((x) => x.product_id === l.product_id && x.unit_code === l.unit_code && billable([x]).length);
   if (first !== -1 && first < i) return `Already on line ${first + 1}. Add the quantities together.`;
   return null;
@@ -323,16 +335,20 @@ export const untouched = (lines: GridLine[]) => lines.every((l) => !isFilled(l) 
 
 /** Rows sent for the live line preview: every row with a product and unit (an untyped or
  * unreadable quantity goes as 0, so the row still gets its price and batches), with its key. */
-export function previewRows(lines: GridLine[]): { keys: number[]; lines: { product_id: string; unit_code: UnitCode; qty: string; lot_id: string | null }[] } {
+export function previewRows(lines: GridLine[]): { keys: number[]; lines: { product_id: string; unit_code: UnitCode; qty: string; lot_id: string | null; weight_lb?: string }[] } {
   const rows = lines.filter((l) => l.product_id && l.unit_code);
   return {
     keys: rows.map((l) => l.key),
-    lines: rows.map((l) => ({
-      product_id: l.product_id,
-      unit_code: l.unit_code as UnitCode,
-      qty: /^\d{1,12}(\.\d{1,4})?$/.test(l.qty.trim()) ? l.qty.trim() : "0",
-      lot_id: l.lot_id || null,
-    })),
+    lines: rows.map((l) => {
+      const w = l.unit_code === "BOX" ? weightOf(l) : null;
+      return {
+        product_id: l.product_id,
+        unit_code: l.unit_code as UnitCode,
+        qty: /^\d{1,12}(\.\d{1,4})?$/.test(l.qty.trim()) ? l.qty.trim() : "0",
+        lot_id: l.lot_id || null,
+        ...(w && w !== "bad" ? { weight_lb: w } : {}),
+      };
+    }),
   };
 }
 

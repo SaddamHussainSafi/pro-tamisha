@@ -772,6 +772,7 @@ class SalesOrderLine(Base):
         CheckConstraint("cancelled_qty >= 0 AND dispatched_qty >= 0", name="qty_nonneg"),
         CheckConstraint("cancelled_qty + dispatched_qty <= ordered_qty", name="within_ordered"),
         CheckConstraint("rate IS NULL OR rate >= 0", name="rate_nonneg"),
+        CheckConstraint("weight_lb IS NULL OR weight_lb > 0", name="weight_pos"),
     )
     id: Mapped[uuid.UUID] = _pk()
     order_id: Mapped[uuid.UUID] = mapped_column(
@@ -791,6 +792,9 @@ class SalesOrderLine(Base):
     rate: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
     price_snapshot: Mapped[Any | None] = mapped_column(JSONB)
     note: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    # Pounds the whole line weighs (boxes only), e.g. the WEIGHT written on the order sheet.
+    # Boxes are sold per lb: confirming prices the line as the per-lb rate x this weight.
+    weight_lb: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
     created_at: Mapped[datetime] = _created()
 
 

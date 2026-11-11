@@ -1545,6 +1545,21 @@
             ],
             "title": "Unit Code",
             "type": "string"
+          },
+          "weight_lb": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb"
           }
         },
         "required": [
@@ -3050,6 +3065,21 @@
             ],
             "title": "Unit Code",
             "type": "string"
+          },
+          "weight_lb": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb"
           }
         },
         "required": [
@@ -6636,6 +6666,21 @@
             ],
             "title": "Unit Code",
             "type": "string"
+          },
+          "weight_lb": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb"
           }
         },
         "required": [
@@ -6661,6 +6706,17 @@
               }
             ],
             "title": "Basis"
+          },
+          "lb_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lb Rate"
           },
           "line": {
             "title": "Line",
@@ -9623,6 +9679,21 @@
             ],
             "title": "Unit Code",
             "type": "string"
+          },
+          "weight_lb": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb"
           }
         },
         "required": [
@@ -9655,6 +9726,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "lb_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lb Rate"
           },
           "line_no": {
             "title": "Line No",
@@ -9735,6 +9817,17 @@
             ],
             "title": "Unit Code",
             "type": "string"
+          },
+          "weight_lb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Lb"
           }
         },
         "required": [

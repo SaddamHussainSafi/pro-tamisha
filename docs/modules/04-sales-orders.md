@@ -44,6 +44,10 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 - **Seed:** C-1001 confirmed order (CAS-FZ BOX 15, PLN-GR PIECE 24), C-1002 draft (RICE-JAS BOX 4).
 - **Stock** is not moved by picking; dispatch posts `INVOICE_DISPATCH` when the invoice is issued (Module 05).
 
+## Drafts are checked on the entry form; boxes sold per lb (2026-11-11)
+- A DRAFT opens as the same form as New sales order and Create invoice: Customer, Wanted for, Warehouse, payment terms, Note, then the grid S/N · Item · Qty · Unit · **LB** · Rate · Gross with the Subtotal / Tax / Net bar, and **Save draft** / **Confirm order** at the bottom (no confirm dialog). Picking columns, the original request and history show once the order is confirmed. **Cancel draft** asks no reason (recorded as "Draft cancelled").
+- `sales_order_lines.weight_lb` (migration `0025`): what the whole line weighs, boxes only. A scanned sheet's WEIGHT box fills it; staff can type it in LB (empty shows the case size's weight greyed). Confirm (and direct invoices) price a weighed box as the per-lb rate × weight ÷ boxes; a per-lb price beats a box price for a weighed line. With no weight and no case size: `WEIGHT_REQUIRED`. The original capture (`source_snapshot`) keeps the weight as written.
+
 ## Failure recovery
 | Failure | What happens | Recovery |
 |---|---|---|
@@ -56,3 +60,4 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 | Wrong sheet printed | Void sheet (reason) | Print a new sheet from the order |
 | Close requested while picked goods await invoice | 409 `AWAITING_INVOICE` | Invoice first (Module 05) or cancel per line |
 | No price for a line at confirm | 422 `NO_PRICE` | Publish price in Pricing, confirm again |
+| Box with no known weight at confirm | 422 `WEIGHT_REQUIRED` (boxes are sold per lb) | Type the line's weight in LB on the draft, confirm again |

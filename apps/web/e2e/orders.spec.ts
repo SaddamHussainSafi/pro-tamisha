@@ -60,9 +60,10 @@ test("sales captures 15 boxes, confirms (price frozen) and prints a picking shee
 
   await expect(page.getByRole("heading", { name: /^SO-/ })).toBeVisible();
   orderUrl = new URL(page.url()).pathname;
-  await expect(page.getByText("set at confirm")).toBeVisible();
+  // the draft opens as the same form (2026-11-11); Confirm order fixes today's prices
+  await expect(page.getByRole("form", { name: /^Order SO-/ })).toBeVisible();
+  await expect(page.getByTestId("net-total")).toHaveText("CAD 435.00");
   await page.getByRole("button", { name: "Confirm order" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Confirm order" }).click();
   await expect(page.getByText("Confirmed", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("table", { name: "Order lines" })).toContainText("29.00");
   await expect(page.getByTestId("pending-CFZ")).toHaveText("15");

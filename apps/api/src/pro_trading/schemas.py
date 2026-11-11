@@ -755,6 +755,8 @@ class OrderLineIn(BaseModel):
     qty: Qty
     source_line_text: str = Field(default="", max_length=500)
     note: str = Field(default="", max_length=500)
+    # Pounds the whole line weighs (boxes only); the line is then priced per lb x this weight.
+    weight_lb: Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=4)] | None = None
 
 
 class OrderIn(BaseModel):
@@ -808,6 +810,8 @@ class OrderLineOut(BaseModel):
     price_scope: str | None
     price_version_code: str | None
     note: str
+    weight_lb: Decimal | None = None
+    lb_rate: Decimal | None = None  # per-lb price a box rate was worked out from
 
 
 class AmendmentOut(BaseModel):
@@ -2255,6 +2259,8 @@ class DirectInvoiceLineIn(BaseModel):
     unit_code: UnitCode
     qty: Qty
     note: str = Field(default="", max_length=500)
+    # Pounds the whole line weighs (boxes only): priced per lb x this weight.
+    weight_lb: Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=4)] | None = None
     lot_id: uuid.UUID | None = Field(
         default=None, description="Batch handed over; none = oldest expiry first (FEFO)"
     )
@@ -2298,6 +2304,7 @@ class LinePreviewLineIn(BaseModel):
     unit_code: UnitCode
     qty: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=4)] = Decimal(0)
     lot_id: uuid.UUID | None = None
+    weight_lb: Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=4)] | None = None
 
 
 class LinePreviewIn(BaseModel):
@@ -2334,6 +2341,7 @@ class LinePreviewLineOut(BaseModel):
     price_version_code: str | None
     pack_lb: Decimal | None
     weight_lb: Decimal | None
+    lb_rate: Decimal | None = None  # per-lb price a box rate was worked out from
     available_qty: Decimal
     stock_ok: bool
     lots: list[LotOptionOut]

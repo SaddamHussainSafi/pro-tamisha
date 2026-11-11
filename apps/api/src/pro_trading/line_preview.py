@@ -97,14 +97,17 @@ def preview(
             "problem": None,
         }
         lines.append(row)
-        problem = _check(db, prod, ln.unit_code, ln.qty, i, seen)
+        problem = _check(db, prod, ln.unit_code, ln.qty, i, seen, ln.weight_lb)
         if problem:
             row["problem"] = problem
             continue
         snap: dict[str, Any] = {}
         if cust is not None:
             try:
-                rate, snap = osvc.quote(db, company_id, prod, ln.unit_code, cust, at, i)
+                rate, snap = osvc.quote(
+                    db, company_id, prod, ln.unit_code, cust, at, i,
+                    weighed_box_lb=osvc.line_box_lb(ln.weight_lb, ln.qty),
+                )  # fmt: skip
             except ApiError as e:
                 row["problem"] = {"code": e.code, "message": e.message}
             else:
@@ -114,10 +117,14 @@ def preview(
                     "basis": snap.get("basis") or "PRICE_BOOK",
                     "price_scope": snap.get("scope"),
                     "price_version_code": snap.get("version_code"),
+                    "lb_rate": Decimal(snap["lb_rate"]) if snap.get("lb_rate") else None,
                 }
         pack = _pack_lb(db, prod, ln.unit_code, snap)
         row["pack_lb"] = pack
-        row["weight_lb"] = inv.q4(ln.qty * pack) if pack is not None else None
+        if ln.weight_lb is not None and ln.unit_code == "BOX":
+            row["weight_lb"] = inv.q4(ln.weight_lb)  # weighed: what was entered
+        else:
+            row["weight_lb"] = inv.q4(ln.qty * pack) if pack is not None else None
         lots = lots_for(db, company_id, body.warehouse_id, prod.id, ln.unit_code)
         if ln.lot_id is not None:
             chosen = [x for x in lots if x[0].id == ln.lot_id]
@@ -173,10 +180,13 @@ def _check(
     qty: Decimal,
     i: int,
     seen: dict[tuple[uuid.UUID, str], int],
+    weight: Decimal | None = None,
 ) -> dict[str, str] | None:
     """Same per-line rules as saving an order (validate_lines), as a problem instead of a 422."""
     if not prod.active:
         return {"code": "PRODUCT_INACTIVE", "message": f"{prod.sku} is inactive"}
+    if weight is not None and unit != "BOX":
+        return {"code": "WEIGHT_NOT_ALLOWED", "message": f"A weight is for boxes, not {unit}"}
     try:
         inv.check_unit(db, prod, unit)
         inv.check_qty(unit, qty)

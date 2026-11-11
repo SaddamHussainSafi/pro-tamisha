@@ -375,6 +375,9 @@ export type OrderLine = {
   price_scope: PriceScope | null;
   price_version_code: string | null;
   note: string;
+  /** Pounds the whole line weighs (boxes), e.g. the sheet's WEIGHT. */
+  weight_lb?: string | null;
+  lb_rate?: string | null;
 };
 export type PickSummary = {
   id: string;
@@ -434,7 +437,7 @@ export type OrderSummary = {
   requested_for: string | null;
   created_at: string;
 };
-export type OrderLineIn = { product_id: string; unit_code: UnitCode; qty: string; source_line_text?: string; note?: string };
+export type OrderLineIn = { product_id: string; unit_code: UnitCode; qty: string; source_line_text?: string; note?: string; weight_lb?: string | null };
 export type OrderIn = {
   customer_id: string;
   warehouse_id: string;
@@ -1634,7 +1637,7 @@ export type SupplierLedger = {
 /** Salesperson / Customer PO No. printed on the invoice; blank salesperson = company default. */
 export type InvoiceHeaderIn = { salesperson?: string; customer_po?: string };
 /** `lot_id`: the batch handed over; left out = oldest expiry first (FEFO). */
-export type DirectInvoiceIn = InvoiceHeaderIn & { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string; lot_id?: string | null }[]; note?: string };
+export type DirectInvoiceIn = InvoiceHeaderIn & { customer_id: string; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; note?: string; lot_id?: string | null; weight_lb?: string }[]; note?: string };
 /** Letterhead and the defaults the Create invoice form starts from. */
 export type InvoiceSettings = {
   legal_name: string;
@@ -1672,12 +1675,14 @@ export type LinePreviewLine = {
   price_version_code: string | null;
   pack_lb: string | null;
   weight_lb: string | null;
+  /** Per-lb price a box rate was worked out from (boxes are sold per lb). */
+  lb_rate?: string | null;
   available_qty: string;
   stock_ok: boolean;
   lots: LineLot[];
   problem: { code: string; message: string } | null;
 };
 export type LinePreview = { lines: LinePreviewLine[]; subtotal: string; tax_code: string; tax_amount: string; total: string; complete: boolean };
-export type LinePreviewIn = { customer_id: string | null; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; lot_id?: string | null }[] };
+export type LinePreviewIn = { customer_id: string | null; warehouse_id: string; lines: { product_id: string; unit_code: UnitCode; qty: string; lot_id?: string | null; weight_lb?: string }[] };
 
 export type OcrHeaderValue = { value: string | null; confidence: string | null; corrected?: string | null; matched?: boolean; ambiguous?: boolean; supplier_default?: string };

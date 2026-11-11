@@ -7,6 +7,7 @@ linked to the original scan. OCR never creates invoices, reservations or stock m
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -227,6 +228,16 @@ def _final(f: OcrField) -> dict[str, Any]:
         "unit_code": f.final_unit_code,
         "qty": _s(f.final_qty),
     }
+
+
+_WEIGHT = re.compile(r"^\s*(\d{1,5}(?:\.\d{1,4})?)\s*(?:lbs?|#)?\s*$", re.I)
+
+
+def sheet_weight(detail: dict[str, Any] | None) -> Decimal | None:
+    """Pounds written in the sheet's WEIGHT box ("35", "35 lb"); None when blank or unclear."""
+    m = _WEIGHT.match(str((detail or {}).get("weight") or ""))
+    w = Decimal(m.group(1)) if m else None
+    return w if w is not None and w > 0 else None
 
 
 def _valid_line(db: Session, p: Principal, pid: uuid.UUID, unit: str, qty: Decimal) -> Product:
@@ -542,11 +553,19 @@ def accept(
         if not keep:
             raise ApiError(422, "NO_LINES", "There are no lines to put on an order")
         merged: dict[tuple[uuid.UUID, str], tuple[Decimal, list[str]]] = {}
+        weights: dict[tuple[uuid.UUID, str], Decimal | None] = {}
         for f in keep:
             assert f.final_product_id and f.final_unit_code and f.final_qty
             k = (f.final_product_id, f.final_unit_code)
             q0, texts = merged.get(k, (Decimal(0), []))
             merged[k] = (q0 + f.final_qty, [*texts, f.raw_text or f.label])
+            # the WEIGHT written on the sheet goes on the order (boxes are sold per lb); a
+            # merged line keeps a weight only if every part of it had one
+            w = sheet_weight(f.detail) if f.final_unit_code == "BOX" else None
+            if k in weights:
+                prev = weights[k]
+                w = prev + w if prev is not None and w is not None else None
+            weights[k] = w
         order = OrderIn(
             customer_id=body.customer_id,
             warehouse_id=ex.warehouse_id,
@@ -560,6 +579,7 @@ def accept(
                     unit_code=unit,
                     qty=q,
                     source_line_text=" | ".join(t)[:500],
+                    weight_lb=weights.get((pid, unit)),
                 )
                 for (pid, unit), (q, t) in merged.items()
             ],

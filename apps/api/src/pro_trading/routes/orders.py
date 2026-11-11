@@ -116,6 +116,7 @@ def write_lines(db: Session, o: SalesOrder, body: OrderIn | OrderDraftIn) -> Non
                 ordered_qty=inv.q4(ln.qty),
                 source_line_text=ln.source_line_text,
                 note=ln.note,
+                weight_lb=inv.q4(ln.weight_lb) if ln.weight_lb is not None else None,
             )
         )
 
@@ -230,6 +231,7 @@ def insert_order(
                 "unit_code": ln.unit_code,
                 "qty": svc.d(ln.qty),
                 "text": ln.source_line_text,
+                **({"weight_lb": svc.d(ln.weight_lb)} if ln.weight_lb is not None else {}),
             }
             for i, (ln, pr) in enumerate(zip(body.lines, prods, strict=True), start=1)
         ],

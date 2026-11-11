@@ -66,7 +66,7 @@ const dash = <span className="text-ink-muted">—</span>;
 export function figureColumns(
   entry: (l: GridLine) => LinePreviewLine | undefined,
   checked?: (l: GridLine) => { rate: string; amount: string; weight: string | null; ok: boolean; available: string } | undefined,
-  opts: { stock?: boolean; rateTitle?: string } = {},
+  opts: { stock?: boolean; rateTitle?: string; weighable?: boolean } = {},
 ): GridColumn[] {
   const cols: GridColumn[] = [];
   if (opts.stock !== false)
@@ -88,19 +88,36 @@ export function figureColumns(
       },
     });
   cols.push(
-    {
-      key: "lb",
-      header: "LB",
-      kind: "display",
-      align: "right",
-      width: "5.5rem",
-      title: "Pounds: quantity × the case size (or the box weight the price used)",
-      render: (l) => {
-        if (!l.product_id) return null;
-        const w = checked?.(l)?.weight ?? entry(l)?.weight_lb;
-        return w && l.qty.trim() ? money2(w) : dash;
-      },
-    },
+    opts.weighable
+      ? {
+          // Boxes are sold per lb: type what the line weighs (the sheet's WEIGHT); empty = the
+          // case size's weight, shown greyed when the product has one.
+          key: "lb",
+          header: "LB",
+          kind: "weight",
+          align: "right",
+          width: "5.5rem",
+          label: "Weight in pounds",
+          title: "Pounds the line weighs. Boxes are priced per lb × this weight.",
+          placeholder: (l) => {
+            if (!l.product_id || (l.weight ?? "").trim()) return undefined;
+            const w = entry(l)?.weight_lb;
+            return w && l.qty.trim() ? money2(w) : undefined;
+          },
+        }
+      : {
+          key: "lb",
+          header: "LB",
+          kind: "display",
+          align: "right",
+          width: "5.5rem",
+          title: "Pounds: quantity × the case size (or the box weight the price used)",
+          render: (l) => {
+            if (!l.product_id) return null;
+            const w = checked?.(l)?.weight ?? entry(l)?.weight_lb;
+            return w && l.qty.trim() ? money2(w) : dash;
+          },
+        },
     {
       key: "rate",
       header: "Rate",
@@ -112,8 +129,9 @@ export function figureColumns(
         if (!l.product_id) return null;
         const c = checked?.(l);
         const e = entry(l);
+        if (!c && e?.lb_rate) return <span title="Per lb × the line's weight">{rate(e.lb_rate)}/lb</span>;
         const r = c?.rate ?? e?.rate;
-        return r ? <span title={e?.basis === "PER_LB_X_BOX" ? "No box price: per lb × box weight" : (e?.price_version_code ?? undefined)}>{rate(r)}</span> : dash;
+        return r ? <span title={e?.basis === "PER_LB_X_BOX" ? "Per lb × box weight" : (e?.price_version_code ?? undefined)}>{rate(r)}</span> : dash;
       },
     },
     {

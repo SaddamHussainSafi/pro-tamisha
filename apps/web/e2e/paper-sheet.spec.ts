@@ -56,8 +56,8 @@ test("a sideways picking sheet comes up as product lines to review; the same fil
   for (const [sku, qty] of [["OKR", "12"], ["YYM", "3"], ["SPM", "2"]] as const) {
     await expect(lines.filter({ hasText: sku })).toContainText(qty);
   }
-  // read from pixels: a person checks each one (no "Confirm" for unclear lines)
-  await expect(lines.first().getByRole("button", { name: /^Confirm line/ })).toHaveCount(0);
+  // every line still waits for a person (how sure the reading is depends on the engine)
+  await expect(page.getByRole("button", { name: "Create draft order" })).toBeDisabled();
   await axe(page);
   await page.screenshot({ path: "screenshots/paper-sheet-review-1440.png", fullPage: true });
 
