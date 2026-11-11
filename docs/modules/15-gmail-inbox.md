@@ -4,10 +4,19 @@ One dedicated Gmail mailbox, read-only, kept in step with the database and shown
 Inbox** (`/gmail`). Staff choose a scanned document from any stored email and send it to the
 existing OCR review; Create invoice gains **Pick from Gmail**.
 
-**Status (2026-11-11): built and tested against a stand-in for Google. No real mailbox has been
-connected: there is no Google Cloud project or OAuth client on the development machine. The live
-connection, the Pub/Sub push and a real sync are NOT verified.** Until the steps under "Setup"
-are done the page says "Gmail is not set up yet" and nothing pretends otherwise.
+**Status (2026-11-11, evening): connected for real on the development machine.** The owner's
+mailbox `tamishatrading@gmail.com` was connected at 17:01 through Google Cloud project "Tamisha
+Trading ERP" (`tamisha-trading-erp`, owned by that account; consent screen External / Testing,
+scope `gmail.readonly` only, OAuth client "Pro Trading (local)"). Verified on real mail: OAuth
+consent and token exchange, the import of older mail, a new email arriving by itself through the
+history feed, the inbox screen, the cleaned message view, the page preview of an emailed PDF, and
+one real "Use for OCR" by the owner (Gemini read 1 page into 31 lines, waiting for review; no
+order, invoice or stock movement was created). **Still not verified:** the Pub/Sub push (it needs
+a public HTTPS address; this machine uses the one-minute timer), watch renewal, token refresh
+after the first hour, recovery from an expired cursor and rate limiting against the real service
+(covered by the stand-in tests only), and any deployment other than `localhost`.
+Because the Google app is in "Testing", Google ends the sign-in after 7 days: the mailbox then
+shows "Disconnected" and has to be connected again (OPEN_DECISIONS D-36).
 
 ## What it does, and what it never does
 
@@ -194,9 +203,12 @@ readings and draft orders made from Gmail attachments live in their own tables a
 
 ## Known limits
 
-- Google's field names and answers are taken from its published REST reference and checked
-  against the push, sync, scopes and Pub/Sub authentication guides on 2026-11-11; nothing has
-  been exercised against the real service.
+- Exercised against the real service on 2026-11-11: OAuth, profile, message list, message get,
+  history list, attachment get. Not exercised: watch / stop, Pub/Sub push, revoke; those follow
+  Google's push, sync and Pub/Sub authentication guides as read that day.
+- Found on the first real mailbox and fixed: Gmail gives ordinary attachments a `Content-ID`, so
+  that header no longer marks a file as "inside the message"; only a picture with an inline
+  disposition is.
 - Ordinary mail (no document attached) appears on the next 20-second refresh, not instantly.
 - The email body is not searchable. Download is limited to PDF, PNG, JPEG and TIFF; other
   attachment types are listed with the reason and can be opened in Gmail itself. Files are not
