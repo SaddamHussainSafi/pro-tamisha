@@ -278,10 +278,20 @@ test("returning from Google without consent connects nothing", async ({ page }) 
   await page.getByRole("button", { name: "Settings" }).click();
   const dlg = page.getByRole("dialog", { name: "Gmail connection" });
   await expect(dlg.getByText("Read-only. Pro Trading cannot send, delete or change mail.")).toBeVisible();
-  await expect(dlg.getByText("Gmail is not set up on this server.")).toBeVisible();
-  await expect(dlg.getByText("/gmail/oauth/callback")).toBeVisible();
-  await expect(dlg.getByRole("button", { name: /Connect/ })).toHaveCount(0);
-  await page.screenshot({ path: `${SHOTS}/settings-not-set-up-1440.png`, animations: "disabled" });
+  // This synthetic company has no mailbox either way. Whether the server has a Google client
+  // (a developer's .env may) decides what the dialog offers; the test never clicks Connect.
+  const status = await (await page.request.get("/api/v1/gmail/status")).json();
+  expect(status.account).toBeNull();
+  await expect(dlg.getByText("Not connected").or(dlg.getByText("Not set up")).first()).toBeVisible();
+  if (status.configured) {
+    await expect(dlg.getByText("Connecting opens Google's sign-in page.", { exact: false })).toBeVisible();
+    await expect(dlg.getByRole("button", { name: "Connect Gmail" })).toBeVisible();
+  } else {
+    await expect(dlg.getByText("Gmail is not set up on this server.")).toBeVisible();
+    await expect(dlg.getByText("/gmail/oauth/callback")).toBeVisible();
+    await expect(dlg.getByRole("button", { name: /Connect/ })).toHaveCount(0);
+  }
+  await page.screenshot({ path: `${SHOTS}/settings-${status.configured ? "ready-to-connect" : "not-set-up"}-1440.png`, animations: "disabled" });
 });
 
 test("at 390 px the inbox and the picker fit, one pane at a time", async ({ page }) => {

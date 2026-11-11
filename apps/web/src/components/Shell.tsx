@@ -238,7 +238,10 @@ export function Shell() {
 
   return (
     <NotificationProvider>
-    <div className="flex h-full">
+    {/* The window itself must never scroll: only <main> does. `relative` + `overflow-clip`
+        keep anything absolutely placed (e.g. a screen-reader-only label far down a long page)
+        from stretching the document, which let a scroll drag the whole frame off-screen. */}
+    <div className="relative flex h-full overflow-clip">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2">Skip to content</a>
 
       <aside aria-label="Sections" className={`hidden shrink-0 transition-[width] duration-200 ease-out lg:flex ${collapsed ? "w-[88px]" : "w-[276px]"}`}>
@@ -260,7 +263,7 @@ export function Shell() {
             <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{initials(name)}</span>
           </div>
         </header>
-        <main ref={main} id="main" className="min-w-0 flex-1 overflow-y-auto px-3 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-5">
+        <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-5">
           {/* Keyed by path: each screen fades in once when you arrive (not on every data refresh). */}
           <div key={loc.pathname} className="animate-enter">
             <Suspense fallback={<PageSkeleton />}>
