@@ -4,21 +4,29 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import {
   deleteMode,
+  insteadLabel,
   KIND_LABEL,
   notifyTrashChanged,
   recordLink,
+  referenceLine,
   referenceLines,
   trashApi,
   trashErrorText,
   twoStepReady,
+  type Reference,
   type TrashItem,
   type TrashKind,
+  type TrashPreview,
 } from "../lib/trash";
 import { Icon } from "./Icon";
 
 /* ------------------------------------------------------------------ toast (Undo) */
 
-type Toast = { kind: "trashed"; item: TrashItem } | { kind: "restored"; label: string; to: string } | { kind: "error"; text: string };
+type Toast =
+  | { kind: "trashed"; item: TrashItem }
+  | { kind: "restored"; label: string; to: string }
+  | { kind: "done"; text: string }
+  | { kind: "error"; text: string };
 let showToast: (t: Toast) => void = () => {};
 
 /** One per app (in the Shell): "“X” moved to Trash · Undo". Polite live region, no role. */
@@ -78,7 +86,7 @@ export function TrashToastHost() {
               </Link>
             </>
           )}
-          {toast.kind === "error" && <span className="min-w-0 flex-1">{toast.text}</span>}
+          {(toast.kind === "error" || toast.kind === "done") && <span className="min-w-0 flex-1">{toast.text}</span>}
           <button type="button" className="grid size-8 cursor-pointer place-items-center rounded-full hover:bg-white/15" aria-label="Dismiss" onClick={() => setToast(null)}>
             <Icon name="x" size={16} />
           </button>
@@ -154,6 +162,11 @@ export function DeleteAction({
             notifyTrashChanged();
             onDone?.(item);
           }}
+          onInstead={(text) => {
+            close();
+            showToast({ kind: "done", text });
+            notifyTrashChanged(); // lists reload and show it as inactive
+          }}
         />
       )}
     </span>
@@ -168,6 +181,7 @@ function DeleteDialog({
   ready,
   onClose,
   onTrashed,
+  onInstead,
 }: {
   mode: "trash" | "request";
   kind: TrashKind;
@@ -176,6 +190,7 @@ function DeleteDialog({
   ready: boolean;
   onClose: () => void;
   onTrashed: (item: TrashItem) => void;
+  onInstead: (text: string) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -184,15 +199,46 @@ function DeleteDialog({
   const [error, setError] = useState<{ text: string; lines: string[] } | null>(null);
   const [sent, setSent] = useState(false);
   const [reason, setReason] = useState("");
+  // The Super Admin sees what goes with it (or what keeps it) before confirming.
+  const wantsPreview = mode === "trash" && ready;
+  const [preview, setPreview] = useState<TrashPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
   }, []);
+  useEffect(() => {
+    if (!wantsPreview) return;
+    let live = true;
+    trashApi
+      .preview(kind, id)
+      .then((p) => live && setPreview(p))
+      .catch((e) => live && setPreviewError(trashErrorText(e)));
+    return () => {
+      live = false;
+    };
+  }, [wantsPreview, kind, id]);
+  const blocked = preview !== null && !preview.deletable;
+
+  async function doInstead() {
+    if (busy || !preview?.instead) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await trashApi.instead(kind, id);
+      onInstead(`“${label}” ${preview.instead === "suspend" ? "suspended" : "deactivated"}.`);
+    } catch (err) {
+      setError({ text: trashErrorText(err), lines: [] });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     e.stopPropagation(); // React bubbles through the portal: never submit a page form around us
     if (busy) return;
+    if (mode === "trash" && (blocked || (!preview && !previewError))) return;
     setBusy(true);
     setError(null);
     try {
@@ -224,13 +270,42 @@ function DeleteDialog({
       </p>
     );
     action = null;
+  } else if (mode === "trash" && blocked) {
+    title = `“${label}” can't be deleted`;
+    body = (
+      <>
+        <p>{preview.blocked.length ? "Records that are always kept use it:" : preview.message}</p>
+        {preview.blocked.length > 0 && <RefList refs={preview.blocked} testId="delete-blocked" />}
+        {preview.hint && <p>{preview.hint}</p>}
+      </>
+    );
+    action = null;
   } else if (mode === "trash") {
     title = `Move “${label}” to Trash?`;
+    const goes = preview?.goes_with ?? [];
+    const unlinked = preview?.unlinked ?? [];
     body = (
-      <p>
-        This {noun} disappears from every list now. You can restore it from Trash for 30 days; after that it is deleted
-        forever.
-      </p>
+      <>
+        <p>
+          This {noun} disappears from every list now. You can restore it from Trash for 30 days; after that it is deleted
+          forever.
+        </p>
+        {!preview && !previewError && <p aria-live="polite">Checking what goes with it…</p>}
+        {previewError && <p className="text-danger">{previewError}</p>}
+        {goes.length > 0 && (
+          <>
+            <p className="font-medium text-ink">Also moves to the Trash with it:</p>
+            <RefList refs={goes} testId="delete-goes-with" />
+          </>
+        )}
+        {unlinked.length > 0 && (
+          <>
+            <p className="font-medium text-ink">Stays, but no longer linked to it:</p>
+            <RefList refs={unlinked} testId="delete-unlinked" />
+          </>
+        )}
+        {(goes.length > 0 || unlinked.length > 0) && <p>Restoring it brings all of this back.</p>}
+      </>
     );
     action = busy ? "Moving…" : "Move to Trash";
   } else if (sent) {
@@ -283,10 +358,19 @@ function DeleteDialog({
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-6 py-4">
           <button type="button" className="btn-ghost" onClick={onClose} autoFocus>
-            {action ? "Cancel" : "Close"}
+            {action || (blocked && preview.instead) ? "Cancel" : "Close"}
           </button>
+          {blocked && preview.instead && (
+            <button type="button" className="btn-primary" disabled={busy} onClick={() => void doInstead()}>
+              {busy ? "Saving…" : insteadLabel(preview.instead, kind)}
+            </button>
+          )}
           {action && (
-            <button type="submit" className="btn bg-danger text-white hover:opacity-90" disabled={busy}>
+            <button
+              type="submit"
+              className="btn bg-danger text-white hover:opacity-90"
+              disabled={busy || (wantsPreview && !preview && !previewError)}
+            >
               {action}
             </button>
           )}
@@ -294,5 +378,15 @@ function DeleteDialog({
       </form>
     </dialog>,
     document.body,
+  );
+}
+
+function RefList({ refs, testId }: { refs: Reference[]; testId: string }) {
+  return (
+    <ul className="list-disc space-y-0.5 pl-5 text-ink" data-testid={testId}>
+      {refs.map((r) => (
+        <li key={r.table}>{referenceLine(r)}</li>
+      ))}
+    </ul>
   );
 }

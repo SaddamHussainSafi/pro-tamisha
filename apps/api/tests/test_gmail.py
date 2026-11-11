@@ -1253,15 +1253,20 @@ def test_same_product_on_two_lines_with_different_weights_stays_two_readings(
     assert all(f["read_unit_code"] == "LB" for f in yams)
 
 
-def test_a_scan_made_from_gmail_keeps_its_processing_record(owner, connected, google, setup, world):
-    """The Trash refuses a scan that still has a reading or a Gmail processing record."""
+def test_a_scan_made_from_gmail_takes_its_processing_record_to_the_trash(
+    owner, connected, google, setup, world
+):
+    """Trashing the scan takes its reading and its Gmail processing record with it (migration
+    0026); the email and its attachment stay; a restore brings the record back."""
     pdf = sheet(world, {"CAS": "1"})
     google.add("Kept", files=[("order.pdf", "application/pdf", pdf)])
     gsync.sync_account(connected)
     att = first_attachment(owner)
     out = process(owner, att["id"], world).json()
     r = owner.delete(f"{P}/scans/jobs/{out['scan_job_id']}", headers=idem())
-    assert r.status_code == 409 and code(r) == "IN_USE", r.text
+    assert r.status_code == 200, r.text
+    assert owner.get(f"{P}/gmail/attachments/{att['id']}").json()["history"] == []
+    assert owner.post(f"{P}/trash/{r.json()['id']}/restore", headers=idem()).status_code == 200
     assert owner.get(f"{P}/gmail/attachments/{att['id']}").json()["history"][0]["attempt_no"] == 1
 
 

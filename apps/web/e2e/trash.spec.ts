@@ -4,12 +4,17 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { totp } from "./totp";
 
-type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
+type Fixture = {
+  password: string;
+  users: { owner: string; warehouse: string; sales: string };
+  scan: { id: string; job_no: string };
+};
 
 // Fresh company: customers Island Grocers (C-1001, confirmed order) and Kingston Kitchen
-// (C-1002, draft order), a warehouse user and a sales user.
+// (C-1002, draft order), a warehouse user and a sales user, and an order-sheet scan of Island
+// Grocers that was read twice (two OCR reads use it).
 const fx: Fixture = JSON.parse(
-  execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
+  execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py", "--scan-with-reads"], {
     cwd: resolve(import.meta.dirname, "../../api"),
     encoding: "utf8",
     env: { ...process.env, PYTHONPATH: "src" },
@@ -115,13 +120,13 @@ test("Super Admin moves a customer to Trash, undoes, restores and deletes foreve
   await turnOnTwoStep(page);
   await page.getByRole("link", { name: "Customers", exact: true }).click();
 
-  // Referenced records are refused, and the dialog names what uses them.
+  // Before confirming, the dialog names what goes with it and what only loses its link.
   await page.getByRole("button", { name: "Delete Island Grocers" }).click();
   let dialog = page.getByRole("dialog", { name: "Move “Island Grocers (synthetic)” to Trash?" });
+  await expect(dialog.getByTestId("delete-goes-with")).toContainText("1 sales order (SO-");
+  await expect(dialog.getByTestId("delete-unlinked")).toContainText(`2 OCR reads (${fx.scan.job_no})`);
+  await expect(dialog.getByText("Restoring it brings all of this back.")).toBeVisible();
   await axe(page);
-  await dialog.getByRole("button", { name: "Move to Trash" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("can't be deleted while other records use it");
-  await expect(dialog.getByRole("alert")).toContainText("sales order");
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   // A new, unused customer goes to the Trash from its page; Undo brings it back.
@@ -161,6 +166,40 @@ test("Super Admin moves a customer to Trash, undoes, restores and deletes foreve
   await page.getByRole("dialog", { name: "Delete “Trash Test Market” forever?" }).getByRole("button", { name: "Delete forever" }).click();
   await expect(page.getByText("“Trash Test Market” was deleted forever.")).toBeVisible();
   await expect(page.getByText("Trash is empty")).toBeVisible();
+});
+
+test("Super Admin deletes a scan that OCR reads use, and restores it whole", async ({ page }) => {
+  test.setTimeout(90_000); // may wait for a fresh two-step code
+  await signIn(page, fx.users.owner);
+  const label = `Scan ${fx.scan.job_no}`;
+  const reads = async () => {
+    const r = await page.request.get("/api/v1/ocr/extractions?status=NEEDS_REVIEW");
+    expect(r.ok()).toBe(true);
+    const body = (await r.json()) as { items: { scan_job_id: string }[] };
+    return body.items.filter((x) => x.scan_job_id === fx.scan.id).length;
+  };
+  expect(await reads()).toBe(1); // the live read; the first one was superseded
+
+  await page.goto(`/scan/${fx.scan.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: label })).toBeVisible();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: `Move “${label}” to Trash?` });
+  const goes = dialog.getByTestId("delete-goes-with");
+  await expect(goes).toContainText(`2 OCR reads (${fx.scan.job_no})`);
+  await expect(goes).toContainText("1 scanned file");
+  await axe(page);
+  await page.screenshot({ path: "screenshots/trash-cascade-scan-1440.png" });
+  await dialog.getByRole("button", { name: "Move to Trash" }).click();
+  await expect(page).toHaveURL(/\/scan$/);
+  await expect(page.getByText("moved to Trash.")).toBeVisible();
+  expect(await reads()).toBe(0);
+
+  await page.getByRole("link", { name: "Trash", exact: true }).click();
+  await page.getByRole("button", { name: `Restore ${label}` }).click();
+  await expect(page.getByText(`“${label}” is back.`)).toBeVisible();
+  expect(await reads()).toBe(1);
+  await page.goto(`/scan/${fx.scan.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: label })).toBeVisible();
 });
 
 test("Super Admin sees the delete request and dismisses it", async ({ page }) => {

@@ -1,7 +1,8 @@
 # ruff: noqa: F811 - pytest fixtures are imported and re-used by name
 """Trash bin (migration 0020): only a Super Admin with two-step sign-in moves records to the
-Trash; anything still referenced is refused with a 409 that names it; every move, restore and
-purge is audited with who, what and a snapshot; repeats are idempotent; others can only ask."""
+Trash; every move, restore and purge is audited with who, what and a snapshot; repeats are
+idempotent; others can only ask. What goes with a record, and what still refuses it, is
+covered in test_trash_cascade.py (migration 0026)."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -142,19 +143,14 @@ def test_empty_trash(owner):
 # ------------------------------------------------------------------ what blocks a delete
 
 
-def test_references_block_with_a_409_that_names_them(owner, setup, world):
-    r = owner.delete(f"{P}/products/{setup['p']['CAS']}", headers=idem())
+def test_a_line_on_a_confirmed_order_names_the_order(owner, setup, world):
+    o = confirmed(owner, world, setup, [("PLN", "PIECE", "2")])
+    r = owner.delete(f"{P}/products/{setup['p']['PLN']}", headers=idem())
     assert r.status_code == 409 and code(r) == "IN_USE", r.text
     refs = {x["table"]: x for x in r.json()["error"]["references"]}
-    assert "price_entries" in refs and "prices" in r.json()["error"]["message"]
-
-    o = new_order(owner, world, setup, [("CAS", "BOX", "2")]).json()
-    r = owner.delete(f"{P}/customers/{setup['cust']}", headers=idem())
-    assert r.status_code == 409 and code(r) == "IN_USE"
-    refs = {x["table"]: x for x in r.json()["error"]["references"]}
-    assert refs["sales_orders"]["examples"] == [o["order_no"]]
+    assert refs["sales_order_lines"]["examples"] == [o["order_no"]]
     assert o["order_no"] in r.json()["error"]["message"]
-    assert owner.get(f"{P}/customers/{setup['cust']}").status_code == 200
+    assert owner.get(f"{P}/products/{setup['p']['PLN']}").status_code == 200
     assert audits(world.company_id, "trash.moved") == []
 
     # the unused, unpriced product goes
@@ -172,9 +168,6 @@ def test_state_rules(owner, setup, world, wh):
     assert len(owner.get(f"{P}/sales-orders/{draft['id']}").json()["lines"]) == 1
 
     o = confirmed(owner, world, setup, [("CAS", "BOX", "2")])
-    r = owner.delete(f"{P}/sales-orders/{o['id']}", headers=idem())
-    assert r.status_code == 409 and code(r) == "NOT_DELETABLE" and "cancel" in r.text
-
     pk = open_pick(owner, o).json()
     r = owner.delete(f"{P}/pick-attempts/{pk['id']}", headers=idem())
     assert r.status_code == 409 and "Abort it first" in r.text
@@ -186,6 +179,13 @@ def test_state_rules(owner, setup, world, wh):
     assert ab.status_code == 200, ab.text
     r = owner.delete(f"{P}/pick-attempts/{pk['id']}", headers=idem())
     assert r.status_code == 200, r.text
+    # a confirmed order (no invoice) goes too, with its picking sheets
+    pk2 = open_pick(owner, owner.get(f"{P}/sales-orders/{o['id']}").json()).json()
+    r = owner.delete(f"{P}/sales-orders/{o['id']}", headers=idem())
+    assert r.status_code == 200, r.text
+    assert owner.get(f"{P}/pick-attempts/{pk2['id']}").status_code == 404
+    assert owner.post(f"{P}/trash/{r.json()['id']}/restore", headers=idem()).status_code == 200
+    assert owner.get(f"{P}/sales-orders/{o['id']}").json()["status"] == "PICKING"
 
     prod = product(
         owner,
@@ -211,7 +211,7 @@ def test_guard_triggers_still_refuse_outside_the_trash(owner, setup, world):
             db.execute(text("delete from sales_orders where id = :i"), {"i": draft["id"]})
         db.rollback()
         db.execute(text("select set_config('pro_trading.trash', 'on', true)"))
-        with pytest.raises(DBAPIError, match="cannot be deleted"):  # flag on, but confirmed
+        with pytest.raises(DBAPIError, match="foreign key"):  # flag on: its lines still hold it
             db.execute(text("delete from sales_orders where id = :i"), {"i": o["id"]})
         db.rollback()
         db.execute(text("select set_config('pro_trading.trash', 'on', true)"))
@@ -249,6 +249,7 @@ def test_users(owner, world, user):
     user("sales")  # signing in leaves history
     r = owner.delete(f"{P}/employees/{world.ids['sales']}", headers=idem())
     assert r.status_code == 409 and code(r) == "IN_USE" and "audit log" in r.text
+    assert "Suspend them instead" in r.json()["error"]["message"]
 
 
 # ------------------------------------------------------------------ delete requests
@@ -268,8 +269,13 @@ def test_others_can_only_ask_and_the_super_admin_decides(owner, sales, setup, wo
 
     # refused up front when it could not be deleted anyway, or not theirs to edit
     o = confirmed(sales, world, setup, [("CAS", "BOX", "1")])
-    r = sales.post(f"{P}/delete-requests", json={**body, "item_id": o["id"]}, headers=idem())
-    assert r.status_code == 409
+    pk = open_pick(sales, o).json()
+    r = sales.post(
+        f"{P}/delete-requests",
+        json={"kind": "picking_sheet", "item_id": pk["id"]},
+        headers=idem(),
+    )
+    assert r.status_code == 409 and "Abort it first" in r.text
     r = sales.post(
         f"{P}/delete-requests",
         json={"kind": "product", "item_id": setup["p"]["NOP"]},
@@ -351,14 +357,18 @@ def scan_upload(api, world, job_type, data):
 def test_scans_and_filed_documents(owner, world):
     read = scan_upload(owner, world, "SALES_ORDER", PDF + b"%a\n")
     r = owner.delete(f"{P}/scans/jobs/{read['id']}", headers=idem())
-    assert r.status_code == 409 and "OCR read" in r.text  # OCR reads are kept, so is the scan
+    assert r.status_code == 200, r.text  # its OCR read goes with it
+    [(_, _, _, detail)] = audits(world.company_id, "trash.moved", read["id"])
+    assert detail["removed_with_it"]["ocr_extractions"] == 1
 
     other = scan_upload(owner, world, "OTHER", PDF + b"%b\n")
     r = owner.delete(f"{P}/scans/jobs/{other['id']}", headers=idem())
     assert r.status_code == 200, r.text
     assert owner.get(f"{P}/scans/jobs/{other['id']}").status_code == 404
     [(_, _, _, detail)] = audits(world.company_id, "trash.moved", other["id"])
-    assert detail["removed_with_it"] == {"source_documents": 1, "document_files": 1}
+    removed = detail["removed_with_it"]
+    assert removed["source_documents"] == 1 and removed["document_files"] == 1
+    assert set(removed) <= {"source_documents", "document_files", "scan_events"}
     assert "content" not in detail["snapshot"]
     assert owner.post(f"{P}/trash/{r.json()['id']}/restore", headers=idem()).status_code == 200
     assert owner.get(f"{P}/scans/jobs/{other['id']}").json()["status"] == "UPLOADED"

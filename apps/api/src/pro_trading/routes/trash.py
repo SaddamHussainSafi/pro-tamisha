@@ -3,6 +3,9 @@
 - `DELETE /<record>/{item_id}` (one typed route per kind) moves a record to the Trash.
 - `GET /trash`, `POST /trash/{id}/restore`, `DELETE /trash/{id}` (delete forever),
   `POST /trash/empty`. Items left 30 days are purged by the worker (`pro_trading.purge_trash`).
+- `GET /trash/preview/{kind}/{item_id}`: what would go with a record, what loses its link to it,
+  or what refuses it (for the confirm dialog). `POST /trash/instead` deactivates a product,
+  customer or supplier, or suspends a user, when protected records keep it from the Trash.
 - `POST /delete-requests` lets staff who may edit a record ask for it to be deleted;
   `GET /delete-requests`, `.../approve` and `.../dismiss` are the Super Admin's side.
 
@@ -23,11 +26,11 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .. import audit, idempotency
+from .. import accounts, audit, idempotency
 from .. import trash as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize, deny
 from ..errors import ApiError
-from ..models import Employee
+from ..models import Company, Employee
 
 router = APIRouter(tags=["trash"])
 
@@ -89,6 +92,39 @@ class RestoredOut(BaseModel):
 
 class PurgedOut(BaseModel):
     purged: int
+
+
+class RefOut(BaseModel):
+    table: str
+    noun: str
+    count: int
+    examples: list[str]
+
+
+class PreviewOut(BaseModel):
+    kind: KindKey
+    item_id: uuid.UUID
+    label: str
+    deletable: bool
+    message: str | None
+    goes_with: list[RefOut]
+    unlinked: list[RefOut]
+    blocked: list[RefOut]
+    instead: Literal["deactivate", "suspend"] | None
+    hint: str = ""
+
+
+class InsteadIn(BaseModel):
+    kind: KindKey
+    item_id: uuid.UUID
+
+
+class InsteadOut(BaseModel):
+    kind: KindKey
+    item_id: uuid.UUID
+    label: str
+    action: Literal["deactivate", "suspend"]
+    changed: bool
 
 
 class DeleteRequestIn(BaseModel):
@@ -265,6 +301,93 @@ for _key, _path in PATHS.items():
         response_model=TrashItemOut,
         summary=f"Move a {svc.KINDS[_key].noun} to the Trash",
     )
+
+
+# ------------------------------------------------------------------ before deleting
+
+
+@router.get("/trash/preview/{kind}/{item_id}", response_model=PreviewOut)
+def preview(kind: KindKey, item_id: uuid.UUID, db: DbDep, p: Principal = Reader) -> dict[str, Any]:
+    """Everything that would move to the Trash with the record, the links that would be
+    cleared, or what refuses it and what to do instead. Changes nothing."""
+    k = svc.KINDS[kind]
+    obj = db.get(k.model, item_id)
+    if obj is None or k.company(db, obj) != p.company_id:
+        raise ApiError(404, "NOT_FOUND", f"That {k.noun} was not found")
+    out = svc.preview(db, k, p.employee.id, obj)
+    return PreviewOut(kind=kind, item_id=item_id, **out).model_dump(mode="json")
+
+
+def _suspend(db: Session, p: Principal, e: Employee) -> None:
+    if e.id == p.employee.id:
+        raise ApiError(422, "SELF_CHANGE", "You can't suspend your own account")
+    rules = svc.KINDS["user"].rules
+    assert rules is not None
+    try:
+        rules(db, p.employee.id, e)  # the only other refusal: the last Super Admin
+    except ApiError:
+        raise ApiError(422, "LAST_OWNER", "Keep at least one active Super Admin") from None
+    e.active = False
+    accounts.revoke_tokens(db, e.id)
+    accounts.sign_out(db, e.id, "admin_changed")
+
+
+@router.post("/trash/instead", response_model=InsteadOut)
+def do_instead(
+    body: InsteadIn,
+    request: Request,
+    db: DbDep,
+    key: idempotency.IdemKey,
+    p: Principal = Admin,
+) -> JSONResponse:
+    """The one-click alternative offered when protected records keep a record out of the
+    Trash: deactivate the product, customer or supplier; suspend the user."""
+    kind = svc.KINDS[body.kind]
+    action = kind.instead[0] if kind.instead else None
+    if action is None:
+        raise ApiError(422, "NO_ALTERNATIVE", f"Nothing to do instead for a {kind.noun}")
+
+    def run() -> tuple[int, dict[str, Any]]:
+        if action == "suspend":  # same lock order as editing users: company, then employee
+            db.get(Company, p.company_id, with_for_update={"key_share": True})
+        obj = svc.load(db, kind, p.company_id, body.item_id)
+        if obj is None:
+            raise ApiError(404, "NOT_FOUND", f"That {kind.noun} was not found")
+        label = kind.label(db, obj)
+        changed = bool(obj.active)
+        if changed:
+            if action == "suspend":
+                _suspend(db, p, obj)
+            else:
+                obj.active = False
+                if hasattr(obj, "version"):
+                    obj.version += 1
+                if hasattr(obj, "updated_at"):
+                    obj.updated_at = datetime.now(UTC)
+            db.flush()
+            audit.record(
+                db,
+                action={"user": "employee", "supplier": "vendor"}.get(kind.key, kind.key)
+                + ".update",
+                success=True,
+                company_id=p.company_id,
+                actor_id=p.employee.id,
+                target_type=kind.key,
+                target_id=str(obj.id),
+                request_id=request.state.request_id,
+                detail={
+                    "label": label,
+                    "before": {"active": True},
+                    "after": {"active": False},
+                    "instead_of_delete": True,
+                },
+            )
+        out = InsteadOut(
+            kind=kind.key, item_id=body.item_id, label=label, action=action, changed=changed
+        )
+        return 200, out.model_dump(mode="json")
+
+    return _command(db, p, key, "trash.instead", body.model_dump(mode="json"), run)
 
 
 # ------------------------------------------------------------------ Trash bin

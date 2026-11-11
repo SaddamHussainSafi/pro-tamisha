@@ -1,5 +1,6 @@
 # ruff: noqa: F811 - pytest fixtures are imported and re-used by name
-"""Trash bin: website order-form entries (Order Connect). A converted entry is kept."""
+"""Trash bin: website order-form entries (Order Connect). A converted entry can go too; the
+sales order it became stays."""
 
 from .conftest import idem
 from .test_order_connect import (  # noqa: F401 - fixtures re-used
@@ -20,7 +21,7 @@ from .test_order_connect import (  # noqa: F401 - fixtures re-used
 P_TRASH = "/api/v1/trash"
 
 
-def test_website_entries_go_to_the_trash_unless_converted(owner, received, world):
+def test_website_entries_go_to_the_trash_even_converted(owner, received, world):
     assert owner.enroll_and_verify().status_code == 200
     r = owner.delete(f"{OC}/submissions/{received}", headers=idem())
     assert r.status_code == 200, r.text
@@ -40,6 +41,10 @@ def test_website_entries_go_to_the_trash_unless_converted(owner, received, world
         ),
         201,
     )
+    order_id = ok(owner.get(f"{OC}/submissions/{received}"))["sales_order_id"]
     r = owner.delete(f"{OC}/submissions/{received}", headers=idem())
-    assert r.status_code == 409 and code(r) == "NOT_DELETABLE"
-    assert "Erase its personal data" in r.json()["error"]["message"]
+    assert r.status_code == 200, r.text
+    assert owner.get(f"{OC}/submissions/{received}").status_code == 404
+    assert owner.get(f"/api/v1/sales-orders/{order_id}").status_code == 200
+    assert owner.post(f"{P_TRASH}/{r.json()['id']}/restore", headers=idem()).status_code == 200
+    assert ok(owner.get(f"{OC}/submissions/{received}"))["status"] == "CONVERTED"

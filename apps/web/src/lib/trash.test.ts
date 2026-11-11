@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError, type Session } from "../api";
-import { daysLeftText, deleteMode, recordLink, referenceLines, trashErrorText, twoStepReady } from "./trash";
+import { daysLeftText, deleteMode, insteadLabel, recordLink, referenceLine, referenceLines, trashErrorText, twoStepReady } from "./trash";
 
 const WH = "wh-1";
 function session(grants: [string, string | null][], mfa = { enrolled: true, required: false }): Session {
@@ -80,5 +80,19 @@ describe("helpers", () => {
     expect(trashErrorText(e)).toBe("Island Grocers can't be deleted while other records use it:");
     expect(referenceLines(new Error("x"))).toEqual([]);
     expect(trashErrorText(new ApiError(403, "TWO_STEP_REQUIRED", "x"))).toMatch(/two-step/);
+  });
+});
+
+describe("cascade preview", () => {
+  it("names what goes with a record", () => {
+    expect(referenceLine({ table: "ocr_extractions", noun: "OCR read", count: 2, examples: ["SCN-20261111-0020"] })).toBe(
+      "2 OCR reads (SCN-20261111-0020)",
+    );
+    expect(referenceLine({ table: "ocr_corrections", noun: "OCR correction", count: 1, examples: [] })).toBe("1 OCR correction");
+  });
+
+  it("labels the one-click alternative", () => {
+    expect(insteadLabel("deactivate", "customer")).toBe("Deactivate customer");
+    expect(insteadLabel("suspend", "user")).toBe("Suspend user");
   });
 });

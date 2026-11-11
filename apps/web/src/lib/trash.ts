@@ -44,6 +44,25 @@ export type DeleteRequest = {
   decision_note: string;
 };
 export type Reference = { table: string; noun: string; count: number; examples: string[] };
+/** What a delete would do, for the confirm dialog (GET /trash/preview/{kind}/{id}). */
+export type TrashPreview = {
+  kind: TrashKind;
+  item_id: string;
+  label: string;
+  deletable: boolean;
+  /** Why it can't be deleted (a state rule, or the records that keep it). */
+  message: string | null;
+  /** Moves to the Trash with it, and comes back on restore. */
+  goes_with: Reference[];
+  /** Stays, but loses its link to it (put back on restore). */
+  unlinked: Reference[];
+  /** Protected records (invoices, payments, stock, audit log) that keep it. */
+  blocked: Reference[];
+  /** One-click alternative when blocked. */
+  instead: InsteadAction | null;
+  hint?: string;
+};
+export type InsteadAction = "deactivate" | "suspend";
 
 export const TRASH_DAYS = 30;
 export const TRASH_PERMISSION = "trash.manage";
@@ -56,7 +75,7 @@ export const KIND_LABEL: Record<TrashKind, string> = {
   supplier: "Supplier",
   price_draft: "Price book draft",
   sales_order: "Sales order",
-  picking_sheet: "Picking sheet",
+  picking_sheet: "Packing sheet",
   scan: "Scan",
   document: "Document",
   user: "User",
@@ -117,7 +136,7 @@ export function recordLink(kind: TrashKind, id: string): string {
     case "sales_order":
       return `/orders/${id}`;
     case "picking_sheet":
-      return `/picking/${id}`;
+      return `/packing/${id}`;
     case "scan":
       return `/scan/${id}`;
     case "document":
@@ -149,14 +168,21 @@ export function daysLeftText(days: number): string {
   return days === 1 ? "1 day" : `${days} days`;
 }
 
-/** "3 sales orders (SO-1, SO-2)" lines from a 409 IN_USE answer. */
+/** "3 sales orders (SO-1, SO-2)". */
+export function referenceLine(r: Reference): string {
+  const noun = r.count === 1 ? r.noun : plural(r.noun);
+  return `${r.count} ${noun}${r.examples.length ? ` (${r.examples.join(", ")})` : ""}`;
+}
+
+/** One line per referencing record kind, from a 409 IN_USE answer. */
 export function referenceLines(e: unknown): string[] {
   if (!(e instanceof ApiError)) return [];
-  const refs = (e.extra.references ?? []) as Reference[];
-  return refs.map((r) => {
-    const noun = r.count === 1 ? r.noun : plural(r.noun);
-    return `${r.count} ${noun}${r.examples.length ? ` (${r.examples.join(", ")})` : ""}`;
-  });
+  return ((e.extra.references ?? []) as Reference[]).map(referenceLine);
+}
+
+/** "Deactivate product", "Suspend user". */
+export function insteadLabel(action: InsteadAction, kind: TrashKind): string {
+  return `${action === "suspend" ? "Suspend" : "Deactivate"} ${KIND_LABEL[kind].toLowerCase()}`;
 }
 
 function plural(word: string): string {
@@ -177,6 +203,14 @@ export function trashErrorText(e: unknown): string {
 
 export const trashApi = {
   move: (kind: TrashKind, id: string) => apiRequest<TrashItem>("DELETE", `${DELETE_PATH[kind]}/${id}`, undefined, true),
+  preview: (kind: TrashKind, id: string) => apiRequest<TrashPreview>("GET", `/trash/preview/${kind}/${id}`),
+  instead: (kind: TrashKind, id: string) =>
+    apiRequest<{ kind: TrashKind; item_id: string; label: string; action: InsteadAction; changed: boolean }>(
+      "POST",
+      "/trash/instead",
+      { kind, item_id: id },
+      true,
+    ),
   list: () => apiRequest<TrashItem[]>("GET", "/trash"),
   restore: (id: string) => apiRequest<{ kind: TrashKind; item_id: string; label: string }>("POST", `/trash/${id}/restore`, undefined, true),
   purge: (id: string) => apiRequest<{ purged: number }>("DELETE", `/trash/${id}`, undefined, true),

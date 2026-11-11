@@ -5,20 +5,28 @@ the Trash. That removes the record, and the rows that belong to it, from the liv
 other screen or query has to know about the Trash. Every removed row is kept in `trash_items`
 until the record is restored, deleted forever, or purged automatically after 30 days.
 
-A record can be trashed only while nothing else references it: every foreign key in the schema
-that points at one of the removed rows is counted (cascading keys excepted), plus a few
-references that are not foreign keys. Anything found turns into a 409 naming what uses it.
-Kind-specific rules (only draft orders, only aborted picking sheets, never invoice PDFs, ...)
-are checked here and again by the DB guard triggers, which let a DELETE through only while
-`pro_trading.trash` is on for the transaction (set and cleared by `_delete_rows`).
+What depends on the record goes with it (migration 0026). Every foreign key that points at a
+removed row is followed (`EDGES`): rows that only exist for it are taken into the same Trash
+item (a scan's OCR reads, a customer's uninvoiced orders), loose links are cleared and put back
+on restore (customers of a deleted group), and anything in the protected books - invoices,
+payments, the stock ledger, shipments, the audit log - refuses the delete with a 409 IN_USE
+that names it and says what to do instead (deactivate, suspend, void). Keys not listed refuse
+too, so a new table never gets swept along by accident. `preview` answers the same question
+without changing anything, for the confirm dialog.
+
+Kind-specific rules (only aborted picking sheets, only finished scans, never invoice PDFs, ...)
+are checked here; the DB guard triggers let a DELETE (or a link being cleared) through only while
+`pro_trading.trash` is on for the transaction (set and cleared by `_trash_mode`).
 
 Other staff cannot trash anything; they file a delete request that the Super Admin approves
 (the record moves to the Trash) or dismisses.
 """
 
 import base64
+import functools
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
@@ -27,7 +35,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from . import audit
@@ -71,7 +79,6 @@ from .order_connect.models import (
     OrderFormSubmission,
     OrderFormSubmissionEvent,
     OrderFormSubmissionItem,
-    OrderFormVersion,
 )
 from .permissions import SUPER_ADMIN
 
@@ -160,6 +167,8 @@ class Kind:
     company: Callable[[Session, Any], uuid.UUID] = lambda _db, o: o.company_id  # noqa: E731
     leftover_doc: Callable[[Any], uuid.UUID | None] | None = None  # source document to take
     prepare: Callable[[Session, Any], None] | None = None  # just before the rows are deleted
+    # When protected records refuse the delete: (one-click action or None, what to do instead).
+    instead: tuple[str | None, str] | None = None
 
 
 def _product_label(db: Session, p: Product) -> str:
@@ -193,33 +202,19 @@ def _price_rules(db: Session, me: uuid.UUID, v: PriceBookVersion) -> None:
         )
 
 
-def _order_rules(db: Session, me: uuid.UUID, o: SalesOrder) -> None:
-    if o.status != "DRAFT":
-        raise _refuse(
-            f"Order {o.order_no} is {o.status.lower().replace('_', ' ')}. Only draft orders can "
-            "be deleted; cancel or close it instead."
-        )
-
-
 def _pick_rules(db: Session, me: uuid.UUID, a: PickingAttempt) -> None:
     if a.status != "ABORTED":
         if a.status in ("CREATED", "IN_PROGRESS", "SUBMITTED", "NEEDS_CORRECTION"):
-            raise _refuse(f"Picking sheet {a.pick_code} is still open. Abort it first.")
-        raise _refuse(f"Picking sheet {a.pick_code} is {a.status.lower()} and is kept.")
+            raise _refuse(f"Packing sheet {a.pick_code} is still open. Abort it first.")
+        raise _refuse(
+            f"Packing sheet {a.pick_code} is {a.status.lower()} and stays with its order. "
+            "Delete the order to take it with it."
+        )
 
 
 def _pick_refs(db: Session, a: PickingAttempt) -> list[dict[str, Any]]:
-    out = []
     n = db.scalar(sa.select(sa.func.count()).where(StockMovement.source_id == a.id)) or 0
-    if n:
-        out.append(_ref("stock_movements", n))
-    n = (
-        db.scalar(sa.select(sa.func.count()).where(SalesOrderAmendment.pick_attempt_id == a.id))
-        or 0
-    )
-    if n:
-        out.append(_ref("sales_order_amendments", n))
-    return out
+    return [_ref("stock_movements", n)] if n else []
 
 
 def _scan_rules(db: Session, me: uuid.UUID, j: ScanJob) -> None:
@@ -267,26 +262,6 @@ def _entry_label(db: Session, s: OrderFormSubmission) -> str:
     return f"{s.reference} — {who}" if who else s.reference
 
 
-def _entry_rules(db: Session, me: uuid.UUID, s: OrderFormSubmission) -> None:
-    if s.status == "CONVERTED":
-        o = db.get(SalesOrder, s.sales_order_id) if s.sales_order_id else None
-        raise _refuse(
-            f"{s.reference} became sales order {o.order_no if o else ''}".rstrip()
-            + ". Erase its personal data instead."
-        )
-
-
-def _product_refs(db: Session, p: Product) -> list[dict[str, Any]]:
-    rows = db.scalars(
-        sa.select(OrderFormVersion.title).where(
-            OrderFormVersion.company_id == p.company_id,
-            OrderFormVersion.product_scope == "PRODUCTS",
-            OrderFormVersion.scope_ids.contains([str(p.id)]),
-        )
-    ).all()
-    return [_ref("order_form_versions", len(rows), list(rows[:3]))] if rows else []
-
-
 def _product_prepare(db: Session, p: Product) -> None:
     # The default-case-size guard (migration 0020) protects a lone case size; the product's
     # own default goes with the product. The snapshot was taken first, so a restore keeps it.
@@ -296,6 +271,11 @@ def _product_prepare(db: Session, p: Product) -> None:
         .values(is_default=False)
     )
 
+
+_DEACTIVATE = (
+    "deactivate",
+    "Deactivate it instead: it stays on past records but can't be used for anything new.",
+)
 
 KINDS: dict[str, Kind] = {
     k.key: k
@@ -310,8 +290,8 @@ KINDS: dict[str, Kind] = {
                 Child(ProductAlias, "product_id"),
                 Child(ProductUnitProfile, "product_id"),
             ),
-            extra_refs=_product_refs,
             prepare=_product_prepare,
+            instead=_DEACTIVATE,
         ),
         Kind(
             "case_size",
@@ -322,7 +302,14 @@ KINDS: dict[str, Kind] = {
             rules=_case_rules,
             company=_case_company,
         ),
-        Kind("customer", Customer, "customer", lambda _db, c: c.name, "catalog.manage"),
+        Kind(
+            "customer",
+            Customer,
+            "customer",
+            lambda _db, c: c.name,
+            "catalog.manage",
+            instead=_DEACTIVATE,
+        ),
         Kind(
             "customer_group",
             CustomerGroup,
@@ -330,7 +317,14 @@ KINDS: dict[str, Kind] = {
             lambda _db, g: f"{g.name} ({g.code})",
             "catalog.manage",
         ),
-        Kind("supplier", Vendor, "supplier", lambda _db, v: v.name, "catalog.manage"),
+        Kind(
+            "supplier",
+            Vendor,
+            "supplier",
+            lambda _db, v: v.name,
+            "catalog.manage",
+            instead=_DEACTIVATE,
+        ),
         Kind(
             "price_draft",
             PriceBookVersion,
@@ -347,17 +341,18 @@ KINDS: dict[str, Kind] = {
             lambda _db, o: f"Order {o.order_no}",
             "sales_order.manage",
             children=(Child(SalesOrderLine, "order_id"),),
-            rules=_order_rules,
+            instead=(None, "An invoiced order stays with its invoice."),
         ),
         Kind(
             "picking_sheet",
             PickingAttempt,
-            "picking sheet",
-            lambda _db, a: f"Picking sheet {a.pick_code}",
+            "packing sheet",
+            lambda _db, a: f"Packing sheet {a.pick_code}",
             "sales_order.manage",
             children=(Child(PickingLine, "attempt_id"),),
             rules=_pick_rules,
             extra_refs=_pick_refs,
+            instead=(None, "A packing sheet that was invoiced stays with its invoice."),
         ),
         Kind(
             "scan",
@@ -365,9 +360,9 @@ KINDS: dict[str, Kind] = {
             "scan",
             lambda _db, j: f"Scan {j.job_no}",
             "scan.create",
-            children=(Child(DocumentFile, "scan_job_id", DocumentFile.kind == "SCAN"),),
             rules=_scan_rules,
             leftover_doc=lambda j: j.document_id,
+            instead=(None, "A scan filed as a shipment's receiving paperwork stays with it."),
         ),
         Kind(
             "document",
@@ -393,6 +388,10 @@ KINDS: dict[str, Kind] = {
                 Child(NotificationRecipient, "employee_id", keep=False),
             ),
             rules=_user_rules,
+            instead=(
+                "suspend",
+                "Suspend them instead: they can't sign in, and their name stays on their work.",
+            ),
         ),
         Kind(
             "notification",
@@ -412,7 +411,6 @@ KINDS: dict[str, Kind] = {
                 Child(OrderFormSubmissionItem, "submission_id"),
                 Child(OrderFormSubmissionEvent, "submission_id"),
             ),
-            rules=_entry_rules,
         ),
     )
 }
@@ -459,6 +457,11 @@ RESTORE_SKIP = {"notification_recipients": {"seq"}}
 _SECRET_HINTS = ("password", "secret", "token", "_hash", "nonce", "content")
 
 
+def _generated(t: sa.Table) -> set[str]:
+    """Identity columns the database always numbers itself (e.g. scan event ids)."""
+    return {c.name for c in t.c if c.identity is not None and c.identity.always}
+
+
 def _public(row: dict[str, Any]) -> dict[str, Any]:
     return {
         k: v
@@ -467,12 +470,29 @@ def _public(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+@dataclass(frozen=True)
+class Unlink:
+    """A row that stays but pointed at a removed row: the link is cleared, and put back on
+    restore (when nothing else took its place)."""
+
+    table: sa.Table
+    row: dict[str, Any]
+    column: str
+
+    def pk(self) -> dict[str, Any]:
+        return {c.name: self.row[c.name] for c in self.table.primary_key.columns}
+
+
 @dataclass
 class Removal:
-    """Rows to remove, in insert (restore) order, plus rows dropped without being kept."""
+    """Rows to remove, in insert (restore) order, rows dropped without being kept, links to
+    clear, and what refuses the delete (protected records pointing at it)."""
 
     rows: list[tuple[sa.Table, dict[str, Any]]] = field(default_factory=list)
     dropped: list[tuple[sa.Table, dict[str, Any]]] = field(default_factory=list)
+    unlinks: list[Unlink] = field(default_factory=list)
+    blocked: list[dict[str, Any]] = field(default_factory=list)
+    found: list[str] = field(default_factory=list)  # tables in the order they were reached
 
     def by_table(self) -> dict[str, list[dict[str, Any]]]:
         out: dict[str, list[dict[str, Any]]] = {}
@@ -483,6 +503,10 @@ class Removal:
 
 def _rows(db: Session, table: sa.Table, where: Any) -> list[dict[str, Any]]:
     return [dict(r) for r in db.execute(sa.select(table).where(where)).mappings()]
+
+
+def _key(t: sa.Table, r: dict[str, Any]) -> tuple[str, tuple[Any, ...]]:
+    return t.name, tuple(r[c.name] for c in t.primary_key.columns)
 
 
 def _collect(db: Session, kind: Kind, obj: Any) -> Removal:
@@ -498,40 +522,280 @@ def _collect(db: Session, kind: Kind, obj: Any) -> Removal:
     return rm
 
 
-# ------------------------------------------------------------------ references
+# ------------------------------------------------------------------ what goes with it
+
+CASCADE, UNLINK, PROTECT = "cascade", "unlink", "protect"
+Split = Callable[[Session, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]
+
+
+@dataclass(frozen=True)
+class Edge:
+    policy: str
+    split: Split | None = None  # per-row policy, e.g. only lines on draft orders go
+    hint: str = ""  # what to do instead, when the split protects some rows
+
+
+def _no_invoice_pdf(db: Session, rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        PROTECT: [r for r in rows if r["kind"] == "INVOICE_PDF"],
+        CASCADE: [r for r in rows if r["kind"] != "INVOICE_PDF"],
+    }
+
+
+def _draft_lines(db: Session, rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    drafts = set(
+        db.scalars(
+            sa.select(SalesOrder.id).where(
+                SalesOrder.id.in_({r["order_id"] for r in rows}), SalesOrder.status == "DRAFT"
+            )
+        )
+    )
+    return {
+        CASCADE: [r for r in rows if r["order_id"] in drafts],
+        PROTECT: [r for r in rows if r["order_id"] not in drafts],
+    }
+
+
+_FILED = Edge(CASCADE, _no_invoice_pdf)
+
+# (referencing table, column) -> what happens to its rows when the row they point at goes.
+# A foreign key not listed here refuses the delete (or, for ON DELETE CASCADE keys, is left to
+# the database). The protected books - invoices, payments, allocations, supplier payments,
+# stock movements/lots/balances, receiving, shipments, the audit log - are never listed.
+EDGES: dict[tuple[str, str], Edge] = {
+    # a scan: its OCR reads (fields, corrections), Gmail imports, events and filed copies
+    ("ocr_extractions", "scan_job_id"): Edge(CASCADE),
+    ("ocr_fields", "extraction_id"): Edge(CASCADE),
+    ("ocr_corrections", "field_id"): Edge(CASCADE),
+    ("gmail_processing_jobs", "scan_job_id"): Edge(CASCADE),
+    ("scan_events", "scan_job_id"): Edge(CASCADE),
+    ("document_files", "scan_job_id"): _FILED,
+    # a customer: its orders (with picking sheets and changes), website entries, filed
+    # documents and prices; a supplier: its filed documents
+    ("sales_orders", "customer_id"): Edge(CASCADE),
+    ("sales_order_lines", "order_id"): Edge(CASCADE),
+    ("sales_order_amendments", "order_id"): Edge(CASCADE),
+    ("sales_order_amendments", "line_id"): Edge(CASCADE),
+    ("picking_attempts", "order_id"): Edge(CASCADE),
+    ("picking_lines", "attempt_id"): Edge(CASCADE),
+    ("picking_lines", "order_line_id"): Edge(CASCADE),
+    ("order_form_submissions", "sales_order_id"): Edge(CASCADE),
+    ("order_form_submissions", "customer_id"): Edge(CASCADE),
+    ("order_form_submission_items", "submission_id"): Edge(CASCADE),
+    ("order_form_submission_events", "submission_id"): Edge(CASCADE),
+    ("document_files", "customer_id"): _FILED,
+    ("document_files", "vendor_id"): _FILED,
+    ("price_entries", "customer_id"): Edge(CASCADE),
+    ("price_entries", "group_id"): Edge(CASCADE),
+    ("price_entries", "product_id"): Edge(CASCADE),
+    ("price_entries", "version_id"): Edge(CASCADE),
+    # a product: aliases, case sizes, prices and its lines on draft orders
+    ("product_aliases", "product_id"): Edge(CASCADE),
+    ("product_unit_profiles", "product_id"): Edge(CASCADE),
+    ("sales_order_lines", "product_id"): Edge(CASCADE, _draft_lines, "Delete those orders first."),
+    # loose links: the row stays, the link is cleared and put back on restore
+    ("ocr_extractions", "customer_id"): Edge(UNLINK),
+    ("ocr_extractions", "vendor_id"): Edge(UNLINK),
+    ("ocr_extractions", "sales_order_id"): Edge(UNLINK),
+    ("ocr_fields", "read_product_id"): Edge(UNLINK),
+    ("ocr_fields", "final_product_id"): Edge(UNLINK),
+    ("gmail_processing_jobs", "extraction_id"): Edge(UNLINK),
+    ("order_form_submission_items", "product_id"): Edge(UNLINK),
+    ("order_form_submissions", "possible_duplicate_of"): Edge(UNLINK),
+    ("customers", "group_id"): Edge(UNLINK),
+    ("price_book_versions", "based_on_id"): Edge(UNLINK),
+}
+
+# References that are not foreign keys: target table -> (table, column, edge).
+SOFT_EDGES: dict[str, list[tuple[Any, str, Edge]]] = {
+    "picking_attempts": [(SalesOrderAmendment, "pick_attempt_id", Edge(UNLINK))],
+}
+
+
+@functools.cache
+def _incoming() -> dict[str, list[tuple[sa.Table, sa.ForeignKey]]]:
+    out: dict[str, list[tuple[sa.Table, sa.ForeignKey]]] = {}
+    for t in Base.metadata.sorted_tables:
+        for fk in t.foreign_keys:
+            out.setdefault(fk.column.table.name, []).append((t, fk))
+    return out
+
+
+@functools.cache
+def _table_order() -> dict[str, int]:
+    return {t.name: i for i, t in enumerate(Base.metadata.sorted_tables)}
+
+
+def _self_fks(t: sa.Table) -> list[sa.ForeignKey]:
+    return [fk for fk in t.foreign_keys if fk.column.table is t]
+
+
+def _insert_order(rows: list[tuple[sa.Table, dict[str, Any]]]) -> list[tuple[sa.Table, Any]]:
+    """Parents before children: tables in dependency order, and within a table that points
+    at itself (website entries marked as duplicates) the original before its duplicates."""
+    order = _table_order()
+    out: list[tuple[sa.Table, dict[str, Any]]] = []
+    by: dict[str, list[tuple[sa.Table, dict[str, Any]]]] = {}
+    for t, r in rows:
+        by.setdefault(t.name, []).append((t, r))
+    for name in sorted(by, key=lambda n: order.get(n, -1)):
+        group = by[name]
+        fks = _self_fks(group[0][0])
+        if not fks:
+            out += group
+            continue
+        placed: set[Any] = set()
+        ids = {r[fk.column.name] for _, r in group for fk in fks}
+        while group:
+            ready = [
+                (t, r)
+                for t, r in group
+                if all(
+                    r[fk.parent.name] is None
+                    or r[fk.parent.name] in placed
+                    or not any(x[fk.column.name] == r[fk.parent.name] for _, x in group)
+                    for fk in fks
+                )
+            ] or group  # a loop can't happen with these keys; never spin
+            for _, r in ready:
+                placed |= {r[fk.column.name] for fk in fks if r[fk.column.name] in ids}
+            out += ready
+            group = [x for x in group if x not in ready]
+    return out
+
+
+def _expand(db: Session, rm: Removal) -> None:
+    """Follow every reference to the removed rows: take, unlink or refuse (see `EDGES`)."""
+    seen = {_key(t, r) for t, r in [*rm.rows, *rm.dropped]}
+    unlinks: dict[tuple[Any, ...], Unlink] = {}
+    blocked: list[tuple[sa.Table, list[dict[str, Any]], str]] = []
+    pending = rm.by_table()
+
+    def handle(
+        other: sa.Table, column: str, edge: Edge | None, found: list[dict[str, Any]]
+    ) -> None:
+        found = [r for r in found if _key(other, r) not in seen]
+        if not found:
+            return
+        if edge is None:
+            blocked.append((other, found, ""))
+            return
+        parts = edge.split(db, found) if edge.split else {edge.policy: found}
+        for policy, part in parts.items():
+            if not part:
+                continue
+            if policy == CASCADE:
+                for r in part:
+                    seen.add(_key(other, r))
+                rm.rows.extend((other, r) for r in part)
+                pending.setdefault(other.name, []).extend(part)
+            elif policy == UNLINK:
+                for r in part:
+                    u = Unlink(other, r, column)
+                    unlinks[(*_key(other, r), column)] = u
+            else:
+                blocked.append((other, part, edge.hint))
+
+    while pending:
+        name, rows = pending.popitem()
+        for other, fk in _incoming().get(name, []):
+            vals = {r[fk.column.name] for r in rows if r[fk.column.name] is not None}
+            if not vals:
+                continue
+            edge = EDGES.get((other.name, fk.parent.name))
+            if edge is None and fk.ondelete == "CASCADE":
+                continue
+            handle(other, fk.parent.name, edge, _rows(db, other, fk.parent.in_(vals)))
+        for model, column, edge in SOFT_EDGES.get(name, []):
+            other = model.__table__
+            ids = {r["id"] for r in rows}
+            handle(other, column, edge, _rows(db, other, other.c[column].in_(ids)))
+
+    # A row taken through one key keeps all its links; one refused earlier but taken later
+    # (a confirmed order's lines, when the whole order goes) is no longer in the way.
+    rm.unlinks = [u for u in unlinks.values() if _key(u.table, u.row) not in seen]
+    rm.found = list(dict.fromkeys(t.name for t, _ in rm.rows))
+    rm.rows = _insert_order(rm.rows)
+    merged: dict[str, dict[str, Any]] = {}
+    for other, part, hint in blocked:
+        part = [r for r in part if _key(other, r) not in seen]
+        if not part:
+            continue
+        ref = _summarise(db, other, part)
+        m = merged.setdefault(other.name, {**ref, "count": 0, "examples": [], "hint": hint})
+        m["count"] += ref["count"]
+        m["examples"] = list(dict.fromkeys([*m["examples"], *ref["examples"]]))[:3]
+        m["hint"] = m["hint"] or hint
+    rm.blocked = list(merged.values())
+
+
+def _live_refs(db: Session, table: sa.Table, rows: list[dict[str, Any]], rm: Removal) -> bool:
+    """Does any row that stays point at these rows?"""
+    gone = {_key(t, r) for t, r in [*rm.rows, *rm.dropped]}
+    for other, fk in _incoming().get(table.name, []):
+        if fk.ondelete == "CASCADE":
+            continue
+        vals = {r[fk.column.name] for r in rows if r[fk.column.name] is not None}
+        if vals and any(_key(other, r) not in gone for r in _rows(db, other, fk.parent.in_(vals))):
+            return True
+    return False
+
+
+# ------------------------------------------------------------------ naming what goes
 
 NOUNS = {
     "audit_events": ("audit log entry", None),
     "auth_tokens": ("invitation or reset link they sent", None),
     "customers": ("customer", "name"),
     "document_files": ("filed document", "filename"),
+    "email_messages": ("invoice email", None),
+    "gmail_processing_jobs": ("Gmail import", None),
     "grn_lines": ("receiving line", None),
     "inventory_balances": ("stock balance", None),
     "inventory_lots": ("stock lot", "lot_code"),
+    "invoice_documents": ("invoice PDF", None),
     "invoice_lines": ("invoice line", None),
     "invoices": ("invoice", "invoice_no"),
+    "ocr_corrections": ("OCR correction", None),
     "ocr_extractions": ("OCR read", None),
-    "ocr_fields": ("OCR field", None),
+    "ocr_fields": ("OCR line", None),
+    "order_form_submission_events": ("website entry event", None),
     "order_form_submission_items": ("website order item", None),
     "order_form_submissions": ("website order entry", "reference"),
     "order_form_versions": ("order form", "title"),
+    "payment_allocations": ("payment allocation", None),
+    "payment_reminders": ("payment reminder", None),
     "payments": ("payment", "reference"),
-    "picking_attempts": ("picking sheet", "pick_code"),
-    "picking_lines": ("picking line", None),
+    "picking_attempts": ("packing sheet", "pick_code"),
+    "picking_lines": ("packing sheet line", None),
     "price_book_versions": ("price book", "version_code"),
     "price_entries": ("price", None),
+    "product_aliases": ("alias", "alias"),
+    "product_unit_profiles": ("case size", "code"),
     "products": ("product", "sku"),
     "sales_order_amendments": ("order change", None),
-    "sales_order_lines": ("sales order line", None),
+    "sales_order_lines": ("order line", None),
     "sales_orders": ("sales order", "order_no"),
+    "scan_events": ("scan event", None),
     "scan_jobs": ("scan", "job_no"),
     "shipment_declared_lines": ("declared shipment line", None),
     "shipment_documents": ("shipment document", None),
     "shipments": ("shipment", "shipment_no"),
+    "source_documents": ("scanned file", "filename"),
     "stock_movements": ("stock movement", None),
     "supplier_payments": ("supplier payment", "reference"),
     "trash_items": ("item they moved to the Trash", None),
     "delete_requests": ("delete request", None),
+}
+# Rows without a name of their own are shown by the record they belong to.
+VIA = {
+    "sales_order_lines": ("order_id", SalesOrder.__table__, "order_no"),
+    "sales_order_amendments": ("order_id", SalesOrder.__table__, "order_no"),
+    "picking_lines": ("attempt_id", PickingAttempt.__table__, "pick_code"),
+    "ocr_extractions": ("scan_job_id", ScanJob.__table__, "job_no"),
+    "gmail_processing_jobs": ("scan_job_id", ScanJob.__table__, "job_no"),
+    "order_form_submission_items": ("submission_id", OrderFormSubmission.__table__, "reference"),
+    "price_entries": ("version_id", PriceBookVersion.__table__, "version_code"),
 }
 
 
@@ -548,58 +812,53 @@ def _ref(table: str, count: int, examples: list[str] | None = None) -> dict[str,
     return {"table": table, "noun": noun, "count": count, "examples": examples or []}
 
 
-def _references(db: Session, rm: Removal) -> list[dict[str, Any]]:
-    """Every non-cascading foreign key that points at a removed row from a row that stays."""
-    removed = rm.by_table()
-    tables = {t.name: t for t, _ in [*rm.rows, *rm.dropped]}
-    out: list[dict[str, Any]] = []
-    for name, rows in removed.items():
-        target = tables[name]
-        for other in Base.metadata.sorted_tables:
-            for fk in other.foreign_keys:
-                if fk.column.table is not target or fk.ondelete == "CASCADE":
-                    continue
-                vals = {r[fk.column.name] for r in rows if r[fk.column.name] is not None}
-                if not vals:
-                    continue
-                cond: Any = fk.parent.in_(vals)
-                pk = list(other.primary_key.columns)
-                if other.name in removed and len(pk) == 1:
-                    gone = {r[pk[0].name] for r in removed[other.name]}
-                    cond = sa.and_(cond, pk[0].not_in(gone))
-                n = db.scalar(sa.select(sa.func.count()).select_from(other).where(cond)) or 0
-                if not n:
-                    continue
-                col = NOUNS.get(other.name, ("", None))[1]
-                ex: list[str] = []
-                if col and col in other.c:
-                    ex = [
-                        str(v)
-                        for v in db.scalars(sa.select(other.c[col]).where(cond).distinct().limit(3))
-                        if v is not None
-                    ]
-                out.append(_ref(other.name, n, ex))
-    # The same table can point at us through several columns (e.g. created_by, approved_by).
-    merged: dict[str, dict[str, Any]] = {}
-    for r in out:
-        m = merged.setdefault(r["table"], {**r, "count": 0, "examples": []})
-        m["count"] += r["count"]
-        m["examples"] = list(dict.fromkeys([*m["examples"], *r["examples"]]))[:3]
-    return list(merged.values())
+def _summarise(db: Session, t: sa.Table, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    col = NOUNS.get(t.name, ("", None))[1]
+    examples: list[str] = []
+    if col and col in t.c:
+        examples = [str(r[col]) for r in rows if r.get(col) is not None]
+    elif t.name in VIA:
+        fk_col, parent, label = VIA[t.name]
+        ids = list(dict.fromkeys(r[fk_col] for r in rows if r.get(fk_col) is not None))[:10]
+        if ids:
+            q = sa.select(parent.c.id, parent.c[label]).where(parent.c.id.in_(ids))
+            names = dict(db.execute(q).all())
+            examples = [str(names[i]) for i in ids if names.get(i) is not None]
+    return _ref(t.name, len(rows), list(dict.fromkeys(examples))[:3])
 
 
-def _in_use_error(label: str, refs: list[dict[str, Any]]) -> ApiError:
+def _group(db: Session, pairs: list[tuple[sa.Table, dict[str, Any]]]) -> list[dict[str, Any]]:
+    by: dict[str, tuple[sa.Table, list[dict[str, Any]]]] = {}
+    for t, r in pairs:
+        by.setdefault(t.name, (t, []))[1].append(r)
+    return [_summarise(db, t, rows) for t, rows in by.values()]
+
+
+def _ref_text(refs: list[dict[str, Any]]) -> str:
     parts = []
     for r in refs:
         s = f"{r['count']} {_plural(r['noun'], r['count'])}"
         if r["examples"]:
             s += f" ({', '.join(r['examples'])})"
         parts.append(s)
+    return "; ".join(parts)
+
+
+def _instead(kind: Kind, refs: list[dict[str, Any]]) -> tuple[str | None, str]:
+    hints = [r["hint"] for r in refs if r.get("hint")]
+    action, text_ = kind.instead or (None, "")
+    return action, " ".join(dict.fromkeys([*hints, text_])).strip()
+
+
+def _in_use_error(kind: Kind, label: str, refs: list[dict[str, Any]]) -> ApiError:
+    action, hint = _instead(kind, refs)
     return ApiError(
         409,
         "IN_USE",
-        f"{label} can't be deleted: it is used by {'; '.join(parts)}.",
+        f"{label} can't be deleted: it is used by {_ref_text(refs)}. {hint}".strip(),
         references=refs,
+        hint=hint,
+        instead=action,
     )
 
 
@@ -609,14 +868,11 @@ def _take_leftover_doc(db: Session, rm: Removal, doc_id: uuid.UUID | None) -> No
         return
     t: sa.Table = SourceDocument.__table__  # type: ignore[assignment]
     rows = _rows(db, t, t.c.id == doc_id)
-    if not rows:
-        return
-    trial = Removal([(t, rows[0]), *rm.rows], rm.dropped)
-    if _references(db, trial):
+    if not rows or _live_refs(db, t, rows, rm):
         return
     if db.scalar(sa.select(sa.func.count()).where(SalesOrder.source_document_id == doc_id)):
         return
-    rm.rows.insert(0, (t, rows[0]))
+    rm.rows = _insert_order([(t, rows[0]), *rm.rows])
 
 
 # ------------------------------------------------------------------ service
@@ -653,27 +909,109 @@ def load(db: Session, kind: Kind, company_id: uuid.UUID, item_id: uuid.UUID) -> 
     return obj
 
 
-def check(db: Session, kind: Kind, me: uuid.UUID, obj: Any) -> Removal:
-    """Raise 409 when the record can't go to the Trash; else return what would be removed."""
+def plan(db: Session, kind: Kind, me: uuid.UUID, obj: Any) -> Removal:
+    """What moving the record to the Trash takes with it, unlinks, and is refused by. Changes
+    nothing; raises 409 NOT_DELETABLE when the record's own state rules it out."""
     if kind.rules:
         kind.rules(db, me, obj)
     rm = _collect(db, kind, obj)
-    refs = _references(db, rm) + (kind.extra_refs(db, obj) if kind.extra_refs else [])
-    if refs:
-        raise _in_use_error(kind.label(db, obj), refs)
-    if kind.leftover_doc:
+    _expand(db, rm)
+    if kind.extra_refs:
+        rm.blocked += kind.extra_refs(db, obj)
+    if not rm.blocked and kind.leftover_doc:
         _take_leftover_doc(db, rm, kind.leftover_doc(obj))
     return rm
 
 
-def _delete_rows(db: Session, rm: Removal) -> None:
+def check(db: Session, kind: Kind, me: uuid.UUID, obj: Any) -> Removal:
+    """Raise 409 when the record can't go to the Trash; else return what would be removed."""
+    rm = plan(db, kind, me, obj)
+    if rm.blocked:
+        raise _in_use_error(kind, kind.label(db, obj), rm.blocked)
+    return rm
+
+
+def _unlinked_rows(rm: Removal) -> list[tuple[sa.Table, dict[str, Any]]]:
+    rows: dict[Any, tuple[sa.Table, dict[str, Any]]] = {}
+    for u in rm.unlinks:
+        rows.setdefault(_key(u.table, u.row), (u.table, u.row))
+    return list(rows.values())
+
+
+def preview(db: Session, kind: Kind, me: uuid.UUID, obj: Any) -> dict[str, Any]:
+    """For the confirm dialog: everything that goes with the record, the links that are
+    cleared, or what refuses it and what to do instead."""
+    label = kind.label(db, obj)
+    out: dict[str, Any] = {
+        "label": label,
+        "deletable": True,
+        "message": None,
+        "goes_with": [],
+        "unlinked": [],
+        "blocked": [],
+        "instead": None,
+    }
+    try:
+        rm = plan(db, kind, me, obj)
+    except ApiError as e:
+        return {**out, "deletable": False, "message": e.message}
+    if rm.blocked:
+        err = _in_use_error(kind, label, rm.blocked)
+        return {
+            **out,
+            "deletable": False,
+            "message": err.message,
+            "blocked": rm.blocked,
+            "instead": err.extra["instead"],
+            "hint": err.extra["hint"],
+        }
+    main = _key(kind.model.__table__, {"id": obj.id})
+    goes = _group(db, [(t, r) for t, r in rm.rows if _key(t, r) != main])
+    rank = {name: i for i, name in enumerate(rm.found)}  # direct dependants first
+    out["goes_with"] = sorted(goes, key=lambda g: rank.get(g["table"], len(rank)))
+    out["unlinked"] = _group(db, _unlinked_rows(rm))
+    return out
+
+
+@contextmanager
+def _trash_mode(db: Session) -> Iterator[None]:
+    """The DB guard triggers let a delete, or a link being cleared or put back, through only
+    while this is on (migrations 0020 and 0026)."""
     db.execute(sa.text("SELECT set_config('pro_trading.trash', 'on', true)"))
     try:
-        for t, r in [*rm.dropped, *reversed(rm.rows)]:
-            pk = list(t.primary_key.columns)
-            db.execute(sa.delete(t).where(*[c == r[c.name] for c in pk]))
+        yield
     finally:
         db.execute(sa.text("SELECT set_config('pro_trading.trash', 'off', true)"))
+
+
+def _set_link(db: Session, t: sa.Table, pk: dict[str, Any], column: str, value: Any) -> int:
+    # Plain SQL: an ORM/Core update would also stamp onupdate columns (updated_at, version).
+    # Table and column names come from the schema metadata, never from a request.
+    assert column in t.c and all(k in t.c for k in pk)
+    where = " AND ".join(f'"{k}" = :pk_{k}' for k in pk)
+    guard = "" if value is None else f' AND "{column}" IS NULL'  # never undo a newer link
+    res = db.execute(
+        sa.text(f'UPDATE "{t.name}" SET "{column}" = :v WHERE {where}{guard}'),  # noqa: S608
+        {"v": value, **{f"pk_{k}": v for k, v in pk.items()}},
+    )
+    return int(res.rowcount or 0)  # type: ignore[attr-defined]
+
+
+def _delete_rows(db: Session, rm: Removal) -> None:
+    try:
+        with _trash_mode(db), db.begin_nested():
+            for u in rm.unlinks:
+                _set_link(db, u.table, u.pk(), u.column, None)
+            for t, r in [*rm.dropped, *reversed(rm.rows)]:
+                pk = list(t.primary_key.columns)
+                db.execute(sa.delete(t).where(*[c == r[c.name] for c in pk]))
+    except IntegrityError:
+        raise ApiError(
+            409,
+            "IN_USE",
+            "Something new started using this record while it was being deleted. Try again.",
+            references=[],
+        ) from None
 
 
 def existing(db: Session, company_id: uuid.UUID, kind: str, item_id: uuid.UUID) -> TrashItem | None:
@@ -706,7 +1044,20 @@ def move_to_trash(
     table = kind.model.__table__
     main = next(r for t, r in rm.rows if t is table and r["id"] == obj.id)
     snapshot = {k: _enc(v) for k, v in _public(main).items()}
-    payload = [{"t": t.name, "r": {k: _enc(v) for k, v in r.items()}} for t, r in rm.rows]
+    payload: list[dict[str, Any]] = [
+        {"t": t.name, "r": {k: _enc(v) for k, v in r.items()}} for t, r in rm.rows
+    ]
+    payload += [
+        {
+            "t": u.table.name,
+            "u": {
+                "pk": {k: _enc(v) for k, v in u.pk().items()},
+                "c": u.column,
+                "v": _enc(u.row[u.column]),
+            },
+        }
+        for u in rm.unlinks
+    ]
     db.expunge(obj)
     if kind.prepare:
         kind.prepare(db, obj)
@@ -739,6 +1090,9 @@ def move_to_trash(
     for t, r in [*rm.rows, *rm.dropped]:
         if r is not main:
             counts[t.name] = counts.get(t.name, 0) + 1
+    unlinked: dict[str, int] = {}
+    for t, _ in _unlinked_rows(rm):
+        unlinked[t.name] = unlinked.get(t.name, 0) + 1
     audit.record(
         db,
         action="trash.moved",
@@ -754,6 +1108,7 @@ def move_to_trash(
             "trash_id": str(item.id),
             "snapshot": snapshot,
             "removed_with_it": counts,
+            "unlinked": unlinked,
             "purge_after": item.purge_after.isoformat(),
         },
     )
@@ -765,7 +1120,7 @@ def _warehouse(snapshot: dict[str, Any]) -> uuid.UUID | None:
     return uuid.UUID(w) if w else None
 
 
-def _restore_error(item: TrashItem, e: IntegrityError) -> ApiError:
+def _restore_error(item: TrashItem, e: DBAPIError) -> ApiError:
     diag = getattr(e.orig, "diag", None)
     constraint = getattr(diag, "constraint_name", None) or ""
     detail = getattr(diag, "message_detail", None) or ""
@@ -792,15 +1147,24 @@ def _restore_error(item: TrashItem, e: IntegrityError) -> ApiError:
 
 
 def restore(db: Session, item: TrashItem, actor_id: uuid.UUID, request_id: str | None) -> None:
+    """Put every kept row back, in the order it was taken, then the cleared links."""
     tables = Base.metadata.tables
     try:
-        with db.begin_nested():
+        with _trash_mode(db), db.begin_nested():
             for entry in item.payload:
+                if "r" not in entry:
+                    continue
                 t = tables[entry["t"]]
-                skip = RESTORE_SKIP.get(t.name, set())
+                skip = RESTORE_SKIP.get(t.name, set()) | _generated(t)
                 values = {k: _dec(t.c[k], v) for k, v in entry["r"].items() if k not in skip}
                 db.execute(sa.insert(t).values(values))
-    except IntegrityError as e:
+            for entry in item.payload:
+                if "u" not in entry:
+                    continue
+                t, u = tables[entry["t"]], entry["u"]
+                pk = {k: _dec(t.c[k], v) for k, v in u["pk"].items()}
+                _set_link(db, t, pk, u["c"], _dec(t.c[u["c"]], u["v"]))
+    except DBAPIError as e:
         raise _restore_error(item, e) from None
     audit.record(
         db,

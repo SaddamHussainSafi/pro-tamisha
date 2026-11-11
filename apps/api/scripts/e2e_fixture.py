@@ -5,6 +5,8 @@ Usage: uv run python scripts/e2e_fixture.py [--sheet PATH] [--paper-sheet PATH]
 --sheet also writes a hand-filled synthetic PT-OS-1 order sheet (customer C-1001) for OCR tests.
 --paper-sheet loads the office order-sheet catalog and writes a synthetic, sideways, image-only
 scan of the office's paper order sheet (TT-PAPER-1) with a few quantities filled in.
+--scan-with-reads adds an uploaded order-sheet scan that was read twice (two OCR reads, read
+in-process with the fake engine, never a real one), for the Trash cascade test.
 """
 
 import json
@@ -12,12 +14,21 @@ import secrets
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
 
-from pro_trading import ocr, paper_sheet
+from pro_trading import documents, ocr, paper_sheet, scanning
 from pro_trading.bootstrap import ensure_default_roles, sync_permissions
 from pro_trading.config import get_settings
 from pro_trading.db import get_sessionmaker
-from pro_trading.models import Company, Customer, Employee, EmployeeRole, Warehouse
+from pro_trading.models import (
+    Company,
+    Customer,
+    Employee,
+    EmployeeRole,
+    OutboxEvent,
+    ScanJob,
+    Warehouse,
+)
 from pro_trading.security import hash_password
 from pro_trading.seed import (
     seed_catalog,
@@ -26,6 +37,40 @@ from pro_trading.seed import (
     seed_pricing,
     seed_vendors,
 )
+
+
+def _scan_with_reads(db: Any, co: Company, wh: Warehouse, owner: Employee) -> dict[str, str]:
+    cust = db.query(Customer).filter_by(company_id=co.id, external_ref="C-1001").one()
+    pdf = ocr.order_sheet_pdf(db, cust, wh, co.legal_name, fills={"CFZ": "6"})
+    doc, _ = scanning.store_document(
+        db, co.id, pdf, "application/pdf", "trash-sheet.pdf", owner.id, "MANUAL"
+    )
+    t = scanning.now()
+    job = ScanJob(
+        company_id=co.id,
+        warehouse_id=wh.id,
+        job_no=scanning.next_job_no(db, co.id),
+        job_type="SALES_ORDER",
+        channel="MANUAL",
+        status="UPLOADED",
+        requested_by=owner.id,
+        document_id=doc.id,
+        claimed_at=t,
+        completed_at=t,
+    )
+    db.add(job)
+    db.flush()
+    documents.file_scan(db, job, doc)
+    settings = get_settings()
+    engine, settings.ocr_provider = settings.ocr_provider, "fake"
+    try:
+        for _ in range(2):  # read, then read again: two OCR reads use the scan
+            ex = ocr.queue(db, job, owner.id)
+            ocr.run_extraction(db, ex, 1, 1)
+            db.query(OutboxEvent).filter_by(aggregate_id=str(ex.id)).update({"status": "PROCESSED"})
+    finally:
+        settings.ocr_provider = engine
+    return {"id": str(job.id), "job_no": job.job_no}
 
 
 def main() -> int:
@@ -84,6 +129,8 @@ def main() -> int:
             with open(path, "wb") as fh:
                 fh.write(pdf)
             out["sheet"] = path
+        if "--scan-with-reads" in sys.argv:
+            out["scan"] = _scan_with_reads(db, co, wh, emps["owner"])
         if "--paper-sheet" in sys.argv:
             path = sys.argv[sys.argv.index("--paper-sheet") + 1]
             sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # run as a script

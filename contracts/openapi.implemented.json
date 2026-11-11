@@ -5211,6 +5211,93 @@
         "title": "HistoryEntry",
         "type": "object"
       },
+      "InsteadIn": {
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "item_id"
+        ],
+        "title": "InsteadIn",
+        "type": "object"
+      },
+      "InsteadOut": {
+        "properties": {
+          "action": {
+            "enum": [
+              "deactivate",
+              "suspend"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "item_id",
+          "label",
+          "action",
+          "changed"
+        ],
+        "title": "InsteadOut",
+        "type": "object"
+      },
       "InvoiceDraftLineOut": {
         "properties": {
           "billed_qty": {
@@ -11711,6 +11798,107 @@
         "title": "PrefsOut",
         "type": "object"
       },
+      "PreviewOut": {
+        "properties": {
+          "blocked": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "title": "Blocked",
+            "type": "array"
+          },
+          "deletable": {
+            "title": "Deletable",
+            "type": "boolean"
+          },
+          "goes_with": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "title": "Goes With",
+            "type": "array"
+          },
+          "hint": {
+            "default": "",
+            "title": "Hint",
+            "type": "string"
+          },
+          "instead": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deactivate",
+                  "suspend"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instead"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "unlinked": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "title": "Unlinked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "item_id",
+          "label",
+          "deletable",
+          "message",
+          "goes_with",
+          "unlinked",
+          "blocked",
+          "instead"
+        ],
+        "title": "PreviewOut",
+        "type": "object"
+      },
       "PriceDiffOut": {
         "properties": {
           "added": {
@@ -13512,6 +13700,37 @@
           "recovery_codes"
         ],
         "title": "RecoveryCodesOut",
+        "type": "object"
+      },
+      "RefOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "noun": {
+            "title": "Noun",
+            "type": "string"
+          },
+          "table": {
+            "title": "Table",
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "noun",
+          "count",
+          "examples"
+        ],
+        "title": "RefOut",
         "type": "object"
       },
       "ReservationIn": {
@@ -33228,6 +33447,129 @@
           }
         },
         "summary": "Empty Trash",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/trash/instead": {
+      "post": {
+        "description": "The one-click alternative offered when protected records keep a record out of the\nTrash: deactivate the product, customer or supplier; suspend the user.",
+        "operationId": "do_instead_api_v1_trash_instead_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsteadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsteadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Do Instead",
+        "tags": [
+          "trash"
+        ]
+      }
+    },
+    "/api/v1/trash/preview/{kind}/{item_id}": {
+      "get": {
+        "description": "Everything that would move to the Trash with the record, the links that would be\ncleared, or what refuses it and what to do instead. Changes nothing.",
+        "operationId": "preview_api_v1_trash_preview__kind___item_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "product",
+                "case_size",
+                "customer",
+                "customer_group",
+                "supplier",
+                "price_draft",
+                "sales_order",
+                "picking_sheet",
+                "scan",
+                "document",
+                "user",
+                "notification",
+                "website_entry"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
         "tags": [
           "trash"
         ]
