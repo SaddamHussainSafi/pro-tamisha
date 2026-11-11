@@ -188,12 +188,12 @@ KINDS: dict[str, Kind] = {
         lambda lk, r: lk.order(r.target_id), _to("/orders"),
     ),
     "pick.submit": Kind(
-        "packed an order", "Picking", "stock", "boxes",
-        lambda lk, r: lk.pick(r.target_id), _to("/picking"),
+        "packed an order", "Packing", "stock", "boxes",
+        lambda lk, r: lk.pick(r.target_id), _to("/packing"),
     ),
     "pick.verify": Kind(
-        "checked a pick sheet", "Picking", "success", "check",
-        lambda lk, r: lk.pick(r.target_id), _to("/picking"),
+        "checked a packing sheet", "Packing", "success", "check",
+        lambda lk, r: lk.pick(r.target_id), _to("/packing"),
     ),
     "invoice.issue": Kind(
         "created an invoice", "Invoice Created", "info", "invoices",
@@ -282,12 +282,13 @@ def _trash_verb(kind: Kind, r: Row) -> str:
 # ------------------------------------------------------------------ batched lookups
 
 _LINK = re.compile(
-    r"^/(products|orders|picking|invoices|payments|receiving|customers)/([0-9a-f-]{36})$"
+    r"^/(products|orders|packing|picking|invoices|payments|receiving|customers)/([0-9a-f-]{36})$"
 )
 _LINK_TABLE = {
     "products": "product",
     "orders": "order",
-    "picking": "pick",
+    "packing": "pick",
+    "picking": "pick",  # links saved before the rename to "Packing"
     "invoices": "invoice",
     "payments": "payment",
     "receiving": "shipment",

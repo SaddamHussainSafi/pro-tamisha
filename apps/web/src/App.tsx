@@ -158,9 +158,11 @@ export function App() {
           <Route path="online-orders/settings" element={<OcSettingsPage />} />
           {/* Old "Order Connect" links (saved notifications, trash entries, bookmarks). */}
           <Route path="order-connect/*" element={<OldOnlineOrdersLink />} />
-          <Route path="picking" element={<PickingPage />} />
-          <Route path="picking/:id" element={<PickSheetPage />} />
-          <Route path="picking/:id/invoice" element={<IssueInvoicePage />} />
+          <Route path="packing" element={<PickingPage />} />
+          <Route path="packing/:id" element={<PickSheetPage />} />
+          <Route path="packing/:id/invoice" element={<IssueInvoicePage />} />
+          {/* "Picking" was renamed "Packing": old /picking links (notifications, bookmarks) still open. */}
+          <Route path="picking/*" element={<OldPickingLink />} />
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="invoices/new" element={<NewInvoicePage />} />
           <Route path="invoices/:id" element={<InvoicePage />} />
@@ -202,6 +204,12 @@ function OldOnlineOrdersLink() {
   const { pathname, search } = useLocation();
   const rest = pathname.replace(/^\/order-connect/, "").replace(/^\/submissions/, "/requests");
   return <Navigate to={`/online-orders${rest}${search}`} replace />;
+}
+
+/** "Picking sheet" was renamed "Packing sheet": /picking/x → /packing/x. */
+function OldPickingLink() {
+  const { pathname, search } = useLocation();
+  return <Navigate to={`${pathname.replace(/^\/picking/, "/packing")}${search}`} replace />;
 }
 
 /** Old /pricing/:id links keep working. */

@@ -43,11 +43,11 @@ const done = (page: Page) => page.locator("section[aria-labelledby='scan-done']"
 test("a sideways picking sheet comes up as product lines to review; the same file again still opens them", async ({ page }) => {
   test.setTimeout(150_000);
   await signIn(page);
-  await page.getByLabel("Document type").selectOption({ label: "Picking sheet" });
+  await page.getByLabel("Document type").selectOption({ label: "Packing sheet" });
   await page.getByTestId("scan-upload").setInputFiles({ name: "picking-sheet.pdf", mimeType: "application/pdf", buffer: sheet });
 
   await expect(page.getByRole("heading", { name: "Scan completed successfully" })).toBeVisible({ timeout: 30_000 });
-  await expect(done(page).getByText("Picking sheet", { exact: true })).toBeVisible();
+  await expect(done(page).getByText("Packing sheet", { exact: true })).toBeVisible();
   await expect(done(page).locator("dt", { hasText: "Pages" }).locator("..")).toContainText("1");
   await expect(page.getByRole("button", { name: "Review lines" })).toBeVisible({ timeout: 90_000 });
 

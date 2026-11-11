@@ -159,7 +159,7 @@ export const STATE: Record<ProcessingState, { tone: Tone; label: string }> = {
 };
 
 export const CATEGORIES: { value: GmailCategory; label: string }[] = [
-  { value: "PICK_SHEET", label: "Picking sheet" },
+  { value: "PICK_SHEET", label: "Packing sheet" },
   { value: "SALES_ORDER", label: "Sales order" },
   { value: "VENDOR_DOCUMENT", label: "Supplier invoice" },
   { value: "PURCHASE_ORDER", label: "Purchase order" },

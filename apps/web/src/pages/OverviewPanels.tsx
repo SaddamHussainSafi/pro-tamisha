@@ -79,7 +79,7 @@ export function OverviewPanels({ orders }: { orders: OrderSummary[] }) {
           )}
         </ScrollPanel>
       )}
-      <ScrollPanel id="ov-waiting" title="Orders waiting on the warehouse" to="/picking" className="xl:col-span-6">
+      <ScrollPanel id="ov-waiting" title="Orders waiting on the warehouse" to="/packing" className="xl:col-span-6">
         {waiting.length ? (
           <ul className="divide-y divide-line">
             {waiting.map((o) => (
@@ -95,7 +95,7 @@ export function OverviewPanels({ orders }: { orders: OrderSummary[] }) {
             ))}
           </ul>
         ) : (
-          <EmptyState title="Nothing waiting" hint="Confirmed orders show here until they are picked." />
+          <EmptyState title="Nothing waiting" hint="Confirmed orders show here until they are packed." />
         )}
       </ScrollPanel>
       {late && (

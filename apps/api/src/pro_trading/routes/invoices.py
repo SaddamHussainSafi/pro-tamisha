@@ -77,7 +77,7 @@ def _already(db: Session, pick_id: uuid.UUID) -> None:
         raise ApiError(
             409,
             "ALREADY_INVOICED",
-            "This picking sheet has already been invoiced",
+            "This packing sheet has already been invoiced",
             invoice_id=str(existing),
         )
 
@@ -91,7 +91,7 @@ def preview_invoice(
     if not (p.can("invoice.prepare", a.warehouse_id) or p.can("invoice.issue", a.warehouse_id)):
         authorize(request, p, "invoice.prepare", a.warehouse_id)
     _already(db, a.id)
-    state(a, ("VERIFIED",), "Picking sheet")
+    state(a, ("VERIFIED",), "Packing sheet")
     o = get_order(db, p, a.order_id)
     customer = db.get(Customer, o.customer_id)
     assert customer is not None
@@ -140,8 +140,8 @@ def issue_invoice(
         o, a = _locked(db, p, pick_id)
         if a.status == "INVOICED":
             _already(db, a.id)
-        state(a, ("VERIFIED",), "Picking sheet")
-        check_version(a.version, body.version, "Picking sheet")
+        state(a, ("VERIFIED",), "Packing sheet")
+        check_version(a.version, body.version, "Packing sheet")
         invoice = svc.issue(
             db, p.employee, o, a, _weights(body), body.note.strip(),
             body.salesperson, body.customer_po,
@@ -164,7 +164,7 @@ def issue_invoice(
         201,
         "invoice.issue",
         fn,
-        "This picking sheet has already been invoiced",
+        "This packing sheet has already been invoiced",
     )
 
 
@@ -320,7 +320,7 @@ def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrde
     o = insert_order(
         db, p,
         OrderIn(customer_id=body.customer_id, warehouse_id=body.warehouse_id, source="MANUAL",
-                source_text="Direct invoice (no picking sheet)", note=body.note, lines=lines),
+                source_text="Direct invoice (no packing sheet)", note=body.note, lines=lines),
     )  # fmt: skip
     at = osvc.now()
     osvc.price_lines(db, p.company_id, o, at)
@@ -337,7 +337,7 @@ def _direct(db: Session, p: Principal, body: DirectInvoiceIn) -> tuple[SalesOrde
         submitted_at=at,
         verified_by=p.employee.id,
         verified_at=at,
-        status_note="Direct invoice: no picking sheet",
+        status_note="Direct invoice: no packing sheet",
     )
     db.add(a)
     db.flush()

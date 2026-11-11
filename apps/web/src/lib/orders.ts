@@ -5,7 +5,7 @@ import { cad, dec, mul } from "./decimal";
 export const ORDER_STATUS: Record<OrderStatus, { tone: Tone; label: string }> = {
   DRAFT: { tone: "neutral", label: "Draft" },
   CONFIRMED: { tone: "info", label: "Confirmed" },
-  PICKING: { tone: "warning", label: "Picking" },
+  PICKING: { tone: "warning", label: "Packing" },
   PARTIALLY_FULFILLED: { tone: "warning", label: "Partly supplied" },
   FULFILLED: { tone: "success", label: "Fulfilled" },
   CLOSED_WITH_SHORTAGE: { tone: "neutral", label: "Closed short" },
@@ -13,8 +13,8 @@ export const ORDER_STATUS: Record<OrderStatus, { tone: Tone; label: string }> = 
 };
 
 export const PICK_STATUS: Record<PickStatus, { tone: Tone; label: string }> = {
-  CREATED: { tone: "info", label: "To pick" },
-  IN_PROGRESS: { tone: "warning", label: "Picking" },
+  CREATED: { tone: "info", label: "To pack" },
+  IN_PROGRESS: { tone: "warning", label: "Packing" },
   SUBMITTED: { tone: "warning", label: "Awaiting check" },
   NEEDS_CORRECTION: { tone: "danger", label: "Needs correction" },
   VERIFIED: { tone: "success", label: "Verified" },
@@ -76,9 +76,9 @@ export function ordersMessage(err: unknown): string {
     case "EXCEEDS_PENDING":
       return x.pending !== undefined ? `Only ${String(x.pending)} is still pending.` : err.message;
     case "AWAITING_INVOICE":
-      return "Picked goods are waiting to be invoiced. Invoice them before closing the order.";
+      return "Packed goods are waiting to be invoiced. Invoice them before closing the order.";
     case "ORDER_HAS_PICKS":
-      return "This order has been picked. Close it with a shortage reason instead.";
+      return "This order has been packed. Close it with a shortage reason instead.";
     case "VERSION_CONFLICT":
       return "Someone else changed this record. The latest data has been loaded — review and retry.";
     case "INVALID_STATE":

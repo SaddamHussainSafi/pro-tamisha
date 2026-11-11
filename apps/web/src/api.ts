@@ -462,8 +462,14 @@ export type PickLine = {
   lot_code: string | null;
   weight_lb: string | null;
   note: string;
+  /** Packing sheet UNITS column: CASE-40, PIECE, LB… (the invoice's case-size rule). */
+  units: string;
+  /** Packing sheet REMARKS: the order line's note, then the picker's. */
+  remarks: string;
 };
 export type Pick = Omit<PickSummary, "line_count" | "verified_at"> & {
+  /** The order's date (YYYY-MM-DD), printed in the sheet's Date box. */
+  order_date: string;
   warehouse_id: string;
   status_note: string;
   created_by_name: string | null;
@@ -1351,6 +1357,8 @@ export const orderSheetUrl = (customerId: string, warehouseId: string) =>
 export const documentContentUrl = (id: string) => `/api/v1/documents/${id}/content`;
 
 export const invoicePdfUrl = (id: string) => `/api/v1/invoices/${id}/pdf`;
+/** Packing sheet PDF to print: `copies` identical copies (default 2), each on its own pages. */
+export const packingSheetPdfUrl = (pickId: string, copies = 2) => `/api/v1/pick-attempts/${pickId}/sheet.pdf?copies=${copies}`;
 
 export const priceCsvUrl = (versionId?: string) =>
   versionId ? `/api/v1/price-books/versions/${versionId}/export.csv` : "/api/v1/price-books/template.csv";

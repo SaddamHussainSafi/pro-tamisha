@@ -54,7 +54,7 @@ test("the sidebar gains one entry and nothing else about it changes", async ({ p
   await signIn(page);
   const nav = page.getByRole("navigation", { name: /main|primary/i }).first();
   const labels = (await nav.getByRole("link").allTextContents()).map((s) => s.trim()).filter(Boolean);
-  const want = ["Overview", "Orders", "Invoices", "Payments", "Online Orders", "Picking", "Inventory", "Receiving", "Scan Center", "Gmail Inbox", "Products", "Customers", "Suppliers", "Reports", "Documents", "Activity"];
+  const want = ["Overview", "Orders", "Invoices", "Payments", "Online Orders", "Packing", "Inventory", "Receiving", "Scan Center", "Gmail Inbox", "Products", "Customers", "Suppliers", "Reports", "Documents", "Activity"];
   expect(labels.filter((l) => want.includes(l))).toEqual(want);
   await nav.getByRole("link", { name: "Gmail Inbox" }).click();
   await expect(page).toHaveURL(/\/gmail$/);
@@ -181,9 +181,9 @@ test("Create invoice keeps its two ways and gains Pick from Gmail", async ({ pag
   await signIn(page);
   await page.goto("/invoices/new");
   const how = page.getByRole("navigation", { name: "How to invoice" });
-  await expect(how.getByRole("link")).toHaveText(["From a picking sheet", "Pick from Gmail", "Direct invoice (no picking sheet)"]);
-  await expect(page.getByRole("heading", { name: "Picking sheets ready to invoice" })).toBeVisible();
-  await how.getByRole("link", { name: "Direct invoice (no picking sheet)" }).click();
+  await expect(how.getByRole("link")).toHaveText(["From a packing sheet", "Pick from Gmail", "Direct invoice (no packing sheet)"]);
+  await expect(page.getByRole("heading", { name: "Packing sheets ready to invoice" })).toBeVisible();
+  await how.getByRole("link", { name: "Direct invoice (no packing sheet)" }).click();
   await expect(page.getByRole("heading", { name: "Direct invoice" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Invoice lines" })).toBeVisible();
 

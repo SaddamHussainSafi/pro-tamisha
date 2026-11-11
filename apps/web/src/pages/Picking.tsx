@@ -1,10 +1,12 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, canInWarehouse, type Disposition, type Pick, type PickStatus, type PickSummary, type ShortageReason } from "../api";
 import { useAuth } from "../auth";
+import { PackingPaper, PackingPrintCopies } from "../components/packing/PackingPaper";
 import { qtyText, wholeOnly } from "../lib/inventory";
 import { ordersMessage, PICK_STATUS, pickOutcome, SHORTAGE_LABEL } from "../lib/orders";
+import { PACKING_COPIES, printPackingSheet } from "../lib/packing";
 import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { DeleteAction } from "../ui/DeleteAction";
@@ -17,7 +19,7 @@ const PickChip = ({ status }: { status: PickStatus }) => <StatusChip tone={PICK_
 
 type Queue = "todo" | "check" | "done" | "all";
 const QUEUES: { value: Queue; label: string }[] = [
-  { value: "todo", label: "To pick" },
+  { value: "todo", label: "To pack" },
   { value: "check", label: "Awaiting check" },
   { value: "done", label: "Done" },
   { value: "all", label: "All" },
@@ -51,22 +53,22 @@ export function PickingPage() {
   useTrashChanges(load);
 
   const columns: Column<PickSummary>[] = [
-    { key: "c", header: "Sheet", cell: (r) => <Link className={link} to={`/picking/${r.id}`}>{r.pick_code}</Link>, sort: (r) => r.pick_code },
+    { key: "c", header: "Sheet", cell: (r) => <Link className={link} to={`/packing/${r.id}`}>{r.pick_code}</Link>, sort: (r) => r.pick_code },
     { key: "o", header: "Order", cell: (r) => r.order_no },
     { key: "cu", header: "Customer", cell: (r) => r.customer_name },
     { key: "l", header: "Lines", align: "right", cell: (r) => <span className="num">{r.line_count}</span> },
     { key: "s", header: "Status", cell: (r) => <PickChip status={r.status} /> },
     { key: "t", header: "Created", cell: (r) => new Date(r.created_at).toLocaleString(), sort: (r) => r.created_at },
     // Only voided sheets can be deleted. The summary has no warehouse id, so the server makes the per-warehouse check.
-    { key: "delete", header: "", align: "right", cell: (r) => (r.status === "ABORTED" ? <DeleteAction kind="picking_sheet" id={r.id} label={`Picking sheet ${r.pick_code}`} compact /> : null) },
+    { key: "delete", header: "", align: "right", cell: (r) => (r.status === "ABORTED" ? <DeleteAction kind="picking_sheet" id={r.id} label={`Packing sheet ${r.pick_code}`} compact /> : null) },
   ];
   return (
     <div className="space-y-5">
-      <PageHeader title="Picking" subtitle="Scan or type a sheet code to open it. Record what was actually packed." />
+      <PageHeader title="Packing" subtitle="Scan or type a sheet code to open it. Record what was actually packed." />
       <FilterBar search={code} onSearch={setCode} options={QUEUES} value={queue} onChange={setQueue} placeholder="Sheet code (scan QR)" />
       <section className="card overflow-clip">
         {error ? (
-          <ErrorState title="Couldn't load picking sheets" onRetry={() => void load()} />
+          <ErrorState title="Couldn't load packing sheets" onRetry={() => void load()} />
         ) : rows === null ? (
           <LoadingRows cols={7} />
         ) : (
@@ -74,9 +76,9 @@ export function PickingPage() {
             rows={rows}
             columns={columns}
             rowKey={(r) => r.id}
-            caption={`Picking sheets (${rows.length})`}
-            onOpen={(r) => nav(`/picking/${r.id}`)}
-            empty={<EmptyState title="Nothing in this queue" hint="Sheets appear when an order's picking sheet is printed." />}
+            caption={`Packing sheets (${rows.length})`}
+            onOpen={(r) => nav(`/packing/${r.id}`)}
+            empty={<EmptyState title="Nothing in this queue" hint="Sheets appear when an order's packing sheet is printed." />}
           />
         )}
       </section>
@@ -85,6 +87,11 @@ export function PickingPage() {
 }
 
 type Entry = { qty: string; reason: ShortageReason | "" };
+type View = "record" | "paper";
+const VIEWS: { value: View; label: string }[] = [
+  { value: "record", label: "Record packing" },
+  { value: "paper", label: "Paper sheet" },
+];
 
 export function PickSheetPage() {
   const { id = "" } = useParams();
@@ -98,6 +105,9 @@ export function PickSheetPage() {
   const [saved, setSaved] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"none" | "submit" | "verify" | "return" | "abort">("none");
   const [reason, setReason] = useState("");
+  const [search, setSearch] = useSearchParams();
+  const view: View = search.get("view") === "paper" ? "paper" : "record";
+  const [printing, setPrinting] = useState(false);
 
   const apply = (x: Pick) => {
     setP(x);
@@ -145,7 +155,7 @@ export function PickSheetPage() {
   };
 
   if (!session) return null;
-  if (loadErr) return <ErrorState title="Couldn't load this picking sheet" onRetry={() => void load()} />;
+  if (loadErr) return <ErrorState title="Couldn't load this packing sheet" onRetry={() => void load()} />;
   if (!p) return <PageSkeleton />;
   const canRecord = canInWarehouse(session, "pick.record", p.warehouse_id) && ["CREATED", "IN_PROGRESS", "NEEDS_CORRECTION"].includes(p.status);
   const canVerify = canInWarehouse(session, "pick.verify", p.warehouse_id) && p.status === "SUBMITTED";
@@ -169,26 +179,49 @@ export function PickSheetPage() {
     if (lines.length === 0) return setError("Enter at least one packed quantity.");
     void run(() => api.recordPick(p.id, p.version, lines), "Quantities saved.");
   };
+  const print = async () => {
+    setError(null);
+    setPrinting(true);
+    try {
+      await printPackingSheet(p.id);
+    } catch {
+      setError("Couldn't prepare the packing sheet for printing. Try again.");
+    } finally {
+      setPrinting(false);
+    }
+  };
+  const setView = (v: View) =>
+    setSearch(
+      (q) => {
+        const n = new URLSearchParams(q);
+        if (v === "paper") n.set("view", "paper");
+        else n.delete("view");
+        return n;
+      },
+      { replace: true },
+    );
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title={`Picking sheet ${p.pick_code}`}
+        title={`Packing sheet ${p.pick_code}`}
         subtitle={<>Order <Link className={link} to={`/orders/${p.order_id}`}>{p.order_no}</Link> · {p.customer_name} · <PickChip status={p.status} /></>}
         actions={
           <>
-            <button className="btn-ghost print:hidden" onClick={() => window.print()}>Print</button>
+            <button className="btn-ghost print:hidden" onClick={() => void print()} disabled={printing} title={`Prints ${PACKING_COPIES} copies of the sheet, every page`}>
+              {printing ? "Preparing…" : `Print (${PACKING_COPIES} copies)`}
+            </button>
             {p.status === "ABORTED" && (
               <span className="contents print:hidden">
-                <DeleteAction kind="picking_sheet" id={p.id} label={`Picking sheet ${p.pick_code}`} warehouseId={p.warehouse_id} onDone={() => nav("/picking")} />
+                <DeleteAction kind="picking_sheet" id={p.id} label={`Packing sheet ${p.pick_code}`} warehouseId={p.warehouse_id} onDone={() => nav("/packing")} />
               </span>
             )}
             {canAbort && <button className="btn-ghost print:hidden" onClick={() => setDialog("abort")}>Void sheet</button>}
             {canVerify && <button className="btn-ghost print:hidden" onClick={() => setDialog("return")}>Send back</button>}
-            {canVerify && <button className="btn-primary print:hidden" onClick={() => setDialog("verify")}>Verify pick</button>}
+            {canVerify && <button className="btn-primary print:hidden" onClick={() => setDialog("verify")}>Verify packing</button>}
             {canRecord && complete && <button className="btn-primary print:hidden" onClick={() => setDialog("submit")}>Submit for check</button>}
             {p.status === "VERIFIED" && (canInWarehouse(session, "invoice.prepare", p.warehouse_id) || canInWarehouse(session, "invoice.issue", p.warehouse_id)) && (
-              <Link className="btn-primary print:hidden" to={`/picking/${p.id}/invoice`}>Prepare invoice</Link>
+              <Link className="btn-primary print:hidden" to={`/packing/${p.id}/invoice`}>Prepare invoice</Link>
             )}
             {p.status === "INVOICED" && <InvoiceLink pickId={p.id} />}
           </>
@@ -197,10 +230,36 @@ export function PickSheetPage() {
       {p.status === "NEEDS_CORRECTION" && p.status_note && <p className="alert-warning" role="status">Sent back: {p.status_note}</p>}
       {error && <p className="alert-danger" role="alert">{error}</p>}
       {saved && <p className="alert-success" role="status">{saved}</p>}
+      <PackingPrintCopies p={p} />
+      <div role="group" aria-label="Sheet view" className="inline-flex rounded-full border border-line bg-card p-1">
+        {VIEWS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={view === o.value}
+            onClick={() => setView(o.value)}
+            className={`cursor-pointer rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${view === o.value ? "bg-brand-secondary text-white" : "text-ink hover:bg-subtle"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {view === "paper" ? (
+        <section aria-label="Paper sheet preview" className="space-y-2">
+          <p className="text-sm text-ink-muted">
+            This is the sheet as it prints. Print gives {PACKING_COPIES} copies, each on its own pages; leave Copies at 1 in the print dialog.
+          </p>
+          <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-subtle p-3 sm:p-6">
+            <div className="mx-auto w-fit shadow-[0_1px_3px_rgb(24_24_27/0.12)]">
+              <PackingPaper p={p} />
+            </div>
+          </div>
+        </section>
+      ) : (
       <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
-        <section className="card overflow-x-auto p-0" aria-label="Pick lines">
+        <section className="card overflow-x-auto p-0" aria-label="Packing lines">
           <table className="w-full">
-            <caption className="sr-only">Pick lines</caption>
+            <caption className="sr-only">Packing lines</caption>
             <thead>
               <tr>
                 <th className="th">#</th>
@@ -243,7 +302,7 @@ export function PickSheetPage() {
                       )}
                     </td>
                     <td className="td">
-                      {outcome === "PICKED" && <StatusChip tone="success">Picked</StatusChip>}
+                      {outcome === "PICKED" && <StatusChip tone="success">Packed</StatusChip>}
                       {outcome === "SHORT" && <StatusChip tone="warning">Short</StatusChip>}
                       {outcome === "NO" && <StatusChip tone="danger">NO</StatusChip>}
                       {!canRecord && l.shortage_reason && <span className="ml-2 text-xs text-ink-muted">{SHORTAGE_LABEL[l.shortage_reason]}</span>}
@@ -278,11 +337,12 @@ export function PickSheetPage() {
           <span className="num text-sm font-semibold">{p.pick_code}</span>
           <ul className="w-full space-y-1 text-xs text-ink-muted">
             <li>Printed by {p.created_by_name ?? "—"}</li>
-            {p.picked_by_name && <li>Picked by {p.picked_by_name}</li>}
+            {p.picked_by_name && <li>Packed by {p.picked_by_name}</li>}
             {p.verified_by_name && <li>Verified by {p.verified_by_name}</li>}
           </ul>
         </aside>
       </div>
+      )}
 
       <ConfirmDialog open={dialog === "submit"} title="Submit for checking?" confirmLabel="Submit" onClose={() => setDialog("none")} onConfirm={() => void run(() => api.submitPick(p.id, p.version), "Submitted for checking.")}>
         A supervisor checks the packed quantities before an invoice can be made.
@@ -292,18 +352,18 @@ export function PickSheetPage() {
           open={dialog === "verify"}
           title="Verify and cancel shortfall?"
           body="Cancelled shortfall will not be supplied later. Other shortfall stays pending."
-          confirmLabel="Verify pick"
+          confirmLabel="Verify packing"
           reason={reason}
           setReason={setReason}
           onClose={() => setDialog("none")}
-          onConfirm={() => void run(() => api.verifyPick(p.id, { version: p.version, dispositions, reason }), "Pick verified.")}
+          onConfirm={() => void run(() => api.verifyPick(p.id, { version: p.version, dispositions, reason }), "Packing verified.")}
         />
       ) : (
-        <ConfirmDialog open={dialog === "verify"} title="Verify this pick?" confirmLabel="Verify pick" onClose={() => setDialog("none")} onConfirm={() => void run(() => api.verifyPick(p.id, { version: p.version, dispositions, reason: "" }), "Pick verified.")}>
+        <ConfirmDialog open={dialog === "verify"} title="Verify this packing?" confirmLabel="Verify packing" onClose={() => setDialog("none")} onConfirm={() => void run(() => api.verifyPick(p.id, { version: p.version, dispositions, reason: "" }), "Packing verified.")}>
           Packed quantities become ready to invoice. Any shortfall stays pending for this customer.
         </ConfirmDialog>
       )}
-      <ReasonDialog open={dialog === "return"} title="Send back for correction?" body="The picker will see your note and can fix the quantities." confirmLabel="Send back" reason={reason} setReason={setReason} onClose={() => setDialog("none")} onConfirm={() => void run(() => api.returnPick(p.id, p.version, reason), "Sent back to picker.")} />
+      <ReasonDialog open={dialog === "return"} title="Send back for correction?" body="The packer will see your note and can fix the quantities." confirmLabel="Send back" reason={reason} setReason={setReason} onClose={() => setDialog("none")} onConfirm={() => void run(() => api.returnPick(p.id, p.version, reason), "Sent back to picker.")} />
       <ReasonDialog open={dialog === "abort"} title="Void this sheet?" body="Nothing on it will be invoiced. You can print a new sheet from the order." confirmLabel="Void sheet" reason={reason} setReason={setReason} onClose={() => setDialog("none")} onConfirm={() => void run(() => api.abortPick(p.id, p.version, reason), "Sheet voided.")} />
     </div>
   );

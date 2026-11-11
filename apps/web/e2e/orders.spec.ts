@@ -37,7 +37,7 @@ async function optionValue(page: Page, select: string, text: string) {
   return (await opt.getAttribute("value")) ?? "";
 }
 
-test("sales captures 15 boxes, confirms (price frozen) and prints a picking sheet", async ({ page }) => {
+test("sales captures 15 boxes, confirms (price frozen) and prints a packing sheet", async ({ page }) => {
   await signIn(page, fx.users.sales);
   await page.getByRole("link", { name: /Orders/ }).first().click();
   await expect(page.getByRole("heading", { name: "Sales orders" })).toBeVisible();
@@ -70,19 +70,19 @@ test("sales captures 15 boxes, confirms (price frozen) and prints a picking shee
   await axe(page);
   await page.screenshot({ path: "screenshots/orders-detail-1440.png", fullPage: true });
 
-  await page.getByRole("button", { name: "Print picking sheet" }).click();
+  await page.getByRole("button", { name: "Print packing sheet" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Create sheet" }).click();
-  await expect(page.getByRole("heading", { name: /^Picking sheet SO-/ })).toBeVisible();
-  pickCode = ((await page.getByRole("heading", { name: /^Picking sheet/ }).textContent()) ?? "").replace("Picking sheet ", "");
+  await expect(page.getByRole("heading", { name: /^Packing sheet SO-/ })).toBeVisible();
+  pickCode = ((await page.getByRole("heading", { name: /^Packing sheet/ }).textContent()) ?? "").replace("Packing sheet ", "");
   await expect(page.getByRole("img", { name: `QR code ${pickCode}` })).toBeVisible();
   // Sales cannot record quantities or verify.
   await expect(page.getByRole("button", { name: "Save quantities" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Verify pick" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Verify packing" })).toHaveCount(0);
 });
 
 test("warehouse packs 10 of 15, records why, and submits", async ({ page }) => {
   await signIn(page, fx.users.warehouse);
-  await page.getByRole("link", { name: /Picking/ }).first().click();
+  await page.getByRole("link", { name: /Packing/ }).first().click();
   await page.getByPlaceholder("Sheet code (scan QR)").fill(pickCode);
   await page.getByRole("link", { name: pickCode }).click();
 
@@ -95,16 +95,16 @@ test("warehouse packs 10 of 15, records why, and submits", async ({ page }) => {
   await page.getByRole("button", { name: "Save quantities" }).click();
   await expect(page.getByText("Quantities saved.")).toBeVisible();
   await axe(page);
-  await page.screenshot({ path: "screenshots/picking-sheet-1440.png", fullPage: true });
+  await page.screenshot({ path: "screenshots/packing-sheet-1440.png", fullPage: true });
   await page.getByRole("button", { name: "Submit for check" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Submit" }).click();
   await expect(page.getByText("Awaiting check").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Verify pick" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Verify packing" })).toHaveCount(0);
 
   // Warehouse cannot change the order.
   await page.goto(orderUrl);
   await expect(page.getByRole("button", { name: "Close with shortage" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Print picking sheet" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Print packing sheet" })).toHaveCount(0);
 });
 
 test("owner verifies: 5 stays pending as backorder, then closes the shortfall", async ({ page }) => {
@@ -113,11 +113,11 @@ test("owner verifies: 5 stays pending as backorder, then closes the shortfall", 
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   await page.goto(orderUrl);
-  await page.getByRole("link", { name: "Open picking sheet" }).click();
+  await page.getByRole("link", { name: "Open packing sheet" }).click();
   await expect(page.getByLabel("Shortfall for CFZ")).toHaveValue("BACKORDER");
-  await page.getByRole("button", { name: "Verify pick" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Verify pick" }).click();
-  await expect(page.getByText("Pick verified.")).toBeVisible();
+  await page.getByRole("button", { name: "Verify packing" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Verify packing" }).click();
+  await expect(page.getByText("Packing verified.")).toBeVisible();
 
   await page.getByRole("link", { name: /^SO-/ }).click();
   await expect(page.getByTestId("pending-CFZ")).toContainText("5");

@@ -39,7 +39,7 @@ test("issued invoice is filed and copied to the archive; POD upload is appended"
   // Two-step sign-in is optional (2026-11-09): the owner lands on Overview.
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  await page.goto("/picking");
+  await page.goto("/packing");
   await page.getByRole("radio", { name: "Done" }).or(page.getByRole("button", { name: "Done" })).first().click();
   await page.getByRole("row", { name: /Kingston Kitchen/ }).getByRole("link").first().click();
   await page.getByRole("link", { name: "Prepare invoice" }).click();

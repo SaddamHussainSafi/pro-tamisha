@@ -536,7 +536,7 @@ def render(snapshot: dict[str, Any]) -> bytes:
     return _assemble(pages, snapshot.get("invoice_no", ""))
 
 
-def _assemble(pages: list[_Page], title: str) -> bytes:
+def _assemble(pages: list[_Page], title: str, producer: str = "") -> bytes:
     objs: list[bytes] = []
 
     def add(body: bytes) -> int:
@@ -587,7 +587,8 @@ def _assemble(pages: list[_Page], title: str) -> bytes:
                 ).encode()
             )
         )
-    info = add(f"<< /Title ({_txt(title)}) /Producer (Pro Trading {TEMPLATE_VERSION}) >>".encode())
+    producer = producer or f"Pro Trading {TEMPLATE_VERSION}"
+    info = add(f"<< /Title ({_txt(title)}) /Producer ({_txt(producer)}) >>".encode())
     objs[0] = b"<< /Type /Catalog /Pages 2 0 R >>"
     objs[1] = (
         f"<< /Type /Pages /Kids [{' '.join(f'{k} 0 R' for k in kids)}] /Count {len(kids)} >>"

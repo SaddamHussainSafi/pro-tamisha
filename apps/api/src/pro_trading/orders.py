@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from functools import partial
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -24,6 +25,7 @@ from . import pricing
 from .errors import ApiError
 from .models import (
     OPEN_PICK_STATUSES,
+    Company,
     Customer,
     Employee,
     InventoryLot,
@@ -36,6 +38,7 @@ from .models import (
     SalesOrderLine,
     Warehouse,
 )
+from .packing_pdf import units_label
 
 ZERO = Decimal(0)
 TERMINAL = frozenset({"FULFILLED", "CLOSED_WITH_SHORTAGE", "CANCELLED"})
@@ -329,12 +332,18 @@ def order_out(db: Session, o: SalesOrder) -> dict[str, Any]:
     }
 
 
+def _remarks(*notes: str) -> str:
+    """Packing sheet REMARKS: the order line's note, then the picker's (each once)."""
+    return " · ".join(dict.fromkeys(n.strip() for n in notes if n.strip()))
+
+
 def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
     o = db.get(SalesOrder, a.order_id)
     wh = db.get(Warehouse, a.warehouse_id)
     assert o is not None and wh is not None
     cust = db.get(Customer, o.customer_id)
-    assert cust is not None
+    company = db.get(Company, o.company_id)
+    assert cust is not None and company is not None
     rows = db.execute(
         select(PickingLine, SalesOrderLine, Product.sku, Product.name, InventoryLot.lot_code)
         .join(SalesOrderLine, SalesOrderLine.id == PickingLine.order_line_id)
@@ -344,10 +353,16 @@ def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
         .order_by(SalesOrderLine.line_no)
     ).all()
     names = _names(db, {a.created_by, a.picked_by, a.verified_by})
+    # Packing sheet columns: case size by the invoice's rule (packing_pdf.units_label)
+    from .invoicing import _pack_weights, _snap_box_lb  # local: invoicing imports this module
+
+    packs = _pack_weights(db, {ol.product_id for _, ol, *_ in rows})
+    ordered = o.confirmed_at or o.created_at
     return {
         "id": str(a.id),
         "order_id": str(o.id),
         "order_no": o.order_no,
+        "order_date": ordered.astimezone(ZoneInfo(company.timezone)).date().isoformat(),
         "customer_name": cust.name,
         "warehouse_id": str(wh.id),
         "warehouse_code": wh.code,
@@ -379,6 +394,11 @@ def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
                 "lot_code": lot_code,
                 "weight_lb": d(pl.weight_lb) if pl.weight_lb is not None else None,
                 "note": pl.note,
+                "units": units_label(
+                    ol.unit_code,
+                    _snap_box_lb(ol.price_snapshot) or packs.get((ol.product_id, ol.unit_code)),
+                ),
+                "remarks": _remarks(ol.note, pl.note),
             }
             for pl, ol, sku, pname, lot_code in rows
         ],

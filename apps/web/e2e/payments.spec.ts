@@ -58,7 +58,7 @@ test("reported payment is confirmed and applied; invoice and receivables show wh
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   // Issue an invoice to pay.
-  await page.goto("/picking");
+  await page.goto("/packing");
   await page.getByRole("radio", { name: "Done" }).or(page.getByRole("button", { name: "Done" })).first().click();
   await page.getByRole("row", { name: /Kingston Kitchen/ }).getByRole("link").first().click();
   await page.getByRole("link", { name: "Prepare invoice" }).click();

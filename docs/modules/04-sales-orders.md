@@ -3,7 +3,7 @@
 **Priority:** P0 foundation/core
 
 ## Business outcome
-Capture owner handwritten customer order from OCR/manual, preserve source, create order draft; print picking sheet; actual packed quantity or NO, missing reason and customer backorder.
+Capture owner handwritten customer order from OCR/manual, preserve source, create order draft; print packing sheet (formerly picking sheet); actual packed quantity or NO, missing reason and customer backorder.
 
 ## Non-negotiable business rules
 No morning invoice number. NO = 0 packed, NOT cancelled. Original request preserved.
@@ -48,6 +48,14 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 - A DRAFT opens as the same form as New sales order and Create invoice: Customer, Wanted for, Warehouse, payment terms, Note, then the grid S/N · Item · Qty · Unit · **LB** · Rate · Gross with the Subtotal / Tax / Net bar, and **Save draft** / **Confirm order** at the bottom (no confirm dialog). Picking columns, the original request and history show once the order is confirmed. **Cancel draft** asks no reason (recorded as "Draft cancelled").
 - **Create sales order screen (2026-11-11):** the page is titled "Create sales order"; Save draft (and, on a draft, Confirm order) are also at the top of the page; each chosen product shows its photo as a small square thumbnail (about 40 px, `ui/ProductThumb.tsx`, the files in `public/products/<SKU>.webp`, a neutral placeholder when there is none); 20 rows are open, more appear as rows fill, and "Add 10 more rows" adds them on request (up to 200); on narrow screens the grid scrolls inside its own frame so the product stays readable. Empty rows are never saved. Order rules, prices, tax and totals are unchanged (still the server's).
 - `sales_order_lines.weight_lb` (migration `0025`): what the whole line weighs, boxes only. A scanned sheet's WEIGHT box fills it; staff can type it in LB (empty shows the case size's weight greyed). Confirm (and direct invoices) price a weighed box as the per-lb rate × weight ÷ boxes; a per-lb price beats a box price for a weighed line. With no weight and no case size: `WEIGHT_REQUIRED`. The original capture (`source_snapshot`) keeps the weight as written.
+
+## Packing sheet (owner, 2026-11-11)
+- **Name:** people see "Packing sheet" / "Packing" (sidebar, titles, buttons, alerts, trash, Scan Center type, Create invoice). Code, tables, API paths, permission codes and statuses keep the picking names (`picking_attempts`, `pick_code`, `/pick-attempts/…`, `PICK_SHEET`). Web URLs are `/packing`, `/packing/:id`, `/packing/:id/invoice`; old `/picking/…` links redirect.
+- **Print = server PDF** `GET /pick-attempts/{id}/sheet.pdf?copies=2` (`packing_pdf.py`, template `packing-list-1`, `sales_order.read` in the sheet's warehouse, `Cache-Control: no-store`, never stored). Layout of the office's paper PACKING LIST: "TAMISHA TRADING INC." / "PACKING LIST", Sales Order Number + Date box (order's confirmed date, company time zone, dd-mm-yyyy), QR = pick code with the code under it, CUSTOMER NAME / EMPLOYEE NAME (packer, when recorded) / MISSING GOODS, then CHK | QTY | UNITS | PRODUCT | Batch Number | REMARKS and a Total row. US Letter, black and white, deterministic.
+- **UNITS** = `CASE-{lb per box}` by the invoice's rule (`invoicing._snap_box_lb` → the order line's box weight, else the default case size), `PIECE-{lb}` when the piece size has a weight, else `CASE` / `PIECE`; `LB` / `KG` for weights. **Total** adds boxes and pieces; weight lines are listed beside it ("+ 12.5 LB by weight"). **REMARKS** = order line note, then the packer's note.
+- **Pages and copies:** page 1 has 30 rows, later pages 38 (the Total takes one row on the last page, so up to 29 lines fit on one page); later pages repeat a compact header ("PACKING LIST (continued)", SO box, customer, QR) and the column titles; every page says "Page n of m" per copy. The file holds 2 identical copies by default (`copies` 1–4), each starting on a new page. A web page cannot set the print dialog's copy count, so the dialog's Copies stays at 1.
+- **Web:** `/packing/:id` has "Record packing" (entry as before) and "Paper sheet" (`?view=paper`, the same layout in HTML). **Print (2 copies)** fetches the PDF and prints it from a hidden frame (Chrome); if the frame can't print, the PDF opens in a new tab. Ctrl/Cmd+P on the page prints only the paper sheet, twice (print CSS), as a fallback.
+- **Scan-back:** OCR never read the app's printed sheet (PICK_SHEET scans are read as the office order sheet, PT-OS-1 / TT-PAPER-1); the QR (pick code) still opens the sheet from the Packing queue's code box.
 
 ## Failure recovery
 | Failure | What happens | Recovery |

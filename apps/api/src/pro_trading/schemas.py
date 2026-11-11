@@ -918,12 +918,15 @@ class PickLineOut(BaseModel):
     lot_code: str | None
     weight_lb: Decimal | None
     note: str
+    units: str  # packing sheet UNITS: CASE-40, PIECE, LB...
+    remarks: str  # packing sheet REMARKS: order line note, then the picker's note
 
 
 class PickOut(BaseModel):
     id: uuid.UUID
     order_id: uuid.UUID
     order_no: str
+    order_date: date  # the order's date (confirmed, company time zone), printed on the sheet
     customer_name: str
     warehouse_id: uuid.UUID
     warehouse_code: str

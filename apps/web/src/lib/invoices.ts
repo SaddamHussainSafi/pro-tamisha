@@ -43,12 +43,12 @@ export function invoiceMessage(err: unknown): string {
     case "DISPATCH_NOT_CONFIRMED":
       return "Tick the dispatch box to confirm the goods have left the warehouse.";
     case "ALREADY_INVOICED":
-      return "This picking sheet already has an invoice.";
+      return "This packing sheet already has an invoice.";
     case "TAX_RULES_UNVERIFIED":
       return "Invoices are switched off until the accountant signs off the tax rules.";
     case "VERSION_CONFLICT":
     case "INVALID_STATE":
-      return "This picking sheet changed since you opened it. It has been reloaded — check and try again.";
+      return "This packing sheet changed since you opened it. It has been reloaded — check and try again.";
     case "EMAIL_QUEUED":
       return "This invoice is already waiting to be emailed.";
     case "NO_EMAIL_ADDRESS":

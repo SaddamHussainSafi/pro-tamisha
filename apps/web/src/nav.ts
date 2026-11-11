@@ -39,7 +39,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Warehouse",
     items: [
-      { label: "Picking", icon: "boxes", to: "/picking", module: null },
+      { label: "Packing", icon: "boxes", to: "/packing", module: null },
       {
         label: "Inventory",
         icon: "inventory",

@@ -31,9 +31,9 @@ export function GmailPicker() {
   return (
     <section className="card space-y-4 p-6" aria-labelledby="ni-gmail">
       <CardTitle id="ni-gmail" title="Pick from Gmail" />
-      <p className="text-sm text-ink-muted">Choose a scanned picking sheet that arrived by email. It is read, you check every line, and the result is saved as a draft. Nothing is invoiced and no stock moves until the usual checks.</p>
+      <p className="text-sm text-ink-muted">Choose a scanned packing sheet that arrived by email. It is read, you check every line, and the result is saved as a draft. Nothing is invoiced and no stock moves until the usual checks.</p>
       {!allowed ? (
-        <EmptyState icon="mail" title="Your account can't open the Gmail Inbox" hint="Ask an administrator, or use a picking sheet or a direct invoice." />
+        <EmptyState icon="mail" title="Your account can't open the Gmail Inbox" hint="Ask an administrator, or use a packing sheet or a direct invoice." />
       ) : error ? (
         <ErrorState title="Couldn't reach the Gmail Inbox" detail={error} />
       ) : !status ? (

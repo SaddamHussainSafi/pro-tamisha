@@ -120,7 +120,7 @@ export function OverviewPage() {
                     centerLabel="orders"
                     ariaLabel="Orders by stage"
                     slices={[
-                      { label: "Picking", value: count("PICKING", "PARTIALLY_FULFILLED") },
+                      { label: "Packing", value: count("PICKING", "PARTIALLY_FULFILLED") },
                       { label: "Confirmed", value: count("CONFIRMED") },
                       { label: "Fulfilled", value: fulfilled },
                       { label: "Draft or closed", value: count("DRAFT", "CANCELLED") },

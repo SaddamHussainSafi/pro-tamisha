@@ -11259,6 +11259,10 @@
             "title": "Product Name",
             "type": "string"
           },
+          "remarks": {
+            "title": "Remarks",
+            "type": "string"
+          },
           "requested_qty": {
             "title": "Requested Qty",
             "type": "string"
@@ -11294,6 +11298,10 @@
             "title": "Unit Code",
             "type": "string"
           },
+          "units": {
+            "title": "Units",
+            "type": "string"
+          },
           "weight_lb": {
             "anyOf": [
               {
@@ -11321,7 +11329,9 @@
           "lot_id",
           "lot_code",
           "weight_lb",
-          "note"
+          "note",
+          "units",
+          "remarks"
         ],
         "title": "PickLineOut",
         "type": "object"
@@ -11363,6 +11373,11 @@
             },
             "title": "Lines",
             "type": "array"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
           },
           "order_id": {
             "format": "uuid",
@@ -11458,6 +11473,7 @@
           "id",
           "order_id",
           "order_no",
+          "order_date",
           "customer_name",
           "warehouse_id",
           "warehouse_code",
@@ -26800,6 +26816,58 @@
           }
         },
         "summary": "Return Pick",
+        "tags": [
+          "sales-orders"
+        ]
+      }
+    },
+    "/api/v1/pick-attempts/{pick_id}/sheet.pdf": {
+      "get": {
+        "description": "Packing sheet to print: the office PACKING LIST layout, `copies` copies in one file\n(default 2, each on its own pages). Rendered from the current sheet; never stored.",
+        "operationId": "packing_sheet_pdf_api_v1_pick_attempts__pick_id__sheet_pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pick_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pick Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "copies",
+            "required": false,
+            "schema": {
+              "default": 2,
+              "maximum": 4,
+              "minimum": 1,
+              "title": "Copies",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Packing Sheet Pdf",
         "tags": [
           "sales-orders"
         ]

@@ -8,11 +8,11 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .. import idempotency, line_preview
+from .. import idempotency, line_preview, packing_pdf
 from .. import inventory as inv
 from .. import orders as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize
@@ -70,7 +70,7 @@ def get_order(db: Session, p: Principal, oid: uuid.UUID, lock: bool = False) -> 
 def get_attempt(db: Session, p: Principal, aid: uuid.UUID) -> PickingAttempt:
     a = db.get(PickingAttempt, aid)
     if a is None or a.company_id != p.company_id:
-        raise ApiError(404, "NOT_FOUND", "Picking attempt not found")
+        raise ApiError(404, "NOT_FOUND", "Packing sheet not found")
     return a
 
 
@@ -527,7 +527,7 @@ def open_pick_attempt(
             raise ApiError(
                 409,
                 "OPEN_PICK_EXISTS",
-                f"Picking sheet {act.pick_code} is still open",
+                f"Packing sheet {act.pick_code} is still open",
                 attempt_id=str(act.id),
             )
         todo = [q for q in svc.line_quantities(db, o.id) if q.pending > 0]
@@ -591,6 +591,33 @@ def read_attempt(
     return svc.pick_out(db, a)
 
 
+@router.get(
+    "/pick-attempts/{pick_id}/sheet.pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def packing_sheet_pdf(
+    pick_id: uuid.UUID,
+    request: Request,
+    db: DbDep,
+    p: PrincipalDep,
+    copies: int = Query(packing_pdf.COPIES, ge=1, le=packing_pdf.MAX_COPIES),
+) -> Response:
+    """Packing sheet to print: the office PACKING LIST layout, `copies` copies in one file
+    (default 2, each on its own pages). Rendered from the current sheet; never stored."""
+    a = get_attempt(db, p, pick_id)
+    authorize(request, p, "sales_order.read", a.warehouse_id)
+    pdf = packing_pdf.render(svc.pick_out(db, a), copies)
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": f'inline; filename="Packing-sheet-{a.pick_code}.pdf"',
+        },
+    )
+
+
 def _locked(db: Session, p: Principal, pick_id: uuid.UUID) -> tuple[SalesOrder, PickingAttempt]:
     """Lock order then attempt (same order everywhere -> no deadlocks)."""
     a0 = get_attempt(db, p, pick_id)
@@ -617,8 +644,8 @@ def record_pick(
 
     def fn() -> Result:
         _, a = _locked(db, p, pick_id)
-        state(a, ("CREATED", "IN_PROGRESS", "NEEDS_CORRECTION"), "Picking sheet")
-        check_version(a.version, body.version, "Picking sheet")
+        state(a, ("CREATED", "IN_PROGRESS", "NEEDS_CORRECTION"), "Packing sheet")
+        check_version(a.version, body.version, "Packing sheet")
         lines = {
             pl.id: pl
             for pl in db.scalars(select(PickingLine).where(PickingLine.attempt_id == a.id)).all()
@@ -627,7 +654,7 @@ def record_pick(
         for row in body.lines:
             pl = lines.get(row.line_id)
             if pl is None:
-                raise ApiError(422, "INVALID_LINE", "Line is not on this picking sheet")
+                raise ApiError(422, "INVALID_LINE", "Line is not on this packing sheet")
             if pl.id in seen:
                 raise ApiError(422, "DUPLICATE_LINE", "Each line may appear once")
             seen.add(pl.id)
@@ -677,8 +704,8 @@ def submit_pick(
 
     def fn() -> Result:
         _, a = _locked(db, p, pick_id)
-        state(a, ("IN_PROGRESS",), "Picking sheet")
-        check_version(a.version, body.version, "Picking sheet")
+        state(a, ("IN_PROGRESS",), "Packing sheet")
+        check_version(a.version, body.version, "Packing sheet")
         missing = db.scalar(
             select(func.count()).where(
                 PickingLine.attempt_id == a.id, PickingLine.picked_qty.is_(None)
@@ -719,8 +746,8 @@ def verify_pick(
 
     def fn() -> Result:
         o, a = _locked(db, p, pick_id)
-        state(a, ("SUBMITTED",), "Picking sheet")
-        check_version(a.version, body.version, "Picking sheet")
+        state(a, ("SUBMITTED",), "Packing sheet")
+        check_version(a.version, body.version, "Packing sheet")
         pls = db.scalars(select(PickingLine).where(PickingLine.attempt_id == a.id)).all()
         by_ol = {pl.order_line_id: pl for pl in pls}
         for ol_id in body.dispositions:
@@ -776,8 +803,8 @@ def return_pick(
 
     def fn() -> Result:
         _, a = _locked(db, p, pick_id)
-        state(a, ("SUBMITTED",), "Picking sheet")
-        check_version(a.version, body.version, "Picking sheet")
+        state(a, ("SUBMITTED",), "Packing sheet")
+        check_version(a.version, body.version, "Packing sheet")
         a.status, a.status_note = "NEEDS_CORRECTION", body.reason
         a.version += 1
         db.flush()
@@ -802,8 +829,8 @@ def abort_pick(
 
     def fn() -> Result:
         o, a = _locked(db, p, pick_id)
-        state(a, ("CREATED", "IN_PROGRESS", "NEEDS_CORRECTION"), "Picking sheet")
-        check_version(a.version, body.version, "Picking sheet")
+        state(a, ("CREATED", "IN_PROGRESS", "NEEDS_CORRECTION"), "Packing sheet")
+        check_version(a.version, body.version, "Packing sheet")
         a.status, a.status_note = "ABORTED", body.reason
         a.version += 1
         db.flush()

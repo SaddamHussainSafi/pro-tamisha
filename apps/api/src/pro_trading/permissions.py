@@ -20,8 +20,8 @@ PERMISSIONS: Final[dict[str, str]] = {
     "price.read": "View price books",
     "price.draft": "Draft price versions",
     "price.approve": "Approve/activate price versions",
-    "sales_order.read": "View sales orders and picking attempts",
-    "sales_order.manage": "Create/edit/confirm sales orders, issue picking sheets",
+    "sales_order.read": "View sales orders and packing sheets",
+    "sales_order.manage": "Create/edit/confirm sales orders, issue packing sheets",
     "sales_order.close": "Cancel remaining quantities / close orders with shortage",
     "pick.record": "Enter picked quantities and shortages",
     "pick.verify": "Verify warehouse pick",
@@ -159,7 +159,7 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
     ),
     "WAREHOUSE": (
         "Warehouse",
-        "Picking, receiving counts and stock counts.",
+        "Packing, receiving counts and stock counts.",
         frozenset(
             {
                 "warehouse.read",

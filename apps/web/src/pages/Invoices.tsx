@@ -95,7 +95,7 @@ export function InvoicesPage() {
               rowKey={(r) => r.id}
               caption={`Invoices (${total})`}
               onOpen={(r) => nav(`/invoices/${r.id}`)}
-              empty={<EmptyState title="No invoices yet" hint="Invoices are issued from a verified picking sheet." action={<Link className="btn-ghost" to="/picking">Open picking</Link>} />}
+              empty={<EmptyState title="No invoices yet" hint="Invoices are issued from a verified packing sheet." action={<Link className="btn-ghost" to="/packing">Open packing</Link>} />}
             />
             {next && (
               <div className="flex justify-center border-t border-line p-4">
@@ -197,7 +197,7 @@ export function InvoicePage() {
         subtitle={
           <>
             {inv.customer_name} · Order <Link className={link} to={`/orders/${inv.sales_order_id}`}>{inv.order_no}</Link> · Sheet{" "}
-            <Link className={link} to={`/picking/${inv.picking_attempt_id}`}>{inv.pick_code}</Link> · <StatusChip tone="success">Issued</StatusChip>{" "}
+            <Link className={link} to={`/packing/${inv.picking_attempt_id}`}>{inv.pick_code}</Link> · <StatusChip tone="success">Issued</StatusChip>{" "}
             <StatusChip tone={INVOICE_STATE[inv.state].tone}>{INVOICE_STATE[inv.state].label}</StatusChip>
           </>
         }
@@ -326,10 +326,10 @@ export function IssueInvoicePage() {
 
   if (!session) return null;
   if (loadErr === "already") {
-    return <ErrorState title="This picking sheet is already invoiced" detail="Open it from the invoice list." onRetry={() => nav("/invoices")} />;
+    return <ErrorState title="This packing sheet is already invoiced" detail="Open it from the invoice list." onRetry={() => nav("/invoices")} />;
   }
-  if (loadErr === "state") return <ErrorState title="This picking sheet isn't verified yet" detail="A supervisor must verify the pick first." onRetry={() => nav(`/picking/${id}`)} />;
-  if (loadErr) return <ErrorState title="Couldn't load this picking sheet" onRetry={() => window.location.reload()} />;
+  if (loadErr === "state") return <ErrorState title="This packing sheet isn't verified yet" detail="A supervisor must verify the packing first." onRetry={() => nav(`/packing/${id}`)} />;
+  if (loadErr) return <ErrorState title="Couldn't load this packing sheet" onRetry={() => window.location.reload()} />;
   if (!pick || !pv) return <PageSkeleton />;
   const canIssue = canInWarehouse(session, "invoice.issue", pick.warehouse_id);
   const weighable = pick.lines.filter((l) => pv.weighable_pick_line_ids.includes(l.id));
@@ -363,7 +363,7 @@ export function IssueInvoicePage() {
       <PageHeader
         title={`Invoice for ${pv.pick_code}`}
         subtitle={<>Order <Link className={link} to={`/orders/${pv.order_id}`}>{pv.order_no}</Link> · {pv.customer_name} · terms {pv.payment_terms_days} days · {pv.email_to ? `emails to ${pv.email_to}` : "no email on file"}</>}
-        actions={<Link className="btn-ghost" to={`/picking/${pick.id}`}>Back to sheet</Link>}
+        actions={<Link className="btn-ghost" to={`/packing/${pick.id}`}>Back to sheet</Link>}
       />
       <p className="alert-warning" role="note">Draft preview — nothing is numbered and no stock moves until you issue. Tax: {pv.tax_note}.</p>
       {error && <p className="alert-danger" role="alert">{error}</p>}

@@ -542,9 +542,9 @@ export function OrderPage() {
             {close && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(o.status) && pending && !awaiting && o.attempts.some((a) => a.status !== "ABORTED") && (
               <button className="btn-ghost" onClick={() => setDialog("close")}>Close with shortage</button>
             )}
-            {o.open_attempt_id && <Link className="btn-ghost" to={`/picking/${o.open_attempt_id}`}>Open picking sheet</Link>}
+            {o.open_attempt_id && <Link className="btn-ghost" to={`/packing/${o.open_attempt_id}`}>Open packing sheet</Link>}
             {manage && open && pending && !o.open_attempt_id && (
-              <button className="btn-primary" onClick={() => setDialog("pick")}>Print picking sheet</button>
+              <button className="btn-primary" onClick={() => setDialog("pick")}>Print packing sheet</button>
             )}
             {manage && o.status === "DRAFT" && <button className="btn-primary" onClick={() => setDialog("confirm")}>Confirm order</button>}
           </>
@@ -552,7 +552,7 @@ export function OrderPage() {
       />
       {error && <p className="alert-danger" role="alert">{error}</p>}
       {o.has_backorder && (
-        <p className="alert-warning" role="status">Backorder: some items were short on an earlier pick and are still pending for this customer.</p>
+        <p className="alert-warning" role="status">Backorder: some items were short on an earlier packing sheet and are still pending for this customer.</p>
       )}
       <section className="card p-0" aria-label="Order lines">
         <DataGrid rows={o.lines} columns={columns} rowKey={(l) => l.id} caption="Order lines" />
@@ -572,14 +572,14 @@ export function OrderPage() {
           </ul>
         </section>
         <section className="card space-y-3 p-6" aria-labelledby="pk-h">
-          <h2 id="pk-h" className="font-semibold">Picking sheets</h2>
+          <h2 id="pk-h" className="font-semibold">Packing sheets</h2>
           {o.attempts.length === 0 ? (
             <p className="text-sm text-ink-muted">None yet.</p>
           ) : (
             <ul className="divide-y divide-line text-sm">
               {o.attempts.map((a) => (
                 <li key={a.id} className="flex items-center justify-between py-2">
-                  <Link className={link} to={`/picking/${a.id}`}>{a.pick_code}</Link>
+                  <Link className={link} to={`/packing/${a.id}`}>{a.pick_code}</Link>
                   <StatusChip tone={PICK_STATUS[a.status].tone}>{PICK_STATUS[a.status].label}</StatusChip>
                 </li>
               ))}
@@ -605,13 +605,13 @@ export function OrderPage() {
       <ConfirmDialog open={dialog === "confirm"} title="Confirm this order?" confirmLabel="Confirm order" onClose={() => setDialog("none")} onConfirm={() => void run(() => api.confirmOrder(o.id, o.version))}>
         Today's prices for {o.customer_name} are fixed on every line. No invoice number is assigned yet.
       </ConfirmDialog>
-      <ConfirmDialog open={dialog === "pick"} title="Print a picking sheet?" confirmLabel="Create sheet" onClose={() => setDialog("none")} onConfirm={() => void run(async () => { const p = await api.openPick(o.id, o.version); nav(`/picking/${p.id}`); })}>
+      <ConfirmDialog open={dialog === "pick"} title="Print a packing sheet?" confirmLabel="Create sheet" onClose={() => setDialog("none")} onConfirm={() => void run(async () => { const p = await api.openPick(o.id, o.version); nav(`/packing/${p.id}`); })}>
         The sheet lists every pending quantity. The warehouse records what was actually packed.
       </ConfirmDialog>
       <ReasonDialog
         open={dialog === "cancel" || dialog === "close"}
         title={dialog === "close" ? "Close with shortage?" : "Cancel this order?"}
-        body={dialog === "close" ? "All pending quantities are cancelled. Supplied quantities are unaffected." : "Nothing has been picked. The order stays on record as cancelled."}
+        body={dialog === "close" ? "All pending quantities are cancelled. Supplied quantities are unaffected." : "Nothing has been packed. The order stays on record as cancelled."}
         confirmLabel={dialog === "close" ? "Close order" : "Cancel order"}
         reason={reason}
         setReason={setReason}

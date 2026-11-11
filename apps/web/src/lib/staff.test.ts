@@ -65,7 +65,7 @@ describe("user management helpers", () => {
 
   it("groups permissions by area in a fixed order", () => {
     expect(permissionArea("employee.manage")).toBe("Administration");
-    expect(permissionArea("sales_order.read")).toBe("Orders & picking");
+    expect(permissionArea("sales_order.read")).toBe("Orders & packing");
     expect(permissionArea("supplier_payment.record")).toBe("Payments & suppliers");
     expect(permissionArea("mystery.thing")).toBe("Other");
     const g = groupPermissions([{ code: "report.read" }, { code: "catalog.read" }, { code: "employee.manage" }]);

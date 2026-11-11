@@ -1,0 +1,80 @@
+/* Packing sheet in the office's paper PACKING LIST format (PackingPaper.tsx). Black and white,
+   ruled, Letter proportions. The same layout is printed from the server PDF
+   (apps/api/src/pro_trading/packing_pdf.py); this is the on-screen preview and the fallback when
+   someone prints the page itself (Ctrl/Cmd+P). */
+
+.pk-paper {
+  --pk-ink: #000;
+  --pk-rule: #000;
+  --pk-head: #d1d1d1;
+  box-sizing: border-box;
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0.5in;
+  background: #fff;
+  color: var(--pk-ink);
+  font-family: Helvetica, Arial, "Liberation Sans", sans-serif;
+  font-size: 10pt;
+  line-height: 1.25;
+}
+.pk-paper * { box-sizing: border-box; }
+
+.pk-top { display: flex; align-items: flex-start; gap: 0.12in; }
+.pk-brand { flex: 1; min-width: 0; }
+.pk-company { margin: 0.12in 0 0; font-size: 22pt; font-weight: 400; letter-spacing: 0; line-height: 1.1; }
+.pk-title { margin: 0.06in 0 0; padding-left: 1.05in; font-size: 18pt; font-weight: 700; line-height: 1.1; }
+
+.pk-so { border-collapse: collapse; width: 2.7in; text-align: center; }
+.pk-so th, .pk-so td { border: 0.8pt solid var(--pk-rule); padding: 0 4pt; }
+.pk-so th { height: 20pt; font-size: 9pt; font-weight: 700; }
+.pk-so td { height: 30pt; font-size: 12pt; font-weight: 700; white-space: nowrap; }
+
+.pk-qr { margin: 0; width: 1in; flex: none; text-align: center; }
+.pk-qr svg { display: block; width: 0.78in; height: 0.78in; margin: 0 auto; }
+.pk-qr figcaption { font-size: 6pt; font-weight: 700; white-space: nowrap; }
+
+.pk-who { margin: 0.14in 0 0; border: 0.8pt solid var(--pk-rule); }
+.pk-who > div { display: flex; align-items: baseline; min-height: 24pt; padding: 5pt 8pt 0; border-top: 0.5pt solid var(--pk-rule); }
+.pk-who > div:first-child { border-top: 0; }
+.pk-who dt { width: 1.95in; flex: none; font-size: 11pt; font-weight: 700; }
+.pk-who dd { margin: 0; min-width: 0; font-size: 12pt; overflow-wrap: anywhere; }
+.pk-who > .pk-missing { min-height: 64pt; }
+
+.pk-lines { width: 100%; margin-top: 0.16in; border-collapse: collapse; border: 0.9pt solid var(--pk-rule); table-layout: fixed; }
+.pk-lines th, .pk-lines td { height: 16pt; padding: 0 4pt; border: 0.4pt solid var(--pk-rule); vertical-align: middle; }
+.pk-lines thead th { background: var(--pk-head); font-weight: 700; text-align: left; }
+.pk-lines thead th.pk-c, .pk-lines td.pk-c { text-align: center; }
+.pk-lines .pk-q { text-align: right; font-weight: 700; }
+.pk-lines .pk-p { font-weight: 700; }
+.pk-lines .pk-s { font-size: 9pt; }
+.pk-lines td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-lines tfoot td { font-weight: 700; }
+.pk-lines tfoot td.pk-s { font-weight: 400; }
+.pk-col-chk { width: 0.61in; }
+.pk-col-qty { width: 0.5in; }
+.pk-col-units { width: 1.11in; }
+.pk-col-batch { width: 1.31in; }
+.pk-col-remarks { width: 1.47in; }
+
+/* Ctrl/Cmd+P on the packing sheet page: only the sheet, twice, every page. */
+.pk-print { display: none; }
+
+@media print {
+  /* Letter with the paper form's margins (no other screen of the app prints from HTML). */
+  @page { size: letter; margin: 0.5in; }
+  html:has(body > .pk-print),
+  body:has(> .pk-print) {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body:has(> .pk-print) > :not(.pk-print) { display: none !important; }
+  .pk-print { display: block; }
+  /* 1pt on the right keeps the outer rules (drawn half outside the box) on the page */
+  .pk-print .pk-paper { width: auto; min-height: 0; padding: 0 1pt 0 0; }
+  .pk-print .pk-paper + .pk-paper { break-before: page; }
+  .pk-lines thead { display: table-header-group; }
+  .pk-lines tfoot { display: table-row-group; }
+  .pk-lines tr { break-inside: avoid; }
+  .pk-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

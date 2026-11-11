@@ -26,11 +26,11 @@ test("Ctrl K opens Go to, and / jumps to the screen's own search", async ({ page
   await page.keyboard.press("ControlOrMeta+k");
   const go = page.getByRole("combobox", { name: "Go to a screen" });
   await expect(go).toBeFocused();
-  await go.fill("pick");
-  await expect(page.getByRole("option", { name: /Picking/ })).toBeVisible();
+  await go.fill("pack");
+  await expect(page.getByRole("option", { name: /Packing/ })).toBeVisible();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/picking$/);
-  await expect(page.getByRole("heading", { name: "Picking" })).toBeVisible();
+  await expect(page).toHaveURL(/\/packing$/);
+  await expect(page.getByRole("heading", { name: "Packing" })).toBeVisible();
 
   await page.locator("body").click();
   await page.keyboard.press("/");
@@ -40,7 +40,7 @@ test("Ctrl K opens Go to, and / jumps to the screen's own search", async ({ page
 test("at 390 px nothing scrolls sideways and the menu takes focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page);
-  for (const path of ["/", "/orders", "/picking", "/inventory", "/receiving", "/scan", "/products", "/customers", "/suppliers", "/settings"]) {
+  for (const path of ["/", "/orders", "/packing", "/inventory", "/receiving", "/scan", "/products", "/customers", "/suppliers", "/settings"]) {
     await page.goto(path);
     await expect(page.getByRole("status", { name: "Loading" })).toHaveCount(0);
     const extra = await page.evaluate(() => {

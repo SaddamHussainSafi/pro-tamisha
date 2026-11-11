@@ -19,12 +19,12 @@ import { CardTitle, ConfirmDialog, EmptyState, LoadingRows, PageHeader } from ".
 
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const tabs = [
-  { key: "sheet", label: "From a picking sheet", to: "/invoices/new" },
+  { key: "sheet", label: "From a packing sheet", to: "/invoices/new" },
   { key: "gmail", label: "Pick from Gmail", to: "/invoices/new?from=gmail" },
-  { key: "direct", label: "Direct invoice (no picking sheet)", to: "/invoices/new?from=direct" },
+  { key: "direct", label: "Direct invoice (no packing sheet)", to: "/invoices/new?from=direct" },
 ] as const;
 
-/** Invoices › Create invoice: bill a verified picking sheet, or a small sale with no sheet. */
+/** Invoices › Create invoice: bill a verified packing sheet, or a small sale with no sheet. */
 export function NewInvoicePage() {
   const [params] = useSearchParams();
   const from = params.get("from");
@@ -37,7 +37,7 @@ export function NewInvoicePage() {
         </Link>{" "}
         / New
       </nav>
-      <PageHeader title="Create invoice" subtitle="Bill goods that were picked and checked, or a small sale handed over without a picking sheet." />
+      <PageHeader title="Create invoice" subtitle="Bill goods that were packed and checked, or a small sale handed over without a packing sheet." />
       <nav aria-label="How to invoice" className="flex flex-wrap gap-1.5">
         {tabs.map((t) => (
           <Link
@@ -62,14 +62,14 @@ function FromSheet() {
   }, []);
   const cols: Column<PickSummary>[] = [
     { key: "c", header: "Customer", cell: (p) => p.customer_name, sort: (p) => p.customer_name },
-    { key: "s", header: "Picking sheet", cell: (p) => <span className="whitespace-nowrap">{p.pick_code}</span> },
+    { key: "s", header: "Packing sheet", cell: (p) => <span className="whitespace-nowrap">{p.pick_code}</span> },
     { key: "l", header: "Lines", align: "right", cell: (p) => <span className="num">{p.line_count}</span> },
     { key: "v", header: "Checked", cell: (p) => (p.verified_at ? <span className="whitespace-nowrap">{day(p.verified_at)}</span> : "—") },
     {
       key: "a",
       header: "",
       cell: (p) => (
-        <Link className="btn-primary px-4 py-2 text-xs" to={`/picking/${p.id}/invoice`} aria-label={`Prepare invoice for ${p.pick_code}`}>
+        <Link className="btn-primary px-4 py-2 text-xs" to={`/packing/${p.id}/invoice`} aria-label={`Prepare invoice for ${p.pick_code}`}>
           Prepare invoice
         </Link>
       ),
@@ -77,7 +77,7 @@ function FromSheet() {
   ];
   return (
     <section className="card space-y-4 p-6" aria-labelledby="ni-sheets">
-      <CardTitle id="ni-sheets" title="Picking sheets ready to invoice" />
+      <CardTitle id="ni-sheets" title="Packing sheets ready to invoice" />
       <p className="text-sm text-ink-muted">Checked sheets that are not invoiced yet. The invoice editor lets you enter case weights before issuing.</p>
       {rows === null ? (
         <LoadingRows cols={4} />
@@ -86,8 +86,8 @@ function FromSheet() {
           rows={rows}
           columns={cols}
           rowKey={(p) => p.id}
-          caption="Picking sheets ready to invoice"
-          empty={<EmptyState title="Nothing is waiting to be invoiced" hint="For a small sale without a picking sheet, use Direct invoice." />}
+          caption="Packing sheets ready to invoice"
+          empty={<EmptyState title="Nothing is waiting to be invoiced" hint="For a small sale without a packing sheet, use Direct invoice." />}
         />
       )}
     </section>
@@ -350,7 +350,7 @@ function Direct() {
       <section className="card space-y-5 p-6" aria-labelledby="ni-direct">
         <div className="space-y-1">
           <CardTitle id="ni-direct" title="Direct invoice" />
-          <p className="text-sm text-ink-muted">For small sales handed over without a picking sheet. Prices come from the price book; stock is taken from the oldest expiry first.</p>
+          <p className="text-sm text-ink-muted">For small sales handed over without a packing sheet. Prices come from the price book; stock is taken from the oldest expiry first.</p>
         </div>
         {draftAt && (
           <p className="alert-success flex flex-wrap items-center justify-between gap-2" role="status">
