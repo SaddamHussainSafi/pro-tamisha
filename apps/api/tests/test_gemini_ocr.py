@@ -167,12 +167,13 @@ def test_answer_must_match_the_schema():
         {**good, "doc_type": "PURCHASE"},
         {**good, "rows": [{**row("Okra", "12"), "qty": 12}]},  # numbers must come as text
         {**good, "rows": [{**row("Okra", "12"), "confidence": 0.99}]},
-        {**good, "rows": [row("x" * 400, "1")]},
-        {**good, "rows": [{**row("Okra", "1"), "box": [0, 0, 5000, 10]}]},
         {k: v for k, v in good.items() if k != "rows"},
     ):
         with pytest.raises(ValueError):
             rules.validate_page(bad)
+    # a senseless highlight box or an over-long text is repaired, not a reason to lose the page
+    odd = rules.validate_page({**good, "rows": [{**row("x" * 400, "1"), "box": [0, 0, 5000, 10]}]})
+    assert odd.rows[0].box == [] and len(odd.rows[0].item) == 300
     # every property the schema promises is one the validator knows, and the other way round
     assert set(rules.PAGE_SCHEMA["properties"]) == set(rules.PageOut.model_fields)
     assert set(rules.PAGE_SCHEMA["properties"]["rows"]["items"]["properties"]) == set(
@@ -195,6 +196,12 @@ def test_untouched_printed_rows_and_totals_are_not_lines():
     ]
     assert rules.compare_totals(["7"], lines) == [] and rules.compare_totals(["2"], lines) == []
     assert rules.compare_totals(["67"], lines) == ["TOTAL_DIFFERS:written=67,lines=2,sum=7"]
+    # per-table sums explain a written number too; references and repeats are not totals
+    lines[0].detail["table"], lines[1].detail["table"] = 1, 2
+    assert rules.compare_totals(["3", "(4)", "SI#087622", "7"], lines) == []
+    assert rules.compare_totals(["9", "9", "16 1/2"], lines) == [
+        "TOTAL_DIFFERS:written=9/16.5,lines=2,sum=7"
+    ]
     assert [ln.qty for ln in lines] == [D(3), D(4)]  # a written total never changes a line
 
 
@@ -256,6 +263,7 @@ def test_supplier_is_never_the_customer_and_refs_compare_by_digits():
     assert not rules.is_own_company("Island Grocers")
     assert rules.ref_key("SO#080778") == rules.ref_key("so 080778") == "080778"
     assert rules.ref_key("SO#080778") != rules.ref_key("SO#080781") and rules.ref_key("?") is None
+    assert rules.ref_key("50#080781") == "080781"  # "SO" misread as "50" is still the same order
 
 
 def test_deskew_levels_a_tilted_page():
@@ -459,7 +467,7 @@ def test_scan_gemini_reading_then_editable_draft_only(owner, user, world, catalo
     assert set(f["SQU"]["detail"]["flags"]) & {"NO_INK_SEEN", "POSSIBLE_SHIFT"}
     # writing Gemini said nothing about is kept for review
     assert f["GBJ"]["detail"]["flags"] == ["GEMINI_SAW_NOTHING"] and f["GBJ"]["status"] != "OK"
-    assert any(w.startswith("TOTAL_DIFFERS:written=67") for w in ex["warnings"])
+    assert any(w.startswith("TOTAL_DIFFERS:written=38/67,") for w in ex["warnings"])
     assert not any(w.startswith("GEMINI_FALLBACK") for w in ex["warnings"])
 
     # the admin page gets the validated answer and the local reading side by side

@@ -74,8 +74,10 @@ const WITH_ARG: Record<string, (arg: string) => string> = {
   DOC_TYPE_UNSURE: (a) => `The reader was not sure what kind of document ${pagesOf(a)} is.`,
   DOC_TYPE_MISMATCH: (a) => `This looks like ${DOC[a] ?? a}, not what it was scanned as. Check before going on.`,
   TOTAL_DIFFERS: (a) => {
-    const m = /written=([\d.]+),lines=(\d+),sum=([\d.]+)(?::p(\d+))?/.exec(a);
-    return m ? `A total of ${m[1]} is written on ${m[4] ? `page ${m[4]}` : "the sheet"}, but the ${m[2]} lines read add up to ${m[3]}. Look for a missed or extra line.` : "A total written on the sheet doesn't match the lines read.";
+    const m = /written=([\d./]+),lines=(\d+),sum=([\d.]+)(?::p(\d+))?/.exec(a);
+    if (!m) return "A number written on the sheet doesn't match the lines read.";
+    const written = (m[1] ?? "").split("/").join(", ");
+    return `Written in the margin of ${m[4] ? `page ${m[4]}` : "the sheet"}: ${written}. That doesn't match the ${m[2]} lines read (they add up to ${m[3]}). Look for a missed or extra line.`;
   },
   RECHECK_SKIPPED: () => "Unclear lines were not read a second time (today's allowance is nearly used up).",
   HEADER_DIFFERS: (a) => `The two readers disagree on the ${a.replace(/_/g, " ")}. Check it.`,

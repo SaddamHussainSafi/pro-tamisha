@@ -187,9 +187,7 @@ def _clip(v: str | None) -> str | None:
     if v is None:
         return None
     v = " ".join(v.split())
-    if len(v) > MAX_TEXT:
-        raise ValueError("text too long")
-    return v or None
+    return v[:MAX_TEXT] or None  # over-long text is cut, not a reason to lose the page
 
 
 class RowOut(_Strict):
@@ -220,9 +218,8 @@ class RowOut(_Strict):
     @field_validator("box")
     @classmethod
     def _box(cls, v: list[int]) -> list[int]:
-        if v and (len(v) != 4 or any(not 0 <= n <= 1000 for n in v)):
-            raise ValueError("box must be four numbers 0-1000")
-        return v
+        # the box only says where to highlight: one that makes no sense is dropped, not fatal
+        return v if len(v) == 4 and all(0 <= n <= 1000 for n in v) else []
 
 
 class PageOut(_Strict):
@@ -338,10 +335,11 @@ def hand_qty(raw: str | None) -> tuple[Decimal | None, str | None, list[str]]:
 
 
 def ref_key(ref: str | None) -> str | None:
-    """Order references compare by their digits ("SO#080778" = "SO 080778")."""
+    """Order references compare by their number ("SO#080778" = "SO 080778" = "50#080778")."""
     if not ref:
         return None
-    d = re.sub(r"\D", "", ref)
+    runs = re.findall(r"\d+", ref.split("#", 1)[1] if "#" in ref else ref)  # "50#080781": after #
+    d = max(runs, key=len, default="")
     return d if len(d) >= 3 else None
 
 
@@ -444,20 +442,30 @@ def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
 
 
 def compare_totals(written: list[str], lines: list[Line]) -> list[str]:
-    """Written totals are only compared with what the code adds up; they never change a line."""
-    qtys = [ln.qty for ln in lines if ln.qty is not None]
-    if not written or not qtys:
-        return []
-    total, count = sum(qtys, Decimal(0)), Decimal(len(qtys))
-    out: list[str] = []
-    for w in written[:6]:
-        m = re.search(r"\d+(?:\.\d+)?", w.replace(",", ""))
-        if m is None:
+    """Numbers written apart from the rows are only compared with what the code adds up (all
+    lines, each table, the number of lines); they never change a line. One warning lists the
+    written numbers that match none of these. References such as "SI#087622" are not totals."""
+    nums: list[Decimal] = []
+    for w in written[:12]:
+        t = w.strip().strip("()[] ")
+        if re.search(r"[A-Za-z#]", t):
             continue
-        v = Decimal(m.group(0))
-        if v not in (total, count):
-            out.append(f"TOTAL_DIFFERS:written={v},lines={count},sum={total.normalize():f}")
-    return out[:3]
+        q, _, _ = hand_qty(t)
+        if q is not None:
+            nums.append(q)
+    qtys = [(ln.detail.get("table"), ln.qty) for ln in lines if ln.qty is not None]
+    if not nums or not qtys:
+        return []
+    total = sum((q for _, q in qtys), Decimal(0))
+    tables: dict[Any, Decimal] = {}
+    for tbl, q in qtys:
+        tables[tbl] = tables.get(tbl, Decimal(0)) + q
+    explained = {total, Decimal(len(qtys)), *tables.values()}
+    odd = list(dict.fromkeys(n for n in nums if n not in explained))
+    if not odd:
+        return []
+    shown = "/".join(f"{n.normalize():f}" for n in odd[:4])
+    return [f"TOTAL_DIFFERS:written={shown},lines={len(qtys)},sum={total.normalize():f}"]
 
 
 def recheck(line: Line, c: CheckRow) -> None:

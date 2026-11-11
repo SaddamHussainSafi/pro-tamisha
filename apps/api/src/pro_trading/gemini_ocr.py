@@ -42,7 +42,6 @@ from .models import Customer, OcrExtraction, Product, SourceDocument, Vendor
 
 D0 = Decimal(0)
 C3 = Decimal("0.001")
-FULL_MODE_CAP = 200  # a daily allowance this large pays for separate stages A and C
 MAX_CHECKS = 10
 SUPPLIER_DOCS = ("VENDOR_RECEIVING", "AIRWAY_BILL")
 
@@ -619,7 +618,7 @@ def read_document(
         images = ocr.page_images(doc.content, doc.mime_type, tmp, st.ocr_timeout_seconds)
         n = len(images)
         reason, bud = _why_not(n)
-        full = bud is not None and bud.cap >= FULL_MODE_CAP and reason is None
+        full = st.gemini_separate_stage_a and reason is None
         engine["mode"] = "FULL" if full else "COMPACT"
         reads: dict[int, PageRead] = {}
         workers = max(1, min(n, st.gemini_requests_per_minute, 4))
@@ -744,7 +743,7 @@ def _orders(db: Session, ex: OcrExtraction, job_type: str, cat: ocr.Catalog,
         if not strips:
             continue
         left = gemini_client.budget().remaining_today
-        if not full and left <= get_settings().gemini_recheck_reserve:
+        if left <= get_settings().gemini_recheck_reserve:
             warnings.append("RECHECK_SKIPPED:allowance")
             break
         try:

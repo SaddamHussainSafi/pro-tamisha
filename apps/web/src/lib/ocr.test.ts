@@ -56,7 +56,7 @@ describe("Gemini readings in words", () => {
     expect(warningText("GEMINI_FALLBACK:GEMINI_UNAVAILABLE:p2,3")).toMatch(/for page 2,3 \(Google could not be reached\)/);
     expect(warningText("CUSTOMER_UNSURE:Sarangan Miss")).toMatch(/“Sarangan Miss”, but not clearly/);
     expect(warningText("MIXED_ORDERS:p1=080778;p2=080781")).toMatch(/more than one order.*p1: order 080778; p2: order 080781/);
-    expect(warningText("TOTAL_DIFFERS:written=67,lines=7,sum=38:p1")).toMatch(/total of 67 is written on page 1, but the 7 lines read add up to 38/);
+    expect(warningText("TOTAL_DIFFERS:written=46/43,lines=22,sum=47:p1")).toMatch(/margin of page 1: 46, 43\. That doesn't match the 22 lines read \(they add up to 47\)/);
     expect(warningText("CUSTOMER_IS_SUPPLIER")).toMatch(/we are the seller/);
     expect(warningText("DOC_TYPE_MISMATCH:AIRWAY_BILL")).toMatch(/looks like an airway bill/);
   });

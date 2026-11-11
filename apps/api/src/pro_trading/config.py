@@ -86,7 +86,12 @@ class Settings(BaseSettings):
     gemini_api_revision: str = "2026-05-20"  # Interactions API only
     gemini_requests_per_minute: int = Field(default=5, ge=1, le=600)
     gemini_daily_request_cap: int = Field(default=20, ge=0, le=100_000)
-    gemini_timeout_seconds: int = Field(default=60, ge=10, le=600)
+    gemini_timeout_seconds: int = Field(default=45, ge=10, le=600)
+    # Stage A (kind of document, customer, order reference) as its own low-resolution request
+    # for the whole document. Off: stage B answers those from the full page in the same request
+    # (one request less per document; on real sheets the extra request cost 2-30 s and disagreed
+    # with stage B mostly through its own misreads).
+    gemini_separate_stage_a: bool = False
     gemini_max_retries: int = Field(default=2, ge=0, le=5)
     # After this many failed calls in a row nothing is sent for the cool-down (circuit breaker).
     # Unclear rows are read a second time (one more request per page) only while more than
