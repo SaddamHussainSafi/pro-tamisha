@@ -1723,6 +1723,19 @@
         "title": "CountLineOut",
         "type": "object"
       },
+      "CsrfOut": {
+        "properties": {
+          "csrf_token": {
+            "title": "Csrf Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "csrf_token"
+        ],
+        "title": "CsrfOut",
+        "type": "object"
+      },
       "CurrencyTotalOut": {
         "properties": {
           "balance": {
@@ -17089,6 +17102,28 @@
           }
         },
         "summary": "My Activity",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/csrf": {
+      "post": {
+        "description": "A fresh CSRF token for the signed-in session, for a browser tab whose token is missing or\nstale: it lives in per-tab sessionStorage, and signing in again (another tab, the dev\nauto sign-in) starts a new session behind the same cookie. The old token stops working.\n\nSame origin only: the browser's Origin header must be the app's (checked here and in\nmain.py), the cookie is SameSite=Strict, and CORS keeps the answer from other sites.",
+        "operationId": "renew_csrf_api_v1_auth_csrf_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Renew Csrf",
         "tags": [
           "auth"
         ]

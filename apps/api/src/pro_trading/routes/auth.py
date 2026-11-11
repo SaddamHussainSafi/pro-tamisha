@@ -21,11 +21,13 @@ from ..deps import (
     PrincipalDep,
     VerifiedPrincipalDep,
     build_principal,
+    live_session,
     require_permission,
 )
 from ..errors import ApiError
 from ..models import AuditEvent, AuthSession, Employee, EmployeeRole, Role
 from ..schemas import (
+    CsrfOut,
     EmployeeOut,
     GrantOut,
     LoginIn,
@@ -263,6 +265,25 @@ def _start_session(
 @router.get("/session", response_model=SessionOut)
 def get_session(p: PrincipalDep, db: DbDep) -> SessionOut:
     return session_out(db, p)
+
+
+@router.post("/csrf", response_model=CsrfOut)
+def renew_csrf(request: Request, db: DbDep) -> CsrfOut:
+    """A fresh CSRF token for the signed-in session, for a browser tab whose token is missing or
+    stale: it lives in per-tab sessionStorage, and signing in again (another tab, the dev
+    auto sign-in) starts a new session behind the same cookie. The old token stops working.
+
+    Same origin only: the browser's Origin header must be the app's (checked here and in
+    main.py), the cookie is SameSite=Strict, and CORS keeps the answer from other sites."""
+    sess, emp = live_session(request, db)
+    if request.headers.get("origin") != get_settings().frontend_origin:
+        raise ApiError(403, "CSRF_FAILED", "Missing or invalid CSRF token")
+    csrf_raw, csrf_sha = new_token()
+    sess.csrf_token_sha256 = csrf_sha
+    sess.last_seen_at = datetime.now(UTC)
+    request.state.actor_id = emp.id
+    db.commit()
+    return CsrfOut(csrf_token=csrf_raw)
 
 
 @router.post("/logout", status_code=204)

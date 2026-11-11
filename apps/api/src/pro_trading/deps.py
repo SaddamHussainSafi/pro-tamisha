@@ -111,7 +111,8 @@ def build_principal(db: Session, emp: Employee, sess: AuthSession) -> Principal:
     return Principal(emp, sess, load_grants(db, emp.id), two_step_policy(db, emp.company_id))
 
 
-def get_principal(request: Request, db: DbDep) -> Principal:
+def live_session(request: Request, db: Session) -> tuple[AuthSession, Employee]:
+    """The signed-in session from the cookie (locked), or 401. No CSRF check here."""
     s = get_settings()
     raw = request.cookies.get(s.session_cookie_name)
     if not raw:
@@ -131,11 +132,16 @@ def get_principal(request: Request, db: DbDep) -> Principal:
     emp = db.get(Employee, sess.employee_id)
     if emp is None or not emp.active:
         raise ApiError(401, "SESSION_INVALID", "Session expired or revoked")
+    return sess, emp
+
+
+def get_principal(request: Request, db: DbDep) -> Principal:
+    sess, emp = live_session(request, db)
     if request.method not in SAFE_METHODS and not tokens_match(
         request.headers.get(CSRF_HEADER), sess.csrf_token_sha256
     ):
         raise ApiError(403, "CSRF_FAILED", "Missing or invalid CSRF token")
-    sess.last_seen_at = now
+    sess.last_seen_at = datetime.now(UTC)
     db.commit()
     request.state.actor_id = emp.id
     return build_principal(db, emp, sess)

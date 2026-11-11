@@ -41,6 +41,10 @@ class LoginOut(SessionOut):
     csrf_token: str
 
 
+class CsrfOut(BaseModel):
+    csrf_token: str
+
+
 class MfaEnrollOut(BaseModel):
     otpauth_uri: str
 

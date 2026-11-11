@@ -783,20 +783,48 @@ export const setUnauthorizedHandler = (fn: () => void) => {
 type RawBody = { raw: Blob; type: string };
 const isRaw = (b: unknown): b is RawBody => typeof b === "object" && b !== null && "raw" in b && b.raw instanceof Blob;
 
+/**
+ * The CSRF token lives in this tab's sessionStorage, but the session cookie is shared by every
+ * tab: signing in again elsewhere (another tab, the dev auto sign-in) starts a new session and
+ * leaves this tab with a stale token, or none in a new tab. Then the server gives the current
+ * session a fresh token (same-origin only) and the request is sent once more. One renewal at a
+ * time; null when the session itself is gone.
+ */
+let renewing: Promise<string | null> | null = null;
+export function renewCsrf(): Promise<string | null> {
+  renewing ??= fetch("/api/v1/auth/csrf", { method: "POST", headers: { Accept: "application/json" }, credentials: "same-origin" })
+    .then(async (res) => {
+      const token = res.ok ? ((await res.json()) as { csrf_token?: string }).csrf_token ?? null : null;
+      if (token) storage.set(token);
+      return token;
+    })
+    .catch(() => null)
+    .finally(() => {
+      renewing = null;
+    });
+  return renewing;
+}
+
 async function request<T>(method: string, path: string, body?: unknown, idempotent = false): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = isRaw(body) ? body.type : "application/json";
-  if (method !== "GET") {
-    const csrf = storage.get();
-    if (csrf) headers["X-CSRF-Token"] = csrf;
-    if (idempotent) headers["Idempotency-Key"] = crypto.randomUUID();
-  }
-  const res = await fetch(`/api/v1${path}`, {
-    method,
-    headers,
-    credentials: "same-origin",
-    body: body === undefined ? undefined : isRaw(body) ? body.raw : JSON.stringify(body),
-  });
+  if (method !== "GET" && idempotent) headers["Idempotency-Key"] = crypto.randomUUID();
+  const send = () => {
+    if (method !== "GET") {
+      const csrf = storage.get();
+      if (csrf) headers["X-CSRF-Token"] = csrf;
+      else delete headers["X-CSRF-Token"];
+    }
+    return fetch(`/api/v1${path}`, {
+      method,
+      headers,
+      credentials: "same-origin",
+      body: body === undefined ? undefined : isRaw(body) ? body.raw : JSON.stringify(body),
+    });
+  };
+  let res = await send();
+  // Refused before anything ran, so sending again (same idempotency key) is safe.
+  if (res.status === 403 && method !== "GET" && (await csrfRefused(res)) && (await renewCsrf())) res = await send();
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -806,6 +834,11 @@ async function request<T>(method: string, path: string, body?: unknown, idempote
     throw new ApiError(res.status, code, message, extra);
   }
   return data as T;
+}
+
+async function csrfRefused(res: Response): Promise<boolean> {
+  const data = (await res.clone().json().catch(() => ({}))) as { error?: { code?: string } };
+  return data.error?.code === "CSRF_FAILED";
 }
 /** The same fetch wrapper for feature modules that keep their own endpoints (e.g. lib/notificationsApi.ts). */
 export const apiRequest = request;
@@ -945,17 +978,27 @@ export type CountIn = {
   note?: string | null;
 };
 
+let devLoginInFlight: Promise<Session> | null = null;
+
 export const api = {
   async login(email: string, password: string): Promise<Session> {
     const r = await request<Session & { csrf_token: string }>("POST", "/auth/login", { email, password });
     storage.set(r.csrf_token);
     return r;
   },
-  /** Development only: the API answers 404 unless DEV_AUTO_LOGIN_EMAIL is set (never in production). */
-  async devLogin(): Promise<Session> {
-    const r = await request<Session & { csrf_token: string }>("POST", "/auth/dev-login");
-    storage.set(r.csrf_token);
-    return r;
+  /** Development only: the API answers 404 unless DEV_AUTO_LOGIN_EMAIL is set (never in production).
+   * Calls made at the same time share one sign-in (each sign-in is a new session and cookie, so
+   * two racing ones could leave this tab with the other one's CSRF token). */
+  devLogin(): Promise<Session> {
+    devLoginInFlight ??= request<Session & { csrf_token: string }>("POST", "/auth/dev-login")
+      .then((r) => {
+        storage.set(r.csrf_token);
+        return r as Session;
+      })
+      .finally(() => {
+        devLoginInFlight = null;
+      });
+    return devLoginInFlight;
   },
   session: () => request<Session>("GET", "/auth/session"),
   async logout(): Promise<void> {
@@ -1132,30 +1175,44 @@ export const api = {
       true,
     ),
   /** Same as uploadScan, with real upload progress (0–1) from the browser. */
-  uploadScanProgress: (file: File, q: { warehouse_id: string; job_type: ScanJobType }, onProgress: (f: number) => void) =>
-    new Promise<ScanJob>((resolve, reject) => {
-      const x = new XMLHttpRequest();
-      x.open("POST", `/api/v1/scans/uploads?${qs({ ...q, filename: file.name })}`);
-      x.setRequestHeader("Accept", "application/json");
-      x.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-      const csrf = storage.get();
-      if (csrf) x.setRequestHeader("X-CSRF-Token", csrf);
-      x.setRequestHeader("Idempotency-Key", crypto.randomUUID());
-      x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-      x.onerror = () => reject(new ApiError(0, "NETWORK", "The upload was interrupted. Check the connection and try again."));
-      x.onload = () => {
-        let data: { error?: { code?: string; message?: string } } & Record<string, unknown> = {};
-        try {
-          data = JSON.parse(x.responseText || "{}");
-        } catch {
-          /* not JSON */
-        }
-        if (x.status >= 200 && x.status < 300) return resolve(data as unknown as ScanJob);
-        if (x.status === 401) onUnauthorized();
-        reject(new ApiError(x.status, data.error?.code ?? "HTTP_ERROR", data.error?.message ?? x.statusText));
-      };
-      x.send(file);
-    }),
+  uploadScanProgress: (file: File, q: { warehouse_id: string; job_type: ScanJobType }, onProgress: (f: number) => void) => {
+    const key = crypto.randomUUID();
+    const send = (retried: boolean): Promise<ScanJob> =>
+      new Promise<ScanJob>((resolve, reject) => {
+        const x = new XMLHttpRequest();
+        x.open("POST", `/api/v1/scans/uploads?${qs({ ...q, filename: file.name })}`);
+        x.setRequestHeader("Accept", "application/json");
+        x.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        const csrf = storage.get();
+        if (csrf) x.setRequestHeader("X-CSRF-Token", csrf);
+        x.setRequestHeader("Idempotency-Key", key);
+        x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+        x.onerror = () => reject(new ApiError(0, "NETWORK", "The upload was interrupted. Check the connection and try again."));
+        x.onload = () => {
+          let data: { error?: { code?: string; message?: string } } & Record<string, unknown> = {};
+          try {
+            data = JSON.parse(x.responseText || "{}");
+          } catch {
+            /* not JSON */
+          }
+          if (x.status >= 200 && x.status < 300) return resolve(data as unknown as ScanJob);
+          const code = data.error?.code ?? "HTTP_ERROR";
+          // stale or missing CSRF token in this tab: get a fresh one and send the file once more
+          if (x.status === 403 && code === "CSRF_FAILED" && !retried) {
+            void renewCsrf().then((token) => {
+              if (token) return send(true).then(resolve, reject);
+              onUnauthorized();
+              reject(new ApiError(x.status, code, data.error?.message ?? x.statusText));
+            });
+            return;
+          }
+          if (x.status === 401 || code === "CSRF_FAILED") onUnauthorized();
+          reject(new ApiError(x.status, code, data.error?.message ?? x.statusText));
+        };
+        x.send(file);
+      });
+    return send(false);
+  },
   ocrExtractions: (q: { status?: string; warehouse_id?: string; scan_job_id?: string; q?: string; cursor?: string; limit?: number }) =>
     request<Page<OcrExtraction>>("GET", `/ocr/extractions?${qs(q)}`),
   ocrExtraction: (id: string) => request<OcrExtractionDetail>("GET", `/ocr/extractions/${id}`),
