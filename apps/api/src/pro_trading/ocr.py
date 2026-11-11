@@ -36,7 +36,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from . import audit, outbox, paper_sheet, scanning, supplier_ocr
+from . import audit, outbox, paper_sheet, scan_progress, scanning, supplier_ocr
 from . import inventory as inv
 from .config import get_settings
 from .errors import ApiError
@@ -408,7 +408,9 @@ def tesseract_provider(content: bytes, mime: str) -> OcrResult:
             raise ProviderError("UNREADABLE", "No pages found", False)
         tokens: list[Token] = []
         for n, img in enumerate(images, start=1):
-            tokens.extend(_read_page(img, n, t))
+            page_tokens = _read_page(img, n, t)
+            tokens.extend(page_tokens)
+            scan_progress.page_read(n, len(images), page_tokens)  # live "page n of m"
         return OcrResult(len(images), tokens)
 
 
@@ -745,14 +747,22 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
     doc = db.get(SourceDocument, ex.document_id)
     job = db.get(ScanJob, ex.scan_job_id)
     assert doc is not None and job is not None
+    pages = scan_progress.document_pages(db, doc.id)
+    scan_progress.event(ex, "OCR_STARTED", attempt, page_count=pages, detail={"max": final_attempt})
     try:
         prov = provider()
         if prov is None:
             raise ProviderError("OCR_DISABLED", "No OCR engine configured", False)
-        res = prov(doc.content, doc.mime_type)
+        with scan_progress.tracking(ex, attempt):
+            res = prov(doc.content, doc.mime_type)
+            scan_progress.pages_done(res.pages, res.tokens)
     except ProviderError as e:
         if e.transient and attempt < final_attempt:
+            scan_progress.event(
+                ex, "OCR_RETRY", attempt, detail={"code": e.code, "max": final_attempt}
+            )
             raise
+        scan_progress.event(ex, "OCR_FAILED", attempt, detail={"code": e.code})
         with db.begin_nested():
             ex.status, ex.error_code, ex.error_detail = "FAILED", e.code, e.detail[:500]
             ex.completed_at = now()
@@ -768,7 +778,19 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
                 detail={"code": e.code, "attempts": attempt},
             )
         return
+    scan_progress.event(ex, "MATCHING", attempt, page_count=res.pages)
     m = map_result(db, ex.company_id, job.job_type, res)
+    scan_progress.event(
+        ex,
+        "MATCHED",
+        attempt,
+        page_count=res.pages,
+        detail={
+            "lines": len(m.proposals),
+            "to_check": sum(1 for p in m.proposals if p.status != "OK"),
+            "unknown_products": sum(1 for p in m.proposals if p.status == "UNMAPPED"),
+        },
+    )
     with db.begin_nested():
         for i, p in enumerate(m.proposals, start=1):
             db.add(

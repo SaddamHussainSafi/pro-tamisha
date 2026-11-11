@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     )
     ocr_docai_credentials_file: str = ""  # service-account JSON; never sent to the browser
     ocr_timeout_seconds: int = Field(default=60, ge=5, le=600)
+    # A reading still queued with no reader working on it and no progress for this long is
+    # stopped as OCR_TIMEOUT (the worker is down or gave up); the reviewer can read it again.
+    ocr_stall_seconds: int = Field(default=180, ge=30, le=3600)
     # Module 09 document filing. "local" copies filed documents into drive_local_root (dev/test
     # stand-in for Google Drive); "google" uses the Drive v3 API with a service account
     # (unverified until D-15 Workspace decision); "disabled" keeps documents in the database only.

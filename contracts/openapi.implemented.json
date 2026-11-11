@@ -11092,6 +11092,357 @@
         "title": "ProductSummary",
         "type": "object"
       },
+      "ProgressEvent": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "kind",
+          "attempt",
+          "page",
+          "page_count",
+          "at",
+          "detail"
+        ],
+        "title": "ProgressEvent",
+        "type": "object"
+      },
+      "ProgressPage": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          },
+          "state": {
+            "enum": [
+              "WAITING",
+              "READING",
+              "READ",
+              "FAILED",
+              "SKIPPED"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "to_check": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Check"
+          },
+          "words": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Words"
+          }
+        },
+        "required": [
+          "page",
+          "state"
+        ],
+        "title": "ProgressPage",
+        "type": "object"
+      },
+      "ProgressReading": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Detail"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "run_no": {
+            "title": "Run No",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "to_check": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Check"
+          },
+          "unclear_quantities": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unclear Quantities"
+          },
+          "unknown_products": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Products"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "run_no",
+          "status",
+          "provider",
+          "page_count",
+          "error_code",
+          "error_detail",
+          "lines",
+          "to_check",
+          "unknown_products",
+          "unclear_quantities",
+          "warnings",
+          "created_at",
+          "completed_at"
+        ],
+        "title": "ProgressReading",
+        "type": "object"
+      },
+      "ProgressRetry": {
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "max_attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Attempts"
+          }
+        },
+        "required": [
+          "code",
+          "attempt",
+          "max_attempts"
+        ],
+        "title": "ProgressRetry",
+        "type": "object"
+      },
+      "ProgressStep": {
+        "properties": {
+          "key": {
+            "enum": [
+              "RETRIEVING",
+              "UPLOADING",
+              "EXTRACTING",
+              "MATCHING",
+              "REVIEW"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "active",
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "state"
+        ],
+        "title": "ProgressStep",
+        "type": "object"
+      },
       "PublishIn": {
         "additionalProperties": false,
         "properties": {
@@ -12595,6 +12946,231 @@
           "next_cursor"
         ],
         "title": "ScanJobPage",
+        "type": "object"
+      },
+      "ScanProgressOut": {
+        "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "can_read": {
+            "title": "Can Read",
+            "type": "boolean"
+          },
+          "can_retry": {
+            "title": "Can Retry",
+            "type": "boolean"
+          },
+          "can_review": {
+            "title": "Can Review",
+            "type": "boolean"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "document_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Filename"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "document_mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Mime"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Detail"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_no": {
+            "title": "Job No",
+            "type": "string"
+          },
+          "job_type": {
+            "title": "Job Type",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "WORKING",
+              "READY",
+              "DONE",
+              "FAILED",
+              "TIMEOUT",
+              "MISSING",
+              "CANCELLED",
+              "UNREAD"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressPage"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "pages_read": {
+            "title": "Pages Read",
+            "type": "integer"
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProgressReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retrying": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProgressRetry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "enum": [
+              "RETRIEVING",
+              "UPLOADING",
+              "EXTRACTING",
+              "MATCHING",
+              "REVIEW"
+            ],
+            "title": "Step",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "job_no",
+          "job_type",
+          "channel",
+          "status",
+          "duplicate",
+          "error_code",
+          "error_detail",
+          "document_id",
+          "document_mime",
+          "document_filename",
+          "page_count",
+          "outcome",
+          "step",
+          "steps",
+          "pages",
+          "pages_read",
+          "attempt",
+          "retrying",
+          "reading",
+          "events",
+          "seq",
+          "can_read",
+          "can_retry",
+          "can_review",
+          "version"
+        ],
+        "title": "ScanProgressOut",
         "type": "object"
       },
       "SecurityEventOut": {
@@ -27928,6 +28504,101 @@
           }
         },
         "summary": "Cancel Job",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/api/v1/scans/jobs/{job_id}/progress": {
+      "get": {
+        "description": "Where this scan is: the five steps, every page, the reading's counts and what can be done\nnext. Built from committed rows only; nothing is estimated.",
+        "operationId": "read_progress_api_v1_scans_jobs__job_id__progress_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanProgressOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Progress",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/api/v1/scans/jobs/{job_id}/progress/stream": {
+      "get": {
+        "description": "Server-Sent Events: `progress` (a ScanProgressOut, sent at once and again whenever it\nchanges) and `end` when the scan reached a resting state (ready for review, finished,\nfailed, timed out, missing, cancelled or not read). The browser reconnects after `timeout`.",
+        "operationId": "stream_progress_api_v1_scans_jobs__job_id__progress_stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Seconds before the stream closes",
+            "in": "query",
+            "name": "timeout",
+            "required": false,
+            "schema": {
+              "default": 55,
+              "description": "Seconds before the stream closes",
+              "maximum": 300,
+              "minimum": 1,
+              "title": "Timeout",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Progress",
         "tags": [
           "scans"
         ]

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, type OcrExtraction, type ScanJob, type ScanJobType } from "../api";
 import { AUTO_READ, checkFile, scanMessage, stageOf, STAGES, type Stage } from "../lib/scans";
 import { Icon } from "../ui/Icon";
+import { ScanProcessing } from "../components/scanner/ScanProcessing";
 
 const POLL_MS = 2000;
 
@@ -52,6 +53,8 @@ type Item = { key: string; file: File; progress: number; job: ScanJob | null; ex
 /** Several files at once: uploaded one after another (real byte progress), each its own scan. */
 export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: File[]; warehouseId: string; jobType: ScanJobType; onDone: () => void }) {
   const [items, setItems] = useState<Item[]>(() => files.map((file, i) => ({ key: `${i}-${file.name}`, file, progress: 0, job: null, ex: null, checked: false, error: checkFile(file) })));
+  // The scanner above the list follows one file: the one picked, else the one moving now.
+  const [watch, setWatch] = useState<string | null>(null);
   const set = (key: string, patch: Partial<Item>) => setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
 
   useEffect(() => {
@@ -101,11 +104,24 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
     }
   }
 
+  const busy = (x: Item) => !x.error && (!x.job || x.ex?.status === "QUEUED" || (!x.ex && expected(x)));
+  const shown = items.find((x) => x.key === watch) ?? items.find(busy) ?? [...items].reverse().find((x) => x.job) ?? items[0];
+
   return (
     <section className="card space-y-4 p-6" aria-labelledby="uq-h">
       <h2 id="uq-h" className="text-xl font-semibold tracking-tight">
         {items.length} files
       </h2>
+      {shown && (
+        <ScanProcessing
+          key={shown.key}
+          jobId={shown.job?.id ?? null}
+          local={shown.job ? null : shown.error ? { kind: "upload-failed", fileName: shown.file.name, message: shown.error } : { kind: "uploading", fileName: shown.file.name, fraction: shown.progress }}
+          duplicate={!!shown.job?.duplicate}
+          heading={shown.file.name}
+          hideOpenLink
+        />
+      )}
       <ul className="grid gap-4 md:grid-cols-2">
         {items.map((it) => {
           const stage: Stage = it.error && !it.job ? "failed" : stageOf(!!it.job, it.ex?.status ?? null);
@@ -124,6 +140,10 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
                 <p className="text-sm text-ink-muted">Saved.</p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" className="btn-ghost px-3 py-1.5 text-xs" aria-pressed={shown?.key === it.key} onClick={() => setWatch(it.key)}>
+                  <Icon name="eye" size={14} />
+                  Watch
+                </button>
                 {it.job && (
                   <Link className="btn-ghost px-3 py-1.5 text-xs" to={`/scan/${it.job.id}`}>
                     {it.job.duplicate ? `Already uploaded: ${it.job.job_no}` : `Open ${it.job.job_no}`}

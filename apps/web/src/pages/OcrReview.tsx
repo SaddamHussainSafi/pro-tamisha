@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   api,
   canInWarehouse,
@@ -16,7 +16,8 @@ import {
   type Warehouse,
 } from "../api";
 import { useAuth } from "../auth";
-import { DocViewer, PriceList, SupplierHeader, ToReceiving } from "./OcrSupplier";
+import { DocViewer, PriceList, SupplierHeader, ToReceiving, type Flag } from "./OcrSupplier";
+import { ScanProcessing } from "../components/scanner/ScanProcessing";
 import { stockUnits, wholeOnly } from "../lib/inventory";
 import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, trimQty, warningText } from "../lib/ocr";
 import { DataGrid, type Column } from "../ui/DataGrid";
@@ -260,6 +261,8 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const [rejecting, setRejecting] = useState(false);
   const [rereading, setRereading] = useState(false);
   const nav = useNavigate();
+  const [search] = useSearchParams();
+  const startPage = Math.max(1, Number(search.get("page")) || 1);
 
   const load = useCallback(async () => {
     try {
@@ -322,6 +325,17 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const canReceive = canInWarehouse(session, "grn.record", ex.warehouse_id);
   const lit = ex.fields.find((f) => f.seq === focusSeq)?.bbox as { page: number; x0: string; y0: string; x1: string; y1: string } | undefined;
   const url = scanDocumentUrl(ex.document_id);
+  // Every line still to check is outlined on the original: amber = unclear quantity, red = unknown
+  // product or nothing readable. Clicking an outline brings its line into view.
+  const flags: Flag[] = ex.fields.flatMap((f) => {
+    const b = f.bbox as { page?: number; x0?: string; y0?: string; x1?: string; y1?: string } | null;
+    if (f.resolution !== "NONE" || f.status === "OK" || !b?.page || !b.x0 || !b.y0 || !b.x1 || !b.y1) return [];
+    return [{ page: b.page, x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, seq: f.seq, tone: f.status === "LOW_CONFIDENCE" ? "warning" : "danger", label: FIELD_STATUS[f.status].label }];
+  });
+  const showLine = (seq: number) => {
+    setFocusSeq(seq);
+    document.querySelector(`[data-testid='ocr-line-${seq}']`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   const startEdit = async (f: OcrField | null) => {
     const pid = f ? (f.final_product_id ?? f.read_product_id ?? "") : "";
@@ -411,11 +425,22 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
           The scan couldn't be read{ex.error_code ? ` (${ex.error_code})` : ""}. The scan itself is kept — read it again, or reject it and enter the order by hand.
         </Notice>
       )}
-      {ex.status === "QUEUED" && <Info tone="ok">Reading the scan… this page updates by itself.</Info>}
+      {ex.status === "QUEUED" &&
+        (embedded ? (
+          <Info tone="ok">Reading the scan… this page updates by itself.</Info>
+        ) : (
+          <ScanProcessing
+            jobId={ex.scan_job_id}
+            hideReview
+            onProgress={(p) => {
+              if (p.reading?.id === ex.id && p.reading.status !== ex.status) void load();
+            }}
+          />
+        ))}
 
       <div className={embedded ? "space-y-5" : "grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"}>
         {!embedded && <section aria-label="Original scan" className="card min-h-[24rem] overflow-hidden xl:sticky xl:top-4 xl:h-[calc(100vh-8rem)]">
-          <DocViewer documentId={ex.document_id} title={`Original scan ${ex.scan_job_no}`} highlight={lit ?? null} />
+          <DocViewer documentId={ex.document_id} title={`Original scan ${ex.scan_job_no}`} highlight={lit ?? null} flags={reviewing ? flags : []} initialPage={startPage} onFlag={showLine} />
         </section>}
 
         <div className="space-y-4">
@@ -633,6 +658,9 @@ function FieldRow({
   const title = f.resolution !== "NONE" && f.resolution !== "REMOVED" && f.final_product_name ? f.final_product_name : f.kind === "MANUAL" ? "Added by hand" : f.label;
   const tint = open && (f.status === "UNMAPPED" || f.status === "UNREADABLE") ? "bg-danger/[0.04]" : open && f.status === "LOW_CONFIDENCE" ? "bg-warning/[0.06]" : "";
   const doubtful = pct !== undefined && (pct < 90 || f.status !== "OK");
+  // What exactly needs a person: the product (not recognised) or the quantity (unclear).
+  const badProduct = open && f.kind !== "MANUAL" && f.status === "UNMAPPED";
+  const badQty = open && f.kind !== "MANUAL" && (f.status === "LOW_CONFIDENCE" || f.status === "UNREADABLE");
   return (
     <li className={`space-y-3 px-5 py-4 sm:px-6 ${tint} ${f.resolution === "REMOVED" ? "opacity-70" : ""}`} data-testid={`ocr-line-${f.seq}`}>
       <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 md:grid-cols-[3.25rem_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)] md:items-center">
@@ -641,7 +669,16 @@ function FieldRow({
           <span className="num absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-card text-xs font-semibold text-ink ring-1 ring-line">{f.seq}</span>
         </span>
         <div className="min-w-0 space-y-0.5">
-          <p className="truncate text-base font-semibold">{title}</p>
+          <p className="truncate text-base font-semibold">
+            {badProduct ? (
+              <span className="rounded bg-danger/8 px-1 underline decoration-danger decoration-dashed decoration-2 underline-offset-4" data-uncertain="product">
+                {title || "Unknown product"}
+                <span className="sr-only"> (product not recognised, check it)</span>
+              </span>
+            ) : (
+              title
+            )}
+          </p>
           <p className="text-sm text-ink-muted">
             {f.kind === "MANUAL" ? "Added by hand" : <>Sheet says: <span className="text-ink">{`${f.label}${f.raw_text && f.raw_text !== f.label ? ` · “${f.raw_text}”` : ""}`}</span></>}
           </p>
@@ -663,7 +700,11 @@ function FieldRow({
             <>
               <p className="text-sm">
                 <span className="text-ink-muted md:hidden">Read as: </span>
-                <span className="num rounded-ctl border border-line bg-card px-3 py-1.5 font-semibold">{f.read_sku ?? "?"} · {f.read_qty ? trimQty(f.read_qty) : "?"} {f.read_unit_code ?? ""}</span>
+                <span className={`num inline-block whitespace-nowrap rounded-ctl border bg-card px-3 py-1.5 font-semibold ${badQty ? (f.status === "UNREADABLE" ? "border-danger ring-2 ring-danger/20" : "border-warning ring-2 ring-warning/25") : badProduct ? "border-danger/60" : "border-line"}`} data-uncertain={badQty ? "quantity" : badProduct ? "product" : undefined}>
+                  {f.read_sku ?? "?"} ·{" "}
+                  <span className={badQty ? "rounded bg-warning/15 px-1 underline decoration-warning decoration-dashed decoration-2 underline-offset-4" : undefined}>{f.read_qty ? trimQty(f.read_qty) : "?"}</span> {f.read_unit_code ?? ""}
+                  {badQty && <span className="sr-only"> (quantity unclear, check it)</span>}
+                </span>
               </p>
               {pct !== undefined && (
                 doubtful ? (

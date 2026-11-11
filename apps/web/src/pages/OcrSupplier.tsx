@@ -4,14 +4,30 @@ import { api, type OcrExtractionDetail as OcrExtraction, type OcrField, type Ven
 import { Icon } from "../ui/Icon";
 
 type Box = { page: number; x0: string; y0: string; x1: string; y1: string } | null;
+/** An area the reviewer must check (unclear quantity or unknown product), always outlined. */
+export type Flag = { page: number; x0: string; y0: string; x1: string; y1: string; seq: number; tone: "warning" | "danger"; label: string };
 
 /**
  * Original document viewer: every page as an image, page by page, with zoom and a view-only
  * rotation. The original file is never changed. `highlight` outlines the area a line was read
  * from (positions come from the OCR engine).
  */
-export function DocViewer({ documentId, title, highlight }: { documentId: string; title: string; highlight: Box }) {
-  const [page, setPage] = useState(1);
+export function DocViewer({
+  documentId,
+  title,
+  highlight,
+  flags = [],
+  initialPage = 1,
+  onFlag,
+}: {
+  documentId: string;
+  title: string;
+  highlight: Box;
+  flags?: Flag[];
+  initialPage?: number;
+  onFlag?: (seq: number) => void;
+}) {
+  const [page, setPage] = useState(initialPage);
   const [pages, setPages] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [turn, setTurn] = useState(0);
@@ -30,6 +46,7 @@ export function DocViewer({ documentId, title, highlight }: { documentId: string
     if (highlight && highlight.page !== page) setPage(highlight.page);
   }, [highlight]); // eslint-disable-line react-hooks/exhaustive-deps
   const box = highlight && highlight.page === page ? highlight : null;
+  const here = flags.filter((f) => f.page === page);
   const btn = "grid size-9 place-items-center rounded-ctl border border-line bg-card hover:bg-subtle disabled:opacity-40";
   return (
     <div className="flex h-full flex-col">
@@ -64,6 +81,23 @@ export function DocViewer({ documentId, title, highlight }: { documentId: string
         ) : (
           <div className="relative mx-auto origin-top transition-transform duration-300" style={{ width: `${zoom * 100}%`, transform: `rotate(${turn}deg)` }}>
             <img alt={`${title}, page ${page}`} src={api.documentPageUrl(documentId, page)} className="block w-full rounded-ctl border border-line bg-card" />
+            {here.map((f) => (
+              <button
+                key={f.seq}
+                type="button"
+                className={`absolute rounded-md border-2 border-dashed ${f.tone === "danger" ? "border-danger bg-danger/10" : "border-warning bg-warning/12"} hover:bg-transparent focus-visible:outline-2`}
+                style={{
+                  left: `${Number(f.x0) * 100}%`,
+                  top: `${Number(f.y0) * 100}%`,
+                  width: `${Math.max(Number(f.x1) - Number(f.x0), 0.02) * 100}%`,
+                  height: `${Math.max(Number(f.y1) - Number(f.y0), 0.012) * 100}%`,
+                }}
+                aria-label={`Line ${f.seq}: ${f.label}. Show the line`}
+                title={`Line ${f.seq}: ${f.label}`}
+                onClick={() => onFlag?.(f.seq)}
+                data-testid="doc-flag"
+              />
+            ))}
             {box && (
               <span
                 aria-hidden

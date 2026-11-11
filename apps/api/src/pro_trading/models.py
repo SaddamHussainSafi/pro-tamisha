@@ -15,6 +15,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     LargeBinary,
@@ -1172,6 +1173,46 @@ class ScanJob(Base):
     )
     duplicate: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    created_at: Mapped[datetime] = _created()
+
+
+SCAN_EVENT_KINDS = (
+    "OCR_STARTED",
+    "PAGE_READ",
+    "MATCHING",
+    "MATCHED",
+    "OCR_RETRY",
+    "OCR_FAILED",
+    "OCR_TIMEOUT",
+)
+
+
+class ScanEvent(Base):
+    """Progress of an unfinished OCR reading (migration 0022), written by the worker in its own
+    short transactions so the browser can follow it page by page. The scan's and the reading's
+    status stay the truth; these rows only say how far along a reading is. They go with the scan
+    (ON DELETE CASCADE). `extraction_id` has no foreign key on purpose: the worker holds a row
+    lock on the reading while it writes these."""
+
+    __tablename__ = "scan_events"
+    __table_args__ = (
+        CheckConstraint(f"kind {_in(SCAN_EVENT_KINDS)}", name="kind_valid"),
+        CheckConstraint("page IS NULL OR page >= 1", name="page_positive"),
+        CheckConstraint("page_count IS NULL OR page_count >= 0", name="page_count_valid"),
+        CheckConstraint("attempt IS NULL OR attempt >= 1", name="attempt_valid"),
+        Index("ix_scan_events_job_seq", "scan_job_id", "id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    scan_job_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("scan_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    extraction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempt: Mapped[int | None] = mapped_column(Integer)
+    page: Mapped[int | None] = mapped_column(Integer)
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = _created()
 
 

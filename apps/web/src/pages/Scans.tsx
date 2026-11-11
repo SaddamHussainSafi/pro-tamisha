@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, canInWarehouse, has, scanDocumentUrl, type OcrExtraction, type ScanDevice, type ScanJob, type ScanJobType, type Warehouse } from "../api";
 import { useAuth } from "../auth";
-import { StageSteps, UploadQueue } from "./ScanProgress";
-import { ACCEPT, AUTO_READ, stageOf, bridgeScan, checkFile, failHint, fileSize, isOpen, JOB_STATUS, JOB_TYPE, SCANNER_STATE, scanMessage } from "../lib/scans";
+import { UploadQueue } from "./ScanProgress";
+import { IsoScanner } from "../components/scanner/IsoScanner";
+import { ScanProcessing } from "../components/scanner/ScanProcessing";
+import { ACCEPT, AUTO_READ, bridgeScan, checkFile, failHint, fileSize, isOpen, JOB_STATUS, JOB_TYPE, SCANNER_STATE, scanMessage } from "../lib/scans";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { OcrReviewPage, ReviewQueue, ScanReading } from "./OcrReview";
 import { OCR_STATUS } from "../lib/ocr";
@@ -172,57 +174,20 @@ function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
 
 /* ---------------------------- Scan studio ---------------------------- */
 
+/** While working, the animated scanner follows the browser's own upload bytes and then the
+ * server's scan (bridge: waiting → scanning); nothing is estimated. */
 type Phase =
   | { kind: "idle" }
-  | { kind: "working"; mode: "scan" | "upload"; step: number; label: string }
+  | { kind: "working"; mode: "scan" | "upload"; label: string; jobId: string | null }
   | { kind: "done"; job: ScanJob; duplicate: boolean };
 
-const STEPS: Record<"scan" | "upload", { title: string; hint: string }[]> = {
-  scan: [
-    { title: "Connected to scanner", hint: "Asking the scanner PC to start" },
-    { title: "Scanning pages", hint: "Pulling pages from the feeder" },
-    { title: "Saving the scan", hint: "Storing the original file" },
-    { title: "Reading lines", hint: "Sales orders are read automatically" },
-  ],
-  upload: [
-    { title: "Uploading the file", hint: "Sending it to Pro Trading" },
-    { title: "Saving the scan", hint: "Storing the original file" },
-    { title: "Reading lines", hint: "Sales orders are read automatically" },
-  ],
-};
-
-/** Simple scanner illustration (inline SVG, brand colours). */
-/** Office multifunction scanner/printer: document feeder on top, glass, touch panel, output
-tray and paper drawers. While a scan runs, the light bar sweeps the glass. */
-function ScannerArt({ working = false }: { working?: boolean }) {
+/** The studio's picture: the same isometric scanner that follows each scan, at rest. */
+function ScannerArt() {
   return (
-    <div className="relative grid h-full min-h-[15rem] place-items-center overflow-hidden rounded-ctl bg-brand-accent/10" aria-hidden>
-      <svg viewBox="0 0 240 220" className="w-[80%] max-w-[18rem]">
-        <ellipse cx="120" cy="208" rx="90" ry="8" fill="currentColor" className="text-brand-accent/15" />
-        {/* paper drawers */}
-        <rect x="54" y="140" width="132" height="62" rx="8" strokeWidth="2" className="fill-card stroke-line" />
-        <line x1="54" y1="171" x2="186" y2="171" strokeWidth="2" className="stroke-line" />
-        <rect x="102" y="151" width="36" height="6" rx="3" fill="currentColor" className="text-ink-muted/40" />
-        <rect x="102" y="182" width="36" height="6" rx="3" fill="currentColor" className="text-ink-muted/40" />
-        {/* printer body with output slot and a printed page */}
-        <rect x="46" y="80" width="148" height="62" rx="10" strokeWidth="2" className="fill-card stroke-line" />
-        <rect x="64" y="100" width="96" height="8" rx="4" fill="currentColor" className="text-ink/70" />
-        <path d="M70 104 H154 L149 128 H75 Z" strokeWidth="1.5" className="fill-card stroke-line" />
-        <path d="M84 114 H140 M84 120 H126" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-ink-muted/40" />
-        <circle cx="60" cy="128" r="3.5" fill="currentColor" className={`text-brand-accent ${working ? "animate-pulse" : ""}`} />
-        {/* scanner glass and lid */}
-        <rect x="42" y="64" width="156" height="18" rx="6" strokeWidth="2" className="fill-card stroke-line" />
-        {working && <rect x="48" y="70" width="144" height="5" rx="2.5" fill="currentColor" className="animate-pulse text-brand-accent" />}
-        {/* document feeder with pages waiting */}
-        <path d="M58 64 L70 42 H168 L176 64 Z" strokeWidth="2" className="fill-card stroke-line" />
-        <g className={working ? "animate-pulse" : ""}>
-          <path d="M84 42 L94 16 H160 L154 42 Z" strokeWidth="1.5" fill="currentColor" className="stroke-line text-subtle" />
-          <path d="M102 26 H148 M100 33 H138" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-ink-muted/40" />
-        </g>
-        {/* angled touch panel */}
-        <path d="M170 68 L210 58 L214 78 L174 88 Z" strokeWidth="2" className="fill-card stroke-line" />
-        <path d="M177 72 L205 65 L207.5 75 L179.5 82 Z" fill="currentColor" className="text-brand-accent/60" />
-      </svg>
+    <div className="sc-stage grid h-full min-h-[15rem] place-items-center overflow-hidden rounded-ctl px-2" aria-hidden>
+      <div className="w-full max-w-[22rem]">
+        <IsoScanner scene="idle" total={0} read={0} current={null} uploadPct={null} matched={null} duplicate={false} retrying={false} label="" decorative />
+      </div>
     </div>
   );
 }
@@ -260,7 +225,6 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string; jobId?: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const working = phase.kind === "working";
   const [upPct, setUpPct] = useState<number | null>(null);
   const [queue, setQueue] = useState<File[] | null>(null);
 
@@ -279,12 +243,12 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
 
   async function scan() {
     if (!device) return;
-    setPhase({ kind: "working", mode: "scan", step: 0, label: dev?.name ?? "Scanner" });
+    setPhase({ kind: "working", mode: "scan", label: dev?.name ?? "Scanner", jobId: null });
     setMsg(null);
     try {
       const job = await api.requestScan({ warehouse_id: wh, job_type: type, device_id: device, note: note.trim() || undefined });
       onChanged();
-      setPhase((p) => (p.kind === "working" ? { ...p, step: 1 } : p));
+      setPhase((p) => (p.kind === "working" ? { ...p, jobId: job.id } : p));
       try {
         const done = await bridgeScan(job);
         if (done.status === "UPLOADED") {
@@ -316,7 +280,7 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
-    setPhase({ kind: "working", mode: "upload", step: 0, label: file.name });
+    setPhase({ kind: "working", mode: "upload", label: file.name, jobId: null });
     setUpPct(0);
     setMsg(null);
     try {
@@ -349,62 +313,29 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
   );
 
   if (phase.kind === "done") return <ScanDone job={phase.job} duplicate={phase.duplicate} status={status} fileRef={fileRef} onFile={(f) => void upload(f)} onNew={() => { setMsg(null); setPhase({ kind: "idle" }); }} />;
+  if (phase.kind === "working")
+    return (
+      <ScanProcessing
+        jobId={phase.jobId}
+        local={phase.mode === "upload" ? { kind: "uploading", fileName: phase.label, fraction: upPct } : null}
+        heading={phase.mode === "scan" ? `Scanning with ${phase.label}` : undefined}
+        hideOpenLink
+      />
+    );
 
   return (
     <section className="card grid gap-6 p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
-      <ScannerArt working={working} />
+      <ScannerArt />
       <div className="flex min-w-0 flex-col gap-6 lg:border-l lg:border-line lg:pl-8">
         <div className="flex items-start gap-4">
           <span className="grid size-16 shrink-0 place-items-center rounded-ctl bg-brand-accent/12 text-brand-primary"><Icon name="printer" size={30} /></span>
           <div className="min-w-0">
-            <h2 id="new-scan" className="text-[26px] font-semibold leading-tight tracking-tight">
-              {phase.kind === "working" ? (phase.mode === "scan" ? "Scanning in progress" : "Uploading the file") : "Start a scan from a network scanner"}
-            </h2>
-            <p className="mt-1 text-base text-ink-muted">
-              {phase.kind === "working"
-                ? phase.mode === "scan"
-                  ? `Scanning with ${phase.label}. Keep the pages in the feeder.`
-                  : `Sending ${phase.label}.`
-                : "Scan documents straight from the office scanner, or upload a file."}
-            </p>
+            <h2 id="new-scan" className="text-[26px] font-semibold leading-tight tracking-tight">Start a scan from a network scanner</h2>
+            <p className="mt-1 text-base text-ink-muted">Scan documents straight from the office scanner, or upload a file.</p>
           </div>
         </div>
 
-        {phase.kind === "working" ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-            <div className="space-y-5">
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <span className="num text-[44px] font-semibold leading-none tracking-tight text-brand-primary">
-                    {phase.mode === "upload" && upPct !== null ? Math.round(upPct * 100) : Math.round(((phase.step + 0.5) / STEPS[phase.mode].length) * 100)}%
-                  </span>
-                  <span className="rounded-full bg-subtle px-3 py-1 text-sm font-medium">Step {phase.step + 1} of {STEPS[phase.mode].length}</span>
-                </div>
-                <div className="mt-3 h-3 overflow-hidden rounded-full bg-subtle" role="progressbar" aria-label="Scan progress" aria-valuemin={0} aria-valuemax={STEPS[phase.mode].length} aria-valuenow={phase.step + 1} aria-valuetext={STEPS[phase.mode][phase.step]?.title}>
-                  <div className="h-full rounded-full bg-brand-accent transition-[width] duration-300" style={{ width: `${phase.mode === "upload" && upPct !== null ? Math.max(3, upPct * 100) : ((phase.step + 0.5) / STEPS[phase.mode].length) * 100}%` }} />
-                </div>
-              </div>
-              <p className="text-sm text-ink-muted">You can leave this page — the scan carries on and shows up in the list below.</p>
-            </div>
-            <ol className="space-y-1">
-              {STEPS[phase.mode].map((s, i) => {
-                const st = i < phase.step ? "done" : i === phase.step ? "now" : "next";
-                return (
-                  <li key={s.title} className={`flex items-start gap-3 rounded-ctl px-3 py-2.5 ${st === "now" ? "bg-brand-accent/10" : ""}`}>
-                    <span className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-full ${st === "done" ? "bg-brand-accent text-white" : st === "now" ? "border-2 border-brand-accent" : "border-2 border-line"}`}>
-                      {st === "done" ? <Icon name="check" size={16} /> : st === "now" ? <span className="size-3 rounded-full bg-brand-accent" /> : null}
-                    </span>
-                    <span className="min-w-0">
-                      <span className={`block text-[15px] font-semibold ${st === "next" ? "text-ink-muted" : ""}`}>{s.title}</span>
-                      <span className="block text-sm text-ink-muted">{s.hint}</span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-        ) : (
-          <>
+        <>
             <div className="grid gap-5 sm:grid-cols-2">
               <label>
                 <span className="label">Document type</span>
@@ -440,8 +371,7 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
               <FileButton label="Upload files" disabled={false} inputRef={fileRef} onFile={(f) => void upload(f)} onFiles={(fs) => setQueue(fs)} />
               <span className="text-sm text-ink-muted">PDF (any number of pages), PNG, JPEG or TIFF, up to 20 MB each. Pick several at once.</span>
             </div>
-          </>
-        )}
+        </>
         {status}
         {queue && (
           <UploadQueue
@@ -544,6 +474,18 @@ function ScanDone({
 
   return (
     <>
+      {canRead && (ex || expected) && (
+        <ScanProcessing
+          jobId={job.id}
+          duplicate={duplicate}
+          hideOpenLink
+          hideReview
+          onProgress={(p) => {
+            // the reading moved on: refresh the summary and, when ready, the review below
+            if (p.reading?.id !== ex?.id || p.reading?.status !== ex?.status) load();
+          }}
+        />
+      )}
       <section aria-labelledby="scan-done" className="card grid gap-6 p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
         <div className="flex min-h-[18rem] flex-col gap-3 rounded-ctl bg-brand-accent/10 p-3">
           <div className="flex items-center gap-2 rounded-ctl bg-card px-3 py-2.5 text-sm font-medium">
@@ -589,11 +531,6 @@ function ScanDone({
             </div>
             <div>
               <h3 className="mb-3 text-lg font-semibold">OCR / extraction summary</h3>
-              {canRead && (ex || expected) && (
-                <div className="mb-4">
-                  <StageSteps stage={stageOf(true, ex?.status ?? (checked ? "QUEUED" : null))} error={ex?.error_detail ?? null} />
-                </div>
-              )}
               {!canRead ? (
                 <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">
                   {reads ? "Someone who reviews scans will check the lines read from this scan." : "“Other” documents are kept but not read automatically."}
@@ -607,16 +544,9 @@ function ScanDone({
                   {readError && <p className="mt-2 text-danger" role="alert">{readError}</p>}
                 </div>
               ) : !ex || ex.status === "QUEUED" ? (
-                <div className="flex items-center gap-3 rounded-ctl bg-brand-accent/10 p-4 text-sm">
-                  <span aria-hidden className="size-5 animate-spin rounded-full border-2 border-brand-accent border-t-transparent" />
-                  <span><strong>Reading the lines…</strong> The recognized lines open below as soon as they're ready.</span>
-                </div>
+                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">The recognized lines open below as soon as they're read.</p>
               ) : ex.status === "FAILED" ? (
-                <div className="rounded-ctl bg-danger/8 p-4 text-sm text-danger">
-                  <strong>This scan couldn't be read{ex.error_code ? ` (${ex.error_code})` : ""}.</strong> Read it again, or enter the order by hand.
-                  <div>{readButton("Read again")}</div>
-                  {readError && <p className="mt-2" role="alert">{readError}</p>}
-                </div>
+                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">Reading stopped. Read it again above, or enter the order by hand.</p>
               ) : (
                 <dl className="divide-y divide-line rounded-ctl bg-brand-accent/10 text-sm">
                   {([
@@ -917,6 +847,15 @@ export function ScanJobPage() {
         }
       />
       {error && <Notice tone="error">{error}</Notice>}
+      <ScanProcessing
+        jobId={job.id}
+        hideOpenLink
+        onProgress={(p) => {
+          if (p.status !== job.status) void load();
+        }}
+        onRestart={() => nav("/scan")}
+        restartLabel="New scan"
+      />
       {AUTO_READ.includes(job.job_type) && <ScanReading jobId={job.id} warehouseId={job.warehouse_id} received={job.status === "UPLOADED"} />}
       <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
         <dl className="card grid h-fit grid-cols-[auto_1fr] gap-x-4 gap-y-2 p-6 text-sm">

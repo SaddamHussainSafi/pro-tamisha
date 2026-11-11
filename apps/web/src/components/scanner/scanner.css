@@ -1,0 +1,128 @@
+/* Animated isometric scanner (IsoScanner.tsx). Every animation here is either an activity loop
+   that runs only while the server says that step is running (beam while a page is read, nudge while
+   the scanner feeds), or a one-shot move played when the server reports a change (a page read →
+   it lands on the output tray and the next one feeds in). theme.css turns all of it off for
+   prefers-reduced-motion; the base (non-animated) styles below are the still picture then. */
+
+.sc-root {
+  --sc-beam: #22d3ee;
+  --sc-beam-soft: #a5f3fc;
+  --sc-ok: var(--color-brand-accent);
+  --sc-warn: #e8a33d;
+  --sc-error: #d64545;
+  --sc-ink: #334155;
+  --sc-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* metallic blue-grey body */
+  --sc-top-a: #f5f8fb;
+  --sc-top-b: #d8e0e9;
+  --sc-left-a: #c7d1dc;
+  --sc-left-b: #aebccb;
+  --sc-right-a: #8a9bad;
+  --sc-right-b: #a3b2c2;
+  --sc-band-left: #7f8fa1;
+  --sc-band-right: #5f6f82;
+  --sc-edge: #c3cdd8;
+  --sc-riser-left: #b9c5d2;
+  --sc-riser-right: #94a4b6;
+  --sc-shelf-left: #b3c0ce;
+  --sc-shelf-right: #8d9eb1;
+  --sc-chute: #e3e9ef;
+  --sc-tray: #e6ebf1;
+  --sc-tray-right: #8797a9;
+  --sc-bezel: #b8c4d1;
+  /* glass, panel and display */
+  --sc-glass-a: #1d2b39;
+  --sc-glass-b: #24384a;
+  --sc-glass-c: #15202b;
+  --sc-panel: #1b2633;
+  --sc-screen: #0f1a24;
+  --sc-label: #3d4b5c;
+  --sc-display: #67e8f9;
+  --sc-display-ok: #86efac;
+  --sc-display-warn: #fcd34d;
+  --sc-display-error: #fca5a5;
+  /* paper and marks */
+  --sc-paper: #ffffff;
+  --sc-paper-edge: #dbe3ec;
+  --sc-line: #cbd5e1;
+  --sc-line-strong: #94a3b8;
+  --sc-ring-track: #e2e8f0;
+  --sc-shadow: #0f172a;
+  --sc-idle: #94a3b8;
+  --sc-badge-copy: #475569;
+  --sc-badge-missing: #64748b;
+}
+
+/* Soft backdrop behind the scanner (the card itself stays white). */
+.sc-stage { background: linear-gradient(180deg, #eef3f8 0%, #f6f8fb 55%, var(--color-card) 100%); }
+
+/* Pointer tilt (set from JS only when motion is allowed). */
+.sc-tilt {
+  transform: perspective(1200px) rotateX(var(--sc-rx, 0deg)) rotateY(var(--sc-ry, 0deg));
+  transition: transform 0.5s var(--sc-ease);
+  will-change: transform;
+}
+
+/* Beam: a bright line sweeping along the page on the glass, a light curtain rising from it, and the
+   recognised lines lighting up behind it. Still picture: halfway down the page. */
+.sc-beam-line { transform: translate(52px, 0); }
+.sc-beam-curtain { transform: translate(45px, 26px); }
+.sc-reveal { transform: scaleX(0.5); transform-origin: 0 0; }
+.sc-reading .sc-beam-line { animation: sc-beam-local 2.4s var(--sc-ease) infinite; }
+.sc-reading .sc-beam-curtain { animation: sc-beam-screen 2.4s var(--sc-ease) infinite; }
+.sc-reading .sc-reveal { animation: sc-reveal 2.4s var(--sc-ease) infinite; }
+@keyframes sc-beam-local {
+  0% { transform: translate(0, 0); opacity: 0; }
+  8% { opacity: 1; }
+  86% { transform: translate(104px, 0); opacity: 1; }
+  100% { transform: translate(104px, 0); opacity: 0; }
+}
+@keyframes sc-beam-screen {
+  0% { transform: translate(0, 0); opacity: 0; }
+  8% { opacity: 1; }
+  86% { transform: translate(90px, 52px); opacity: 1; }
+  100% { transform: translate(90px, 52px); opacity: 0; }
+}
+@keyframes sc-reveal {
+  0% { transform: scaleX(0); }
+  86%, 100% { transform: scaleX(1); }
+}
+
+/* A page moving between hopper, glass and output tray (played once when it mounts). */
+.sc-move { animation: sc-move 0.75s var(--sc-ease) backwards; }
+@keyframes sc-move {
+  from { transform: translate(var(--sc-fx, 0), var(--sc-fy, 0)); opacity: var(--sc-fo, 1); }
+}
+
+/* The scanner pulling the top sheet in while it scans. */
+.sc-feeding .sc-hopper-top { animation: sc-nudge 1.6s ease-in-out infinite; }
+@keyframes sc-nudge {
+  0%, 100% { transform: translate(0, 0); }
+  55% { transform: translate(12px, 7px); }
+}
+
+.sc-led { transition: fill 0.4s ease; }
+.sc-led-pulse { animation: sc-pulse 1.4s ease-in-out infinite; }
+@keyframes sc-pulse { 50% { opacity: 0.3; } }
+
+/* Status badge and product chips. */
+.sc-pop { transform-box: fill-box; transform-origin: center; animation: sc-pop 0.5s var(--sc-ease) backwards; }
+@keyframes sc-pop { from { transform: translateY(10px) scale(0.8); opacity: 0; } }
+.sc-search { animation: sc-pulse 1.2s ease-in-out infinite; }
+
+.sc-ring { transition: stroke-dashoffset 0.3s ease-out; }
+.sc-display { transition: fill 0.3s ease; }
+
+/* Steps rail: the connector fills as steps complete. */
+.sc-rail-fill { transition: transform 0.6s var(--sc-ease); transform-origin: left center; }
+.sc-step-dot { transition: background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease; }
+.sc-step-active { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-brand-accent) 18%, transparent); }
+
+/* Page strip. */
+.sc-page { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.2s ease; }
+.sc-page:hover { transform: translateY(-1px); }
+.sc-page-reading .sc-page-dot { animation: sc-pulse 1.4s ease-in-out infinite; }
+
+/* The headline swaps with a short fade when the step changes. */
+.sc-swap { animation: sc-enter 260ms var(--sc-ease) backwards; }
+@keyframes sc-enter { from { opacity: 0; transform: translateY(6px); } }
