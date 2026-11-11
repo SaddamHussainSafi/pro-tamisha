@@ -69,6 +69,10 @@ const WITH_ARG: Record<string, (arg: string) => string> = {
   CUSTOMER_UNSURE: (a) => `The customer name reads “${a}”, but not clearly. Choose the customer.`,
   CUSTOMER_NOT_FOUND: (a) => `No customer is called “${a}”. Choose the customer.`,
   MIXED_ORDERS: (a) => `This file holds more than one order or store (${a.replace(/;/g, "; ").replace(/=/g, ": order ")}). Lines are listed by page: remove the ones that belong to another order.`,
+  SAME_ORDER_NO: (a) => {
+    const [no = "", scan = ""] = a.split(":");
+    return `Order number ${no} is also on scan ${scan}. This may be a second copy of the same sheet: check before drafting another order.`;
+  },
   ORDER_REF_MISSING: (a) => `No order number was found on ${pagesOf(a)}. Check it belongs with the rest.`,
   ORDER_REF_UNSURE: (a) => `The order number on ${pagesOf(a)} was read two ways. Check it.`,
   DOC_TYPE_UNSURE: (a) => `The reader was not sure what kind of document ${pagesOf(a)} is.`,

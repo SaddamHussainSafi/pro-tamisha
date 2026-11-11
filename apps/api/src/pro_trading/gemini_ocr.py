@@ -38,7 +38,7 @@ from . import airway_packet, gemini_client, ocr, paper_sheet, scan_progress, sup
 from . import gemini_rules as rules
 from .config import get_settings
 from .gemini_client import Answer, GeminiError
-from .models import Customer, OcrExtraction, Product, SourceDocument, Vendor
+from .models import Customer, OcrExtraction, Product, ScanJob, SourceDocument, Vendor
 
 D0 = Decimal(0)
 C3 = Decimal("0.001")
@@ -788,6 +788,24 @@ def _orders(db: Session, ex: OcrExtraction, job_type: str, cat: ocr.Catalog,
             custs[ck] = (raw, unsure or o.cust_unsure, [*ps, r.page.n])
     customer_id: uuid.UUID | None = None
     engine["order_refs"] = {k: v for k, v in refs.items()}
+    # the same order number on another scan (a second copy of the sheet): say so, so one order
+    # is not drafted twice. Found on the real sheets: two scans of SO#080773.
+    job_id = getattr(ex, "scan_job_id", None)
+    for k in list(refs)[:4]:
+        other = db.scalar(
+            select(ScanJob.job_no)
+            .join(OcrExtraction, OcrExtraction.scan_job_id == ScanJob.id)
+            .where(
+                OcrExtraction.company_id == ex.company_id,
+                OcrExtraction.scan_job_id != job_id,
+                OcrExtraction.status.in_(("NEEDS_REVIEW", "ACCEPTED")),
+                OcrExtraction.engine["order_refs"].has_key(k),
+            )
+            .order_by(OcrExtraction.created_at)
+            .limit(1)
+        )
+        if other is not None and job_id is not None:
+            warnings.append(f"SAME_ORDER_NO:{k}:{other}")
     engine["customers"] = [{"raw": raw, "unsure": u, "pages": ps} for raw, u, ps in custs.values()]
     if len(refs) > 1 or len(custs) > 1:
         # several orders or stores in one file: lines are listed with their page; nothing is merged

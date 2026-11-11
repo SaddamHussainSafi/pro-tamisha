@@ -597,6 +597,22 @@ def test_two_stores_in_one_file_are_not_merged(user, world, catalog, gemini, tmp
 
 
 @needs_tools
+def test_same_order_number_on_another_scan_is_pointed_out(user, world, catalog, gemini):
+    sales = user("sales")
+    gemini(page([row("OKRA", "12")], customer="Island Grocers", order_ref="SO#080773"))
+    first = post_file(sales, world, paper_sheet.synthetic_scan(blocks(), {"Okra": "12"}, rotate=0),
+                      "SALES_ORDER")  # fmt: skip
+    assert first.status_code == 201 and drain(world) == 1
+    assert not any(w.startswith("SAME_ORDER_NO") for w in only(sales)["warnings"])
+    # a second copy of the sheet (another scan, so another file) with the same order number
+    copy = post_file(sales, world, paper_sheet.synthetic_scan(blocks(), {"Okra": "12"}, rotate=90),
+                     "SALES_ORDER", name="copy.pdf")  # fmt: skip
+    assert copy.status_code == 201 and copy.json()["id"] != first.json()["id"] and drain(world) == 1
+    exs = sales.get(f"{P}/ocr/extractions?scan_job_id={copy.json()['id']}").json()["items"]
+    assert f"SAME_ORDER_NO:080773:{first.json()['job_no']}" in exs[0]["warnings"]
+
+
+@needs_tools
 @pytest.mark.parametrize(
     "customer, unsure, warning",
     [
