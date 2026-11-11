@@ -5,6 +5,7 @@ import { Icon, type IconName } from "../ui/Icon";
 import { PageHeader } from "../ui/primitives";
 import { NotificationPreferences } from "../components/notifications/NotificationPreferences";
 import { MyAccount } from "./settings/MyAccount";
+import { OcrEngine } from "./settings/OcrEngine";
 import { Roles } from "./settings/Roles";
 import { Security } from "./settings/Security";
 import { Users } from "./settings/Users";
@@ -16,6 +17,7 @@ const TABS: Tab[] = [
   { to: "/settings/users", key: "users", label: "User management", icon: "users", admin: true },
   { to: "/settings/roles", key: "roles", label: "Roles & permissions", icon: "layers", admin: true },
   { to: "/settings/security", key: "security", label: "Security & sessions", icon: "shield", admin: true },
+  { to: "/settings/ocr", key: "ocr", label: "OCR test", icon: "layers", admin: true },
 ];
 
 /** Settings: My account for everyone; user management, roles and security for Super Admin. */
@@ -45,7 +47,7 @@ export function SettingsPage() {
           ))}
         </nav>
       )}
-      {current.key === "users" ? <Users /> : current.key === "roles" ? <Roles /> : current.key === "security" ? <Security /> : current.key === "notifications" ? <NotificationPreferences /> : <MyAccount />}
+      {current.key === "users" ? <Users /> : current.key === "roles" ? <Roles /> : current.key === "security" ? <Security /> : current.key === "ocr" ? <OcrEngine /> : current.key === "notifications" ? <NotificationPreferences /> : <MyAccount />}
     </div>
   );
 }

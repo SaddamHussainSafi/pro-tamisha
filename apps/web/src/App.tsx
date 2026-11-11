@@ -179,6 +179,7 @@ export function App() {
           <Route path="settings/users" element={<SettingsPage />} />
           <Route path="settings/roles" element={<SettingsPage />} />
           <Route path="settings/security" element={<SettingsPage />} />
+          <Route path="settings/ocr" element={<SettingsPage />} />
           <Route path="settings/notifications" element={<SettingsPage />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="notifications" element={<Navigate to="/activity?view=notifications" replace />} />

@@ -1,4 +1,4 @@
-import { ApiError, type OcrField, type OcrFieldStatus, type OcrResolution, type OcrStatus } from "../api";
+import { ApiError, type OcrEngine, type OcrField, type OcrFieldStatus, type OcrLineDetail, type OcrResolution, type OcrStatus } from "../api";
 import type { Tone } from "../ui/primitives";
 
 export const OCR_STATUS: Record<OcrStatus, { tone: Tone; label: string }> = {
@@ -34,7 +34,104 @@ const WARNING: Record<string, string> = {
   PACKET_TOTAL_MISMATCH: "The total printed on the invoice or CFIA form doesn't match the lines. Check the amounts.",
   PACKET_INVOICE_MISMATCH: "The vendor invoice and the CFIA Confirmation of Sale don't agree. Check the lines.",
 };
-export const warningText = (code: string) => WARNING[code] ?? code;
+Object.assign(WARNING, {
+  CUSTOMER_IS_SUPPLIER: "Only our own name is on the sheet, and we are the seller. Choose the customer.",
+  CUSTOMER_NOT_READ: "No customer name could be read. Choose the customer.",
+  OWN_DOCUMENT: "This is one of our own invoices or packing lists, so the order may already exist. Check before making a new one.",
+  SLOW_READING: "This reading took longer than usual.",
+});
+const WHY: Record<string, string> = {
+  GEMINI_CONSENT_NEEDED: "sending scans to Google has not been agreed yet",
+  GEMINI_NOT_CONFIGURED: "no Gemini key is set on the server",
+  GEMINI_DAILY_CAP: "today's free allowance is used up",
+  GEMINI_QUOTA: "Google's daily allowance is used up",
+  GEMINI_RATE_LIMIT: "Google asked to slow down",
+  GEMINI_CIRCUIT_OPEN: "Gemini is paused after repeated failures",
+  GEMINI_UNAVAILABLE: "Google could not be reached",
+  GEMINI_BAD_JSON: "Gemini's answer was not valid",
+  GEMINI_NO_ANSWER: "Gemini gave no answer",
+  GEMINI_REJECTED: "Google refused the request",
+  GEMINI_TOO_LARGE: "the page is too large to send",
+};
+const DOC: Record<string, string> = {
+  CUSTOMER_ORDER: "a customer order",
+  VENDOR_RECEIVING: "a supplier document",
+  AIRWAY_BILL: "an airway bill",
+  SALES_INVOICE: "one of our own invoices or packing lists",
+  UNKNOWN_DOCUMENT: "a document the reader doesn't know",
+};
+const pagesOf = (a: string) => a.replace(/^p/, "page ");
+const WITH_ARG: Record<string, (arg: string) => string> = {
+  GEMINI_FALLBACK: (a) => {
+    const [why = "", where] = a.split(":");
+    return `Gemini wasn't used${where ? ` for ${pagesOf(where)}` : ""} (${WHY[why] ?? why}). The built-in reader was used instead, so check every line.`;
+  },
+  CUSTOMER_UNSURE: (a) => `The customer name reads “${a}”, but not clearly. Choose the customer.`,
+  CUSTOMER_NOT_FOUND: (a) => `No customer is called “${a}”. Choose the customer.`,
+  MIXED_ORDERS: (a) => `This file holds more than one order or store (${a.replace(/;/g, "; ").replace(/=/g, ": order ")}). Lines are listed by page: remove the ones that belong to another order.`,
+  ORDER_REF_MISSING: (a) => `No order number was found on ${pagesOf(a)}. Check it belongs with the rest.`,
+  ORDER_REF_UNSURE: (a) => `The order number on ${pagesOf(a)} was read two ways. Check it.`,
+  DOC_TYPE_UNSURE: (a) => `The reader was not sure what kind of document ${pagesOf(a)} is.`,
+  DOC_TYPE_MISMATCH: (a) => `This looks like ${DOC[a] ?? a}, not what it was scanned as. Check before going on.`,
+  TOTAL_DIFFERS: (a) => {
+    const m = /written=([\d.]+),lines=(\d+),sum=([\d.]+)(?::p(\d+))?/.exec(a);
+    return m ? `A total of ${m[1]} is written on ${m[4] ? `page ${m[4]}` : "the sheet"}, but the ${m[2]} lines read add up to ${m[3]}. Look for a missed or extra line.` : "A total written on the sheet doesn't match the lines read.";
+  },
+  RECHECK_SKIPPED: () => "Unclear lines were not read a second time (today's allowance is nearly used up).",
+  HEADER_DIFFERS: (a) => `The two readers disagree on the ${a.replace(/_/g, " ")}. Check it.`,
+  LINE_COUNT_DIFFERS: (a) => `The two readers found a different number of lines (${a.replace("local=", "built-in ").replace(",gemini=", ", Gemini ")}). Check none is missing.`,
+  STAGE_A_SKIPPED: () => "The kind of document was not double-checked.",
+};
+export const warningText = (code: string) => {
+  if (WARNING[code]) return WARNING[code];
+  const i = code.indexOf(":");
+  const fn = i > 0 ? WITH_ARG[code.slice(0, i)] : undefined;
+  return fn ? fn(code.slice(i + 1)) : code;
+};
+
+const FLAG: Record<string, (arg: string) => string> = {
+  NO_INK_SEEN: () => "No writing was found in this row's box: the number may belong to another row.",
+  POSSIBLE_SHIFT: () => "The number may belong to the row above or below.",
+  UNSURE: () => "Hard to read.",
+  FRACTION: () => "A fraction or decimal: check it.",
+  LOCAL_READ_DIFFERS: (a) => `The built-in reader saw ${a}.`,
+  RECHECK_DIFFERS: (a) => `A second look read ${a === "-" ? "nothing" : a}.`,
+  GEMINI_SAW_NOTHING: () => "Found by the built-in reader only.",
+  DUPLICATE_ROW: () => "This row was read twice.",
+  PRODUCT_GUESSED: () => "The product is a near match: check it.",
+  UNIT_IN_QTY: () => "A unit was written with the quantity.",
+  AMOUNT_DIFFERS: () => "Quantity × price doesn't match the amount.",
+};
+/** What the handwriting reader saw on a line besides the quantity, in words. */
+export function lineNotes(d: OcrLineDetail | null | undefined): string[] {
+  if (!d) return [];
+  const out: string[] = [];
+  if (d.crossed_out) out.push(`Crossed out: ${d.crossed_out}`);
+  if (d.no_mark) out.push("“NO” is written on this row");
+  if (d.pkg) out.push(`Package: ${d.pkg}`);
+  if (d.weight) out.push(`Weight: ${d.weight}`);
+  if (d.case_size) out.push(`Case size: ${d.case_size}`);
+  if (d.notes) out.push(`Notes: ${d.notes}`);
+  if (d.supplied) out.push(`Supplied: ${d.supplied}`);
+  if (d.unavailable) out.push(`Short: ${d.unavailable}`);
+  if (d.checkmark) out.push("Ticked");
+  for (const f of d.flags ?? []) {
+    const i = f.indexOf(":");
+    const fn = FLAG[i > 0 ? f.slice(0, i) : f];
+    if (fn) out.push(fn(i > 0 ? f.slice(i + 1) : ""));
+  }
+  return out;
+}
+
+const ENGINE: Record<string, string> = { gemini: "Gemini", tesseract: "the built-in reader", mixed: "Gemini and the built-in reader", disabled: "nothing (reading is off)" };
+/** One line saying which engine really read the scan. Empty for readings made before engines were recorded. */
+export function engineText(e: OcrEngine | undefined): string {
+  if (!e?.provider) return "";
+  const who = ENGINE[e.provider] ?? e.provider;
+  const model = e.provider !== "tesseract" && e.model ? ` (${e.model})` : "";
+  const secs = typeof e.seconds === "number" ? ` in ${Math.round(e.seconds)} s` : "";
+  return `Read by ${who}${model}${secs}.`;
+}
 
 /** Only clear readings may be confirmed as read; anything unclear needs a person to enter it. */
 export const canConfirm = (f: Pick<OcrField, "status" | "read_product_id" | "read_qty">) =>

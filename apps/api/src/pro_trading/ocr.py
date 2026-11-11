@@ -323,14 +323,19 @@ def _upright(words: list[_Word]) -> tuple[int, float]:
 
 
 def _read_page(img: Path, n: int, timeout: int) -> list[Token]:
-    """One page image -> tokens. Rulings are removed before reading (they glue onto words), the
+    return page_layout(img, n, timeout)[0]
+
+
+def page_layout(img: Path, n: int, timeout: int) -> tuple[list[Token], int]:
+    """One page image -> (tokens, degrees the page was turned to stand upright). Rulings are
+    removed before reading (they glue onto words), the
     page is turned by OSD and, if few words read well, the other ways up are tried. Narrow boxes
     with writing in them come back as handwritten tokens ("?" when the digits can't be read)."""
     from . import ocr_grid
 
     base = _prepare(img, 0)
     rot = _rotation(str(img), timeout)  # OSD: often unsure on forms, so it is checked below
-    best: tuple[int, Any, list[_Word]] | None = None
+    best: tuple[int, Any, list[_Word], int] | None = None
     for r in dict.fromkeys((rot, (rot + 180) % 360, (rot + 90) % 360, (rot + 270) % 360)):
         grid = ocr_grid.find_grid(base.rotate(-r, expand=True, fillcolor=255) if r else base)
         path = img.with_name(f"{img.stem}-r{r}.png")
@@ -338,11 +343,11 @@ def _read_page(img: Path, n: int, timeout: int) -> list[Token]:
         words = _tsv(path, timeout)
         score, ratio = _upright(words)
         if best is None or score > best[0]:
-            best = (score, grid, words)
+            best = (score, grid, words, r)
         if score >= GOOD_PAGE and ratio >= 0.3:
             break  # clearly the right way up; otherwise the best of the four is kept
     assert best is not None
-    _, grid, words = best
+    _, grid, words, turned = best
     w, h = (Decimal(v) for v in grid.clean.size)
     printed = [
         (x, y, x + bw, y + bh)
@@ -377,35 +382,40 @@ def _read_page(img: Path, n: int, timeout: int) -> list[Token]:
         elif c < HAND_FLOOR:
             text, c = f"{text}?", Decimal(0)  # a guess: shown as a hint, never as the quantity
         out.append(tok(text, x0, y0, x1, y1, min(c, HAND_CAP), True))
-    return out
+    return out, turned
+
+
+def page_images(content: bytes, mime: str, tmp: str, t: int) -> list[Path]:
+    """The document as one grayscale 300 dpi image per page (PDF) or the image itself."""
+    if mime == "application/pdf":
+        src = Path(tmp) / "in.pdf"
+        src.write_bytes(content)
+        last = scanning.MAX_OCR_PAGES  # later pages are not read
+        count, sizes = scanning.pdf_info(src, 1, last)
+        if count == 0:
+            raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
+        if scanning.pdf_page_too_large(sizes, 300, min(count, last)):
+            raise ProviderError("TOO_LARGE", "A page is too large to read", False)
+        args = ["pdftoppm", "-cropbox", "-l", str(last), "-r", "300", "-gray", "-png"]
+        r = _run([*args, str(src), str(Path(tmp) / "p")], t)
+        if r.returncode != 0:
+            raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
+        images = sorted(Path(tmp).glob("p-*.png"))
+    elif mime in _IMG_EXT:
+        img = Path(tmp) / f"in{_IMG_EXT[mime]}"
+        img.write_bytes(content)
+        images = [img]
+    else:
+        raise ProviderError("UNSUPPORTED", f"Can't read {mime}", False)
+    if not images:
+        raise ProviderError("UNREADABLE", "No pages found", False)
+    return images
 
 
 def tesseract_provider(content: bytes, mime: str) -> OcrResult:
-    st = get_settings()
-    t = st.ocr_timeout_seconds
+    t = get_settings().ocr_timeout_seconds
     with tempfile.TemporaryDirectory(prefix="ptocr-") as tmp:
-        if mime == "application/pdf":
-            src = Path(tmp) / "in.pdf"
-            src.write_bytes(content)
-            last = scanning.MAX_OCR_PAGES  # later pages are not read
-            count, sizes = scanning.pdf_info(src, 1, last)
-            if count == 0:
-                raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
-            if scanning.pdf_page_too_large(sizes, 300, min(count, last)):
-                raise ProviderError("TOO_LARGE", "A page is too large to read", False)
-            args = ["pdftoppm", "-cropbox", "-l", str(last), "-r", "300", "-gray", "-png"]
-            r = _run([*args, str(src), str(Path(tmp) / "p")], t)
-            if r.returncode != 0:
-                raise ProviderError("UNREADABLE", "The PDF could not be opened", False)
-            images = sorted(Path(tmp).glob("p-*.png"))
-        elif mime in _IMG_EXT:
-            img = Path(tmp) / f"in{_IMG_EXT[mime]}"
-            img.write_bytes(content)
-            images = [img]
-        else:
-            raise ProviderError("UNSUPPORTED", f"Can't read {mime}", False)
-        if not images:
-            raise ProviderError("UNREADABLE", "No pages found", False)
+        images = page_images(content, mime, tmp, t)
         tokens: list[Token] = []
         for n, img in enumerate(images, start=1):
             page_tokens = _read_page(img, n, t)
@@ -443,6 +453,7 @@ class Proposal:
     bbox: dict[str, Any] | None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
+    detail: dict[str, Any] | None = None  # extras a handwriting reader sees (migration 0023)
 
 
 def rows_of(tokens: list[Token]) -> list[list[Token]]:
@@ -749,13 +760,25 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
     assert doc is not None and job is not None
     pages = scan_progress.document_pages(db, doc.id)
     scan_progress.event(ex, "OCR_STARTED", attempt, page_count=pages, detail={"max": final_attempt})
+    m: MappedSheet | None = None
+    engine: dict[str, Any] = {}
     try:
-        prov = provider()
-        if prov is None:
-            raise ProviderError("OCR_DISABLED", "No OCR engine configured", False)
-        with scan_progress.tracking(ex, attempt):
-            res = prov(doc.content, doc.mime_type)
-            scan_progress.pages_done(res.pages, res.tokens)
+        if get_settings().ocr_provider == "gemini":
+            # Gemini answers in rows, not word boxes: it maps its own reading, and falls back to
+            # the local reader (saying so in the warnings) when Google can't be used.
+            from . import gemini_ocr
+
+            with scan_progress.tracking(ex, attempt):
+                m, n_pages, engine = gemini_ocr.read_document(db, ex, job.job_type, doc)
+                scan_progress.pages_done(n_pages, [])
+        else:
+            prov = provider()
+            if prov is None:
+                raise ProviderError("OCR_DISABLED", "No OCR engine configured", False)
+            with scan_progress.tracking(ex, attempt):
+                res = prov(doc.content, doc.mime_type)
+                scan_progress.pages_done(res.pages, res.tokens)
+            n_pages = res.pages
     except ProviderError as e:
         if e.transient and attempt < final_attempt:
             scan_progress.event(
@@ -778,13 +801,14 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
                 detail={"code": e.code, "attempts": attempt},
             )
         return
-    scan_progress.event(ex, "MATCHING", attempt, page_count=res.pages)
-    m = map_result(db, ex.company_id, job.job_type, res)
+    scan_progress.event(ex, "MATCHING", attempt, page_count=n_pages)
+    if m is None:
+        m = map_result(db, ex.company_id, job.job_type, res)
     scan_progress.event(
         ex,
         "MATCHED",
         attempt,
-        page_count=res.pages,
+        page_count=n_pages,
         detail={
             "lines": len(m.proposals),
             "to_check": sum(1 for p in m.proposals if p.status != "OK"),
@@ -808,6 +832,7 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
                     bbox=p.bbox,
                     read_unit_price=p.unit_price,
                     read_amount=p.amount,
+                    detail=p.detail,
                 )
             )
         if m.header is not None:
@@ -816,7 +841,8 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
                 m.warnings.append(f"POSSIBLE_DUPLICATE:{dup}")
         ex.status = "NEEDS_REVIEW"
         ex.template, ex.customer_id = m.template, m.customer_id
-        ex.warnings, ex.text_blocks, ex.page_count = m.warnings, m.text_blocks, res.pages
+        ex.warnings, ex.text_blocks, ex.page_count = m.warnings, m.text_blocks, n_pages
+        ex.engine = engine
         ex.completed_at = now()
         ex.version += 1
         audit.record(
@@ -827,7 +853,13 @@ def run_extraction(db: Session, ex: OcrExtraction, attempt: int, final_attempt: 
             target_type="ocr_extraction",
             target_id=str(ex.id),
             warehouse_id=ex.warehouse_id,
-            detail={"fields": len(m.proposals), "template": m.template, "warnings": m.warnings},
+            detail={
+                "fields": len(m.proposals),
+                "template": m.template,
+                "warnings": m.warnings,
+                **{k: engine[k] for k in ("provider", "model", "requests", "total_tokens",
+                                          "seconds", "fallback") if k in engine},
+            },
         )
 
 

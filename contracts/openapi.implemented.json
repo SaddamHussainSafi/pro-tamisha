@@ -7004,6 +7004,302 @@
         "title": "OcrCorrectionOut",
         "type": "object"
       },
+      "OcrEngineAccuracyOut": {
+        "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy"
+          },
+          "correct": {
+            "title": "Correct",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine",
+          "samples",
+          "correct",
+          "accuracy"
+        ],
+        "title": "OcrEngineAccuracyOut",
+        "type": "object"
+      },
+      "OcrEngineCallOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "model",
+          "stage",
+          "page",
+          "outcome",
+          "http_status",
+          "total_tokens",
+          "seconds"
+        ],
+        "title": "OcrEngineCallOut",
+        "type": "object"
+      },
+      "OcrEngineReadingOut": {
+        "description": "One reading for the admin OCR test page: the engine record with each page's validated\nanswer, the local (Tesseract) reading of the same pages, and how the review went.",
+        "properties": {
+          "corrections": {
+            "title": "Corrections",
+            "type": "integer"
+          },
+          "crossed_out": {
+            "title": "Crossed Out",
+            "type": "integer"
+          },
+          "engine": {
+            "additionalProperties": true,
+            "title": "Engine",
+            "type": "object"
+          },
+          "extraction_id": {
+            "format": "uuid",
+            "title": "Extraction Id",
+            "type": "string"
+          },
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          },
+          "no_marks": {
+            "title": "No Marks",
+            "type": "integer"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "NEEDS_REVIEW",
+              "FAILED",
+              "ACCEPTED",
+              "REJECTED",
+              "SUPERSEDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tesseract_lines": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tesseract Lines",
+            "type": "array"
+          },
+          "uncertain": {
+            "title": "Uncertain",
+            "type": "integer"
+          },
+          "validation_errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validation Errors",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "extraction_id",
+          "status",
+          "provider",
+          "page_count",
+          "warnings",
+          "engine",
+          "lines",
+          "uncertain",
+          "no_marks",
+          "crossed_out",
+          "corrections",
+          "validation_errors",
+          "tesseract_lines"
+        ],
+        "title": "OcrEngineReadingOut",
+        "type": "object"
+      },
+      "OcrEngineStatusOut": {
+        "description": "The OCR engine as configured on the server. Never contains the key.",
+        "properties": {
+          "accuracy": {
+            "items": {
+              "$ref": "#/components/schemas/OcrEngineAccuracyOut"
+            },
+            "title": "Accuracy",
+            "type": "array"
+          },
+          "breaker_open_seconds": {
+            "title": "Breaker Open Seconds",
+            "type": "integer"
+          },
+          "daily_request_cap": {
+            "title": "Daily Request Cap",
+            "type": "integer"
+          },
+          "data_consent": {
+            "title": "Data Consent",
+            "type": "boolean"
+          },
+          "fallback_provider": {
+            "title": "Fallback Provider",
+            "type": "string"
+          },
+          "key_set": {
+            "title": "Key Set",
+            "type": "boolean"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "quota_hit_today": {
+            "title": "Quota Hit Today",
+            "type": "boolean"
+          },
+          "recent_calls": {
+            "items": {
+              "$ref": "#/components/schemas/OcrEngineCallOut"
+            },
+            "title": "Recent Calls",
+            "type": "array"
+          },
+          "remaining_today": {
+            "title": "Remaining Today",
+            "type": "integer"
+          },
+          "requests_per_minute": {
+            "title": "Requests Per Minute",
+            "type": "integer"
+          },
+          "target_seconds": {
+            "title": "Target Seconds",
+            "type": "integer"
+          },
+          "used_this_minute": {
+            "title": "Used This Minute",
+            "type": "integer"
+          },
+          "used_today": {
+            "title": "Used Today",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "fallback_provider",
+          "model",
+          "key_set",
+          "data_consent",
+          "target_seconds",
+          "requests_per_minute",
+          "daily_request_cap",
+          "used_today",
+          "remaining_today",
+          "used_this_minute",
+          "breaker_open_seconds",
+          "quota_hit_today",
+          "recent_calls",
+          "accuracy"
+        ],
+        "title": "OcrEngineStatusOut",
+        "type": "object"
+      },
       "OcrExtractionDetail": {
         "properties": {
           "completed_at": {
@@ -7054,6 +7350,11 @@
           "document_mime": {
             "title": "Document Mime",
             "type": "string"
+          },
+          "engine": {
+            "additionalProperties": true,
+            "title": "Engine",
+            "type": "object"
           },
           "error_code": {
             "anyOf": [
@@ -7358,6 +7659,11 @@
             "title": "Document Mime",
             "type": "string"
           },
+          "engine": {
+            "additionalProperties": true,
+            "title": "Engine",
+            "type": "object"
+          },
           "error_code": {
             "anyOf": [
               {
@@ -7657,6 +7963,18 @@
             },
             "title": "Corrections",
             "type": "array"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
           },
           "final_product_id": {
             "anyOf": [
@@ -21352,6 +21670,27 @@
         ]
       }
     },
+    "/api/v1/ocr/engine": {
+      "get": {
+        "operationId": "engine_status_api_v1_ocr_engine_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrEngineStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Engine Status",
+        "tags": [
+          "ocr"
+        ]
+      }
+    },
     "/api/v1/ocr/extractions": {
       "get": {
         "operationId": "list_extractions_api_v1_ocr_extractions_get",
@@ -21638,6 +21977,49 @@
           }
         },
         "summary": "Accept",
+        "tags": [
+          "ocr"
+        ]
+      }
+    },
+    "/api/v1/ocr/extractions/{extraction_id}/engine": {
+      "get": {
+        "operationId": "engine_reading_api_v1_ocr_extractions__extraction_id__engine_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extraction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Extraction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrEngineReadingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Engine Reading",
         "tags": [
           "ocr"
         ]

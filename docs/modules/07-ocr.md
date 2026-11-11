@@ -39,7 +39,7 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 
 ### Flow
 1. A `SALES_ORDER` or `PICK_SHEET` scan is received (bridge or upload) → `ocr.auto_queue` creates an extraction (`QUEUED`) and an outbox event `ocr.extract`. (Picking sheets were kept unread until 2026-11-10; the office fills one paper form for both, see below.) Any other received scan can be read on request (`POST /ocr/extractions`, **Read this scan**).
-2. The Celery worker reads the original with the configured engine (`OCR_PROVIDER=fake|document_ai|disabled`), maps it to the PT-OS-1 template, and stores one field per line with confidence and status:
+2. The Celery worker reads the original with the configured engine (`OCR_PROVIDER=fake|tesseract|document_ai|gemini|disabled`), maps it to the PT-OS-1 template, and stores one field per line with confidence and status:
    - `OK` — product and quantity read at or above `OCR_CONFIDENCE_THRESHOLD` (0.900).
    - `LOW_CONFIDENCE` / `UNREADABLE` — the quantity must be entered by a person; it cannot be confirmed as read.
    - `UNMAPPED` — written product not matched by SKU, alias or name.
@@ -78,3 +78,31 @@ Migration `0008_ocr.py`; `src/pro_trading/ocr.py`, `ocr_grid.py`, `paper_sheet.p
 - Tesseract reports each page as it finishes (`page_read` in its page loop); engines that answer for the whole document at once (Document AI, fake) are reported page by page right after they answer (`pages_done`).
 - **Stall check (`OCR_STALL_SECONDS`, default 180):** a reading still QUEUED that no worker holds (its row and its outbox event are not locked) and with no event for that long is set FAILED / `OCR_TIMEOUT` with an audit row; a late worker then finds it closed and does nothing. "Read again" starts a fresh run.
 - Review screen: every line still to check is outlined on the original (amber: unclear quantity, red: unknown product / unreadable) and clicking an outline brings its line into view; in each line the uncertain part (product name or quantity) is marked; `?page=n` (from the scanner's page strip) opens the original on that page. The approval steps are unchanged (every line decided, customer chosen, "I checked every line", draft order only).
+
+## Gemini as the reading engine (`OCR_PROVIDER=gemini`, 2026-11-11)
+
+Tesseract cannot read handwriting; Google Gemini can. `gemini` is a fifth engine beside `fake | tesseract | document_ai | disabled`. Tesseract stays selectable and is the fallback.
+
+**Settings (server `.env` only; the key is never logged, stored, returned by the API or sent to the browser):**
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `OCR_PROVIDER` | — | `gemini` to switch it on |
+| `GEMINI_API_KEY` | empty | Created by the owner in Google AI Studio, project **Tamisha Trading OCR** (`gen-lang-client-0606743746`) |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Model code exactly as Google lists it |
+| `GEMINI_DATA_CONSENT` | `false` | Nothing is sent to Google until the owner sets this to `true`. On the free plan Google may use what is sent to improve its products and its staff may read it |
+| `GEMINI_REQUESTS_PER_MINUTE` / `GEMINI_DAILY_REQUEST_CAP` | `5` / `20` | The free plan's limits for this model, read in AI Studio on 2026-11-11 (also 250,000 tokens a minute) |
+| `GEMINI_MAX_RETRIES`, `GEMINI_TIMEOUT_SECONDS` | `2`, `90` | Retries with backoff on 429/5xx/timeouts and one re-ask on an invalid answer |
+| `GEMINI_BREAKER_FAILURES` / `GEMINI_BREAKER_SECONDS` | `3` / `300` | Circuit breaker: after that many failed requests in a row nothing is sent for the cool-down |
+| `OCR_FALLBACK_PROVIDER` | `tesseract` | Used when Gemini cannot be (never a paid service) |
+| `OCR_TARGET_SECONDS` | `25` | Target per page; a slower reading keeps going and gets `SLOW_READING` |
+
+**How a page is read** (`gemini_ocr.py`): the page image is levelled (skew) and stood upright; the existing sheet reader (`paper_sheet.py`, `ocr_grid.py`) finds the printed rows and the boxes holding ink. Gemini then gets the whole page plus one enlarged crop per table and answers in a fixed JSON schema that is validated on the server (`gemini_rules.py`). Stage A (kind of document, customer/store, order reference, layout) is a separate request only when the daily allowance is 200 or more; on the free plan it rides with stage B (the rows), **one request per page**. Stage C cuts out the rows the checks doubt and asks once more while more than `GEMINI_RECHECK_RESERVE` (5) requests of the day are left. Every request is metered in `ocr_engine_calls` (no page content) and counted under an advisory lock, so API and workers together stay inside the limits. Requests ask Google not to store the interaction (`store: false`).
+
+**Rules the answer is held to** (each has a test in `tests/test_gemini_ocr.py`): the model reports text only and its own certainty is never enough: a line is `OK` only when the local look also found writing in that row's box; a number where the box looks empty is flagged (`NO_INK_SEEN` / `POSSIBLE_SHIFT`), never moved; writing Gemini skipped is kept (`GEMINI_SAW_NOTHING`); `1`, `1/2`, `1.5`, `5`, `15` are parsed from the literal text and fractions always go to review; a printed row nobody wrote on is not a line; a `TOTAL` row and written totals are only compared with the sum (`TOTAL_DIFFERS`), never copied; NO, a checkmark, a crossed-out number, package, weight, case size, notes, supplied and unavailable are kept per row in `ocr_fields.detail` (unknown stays null, not 0); Tamisha Trading is never the customer (`CUSTOMER_IS_SUPPLIER`); a customer is prefilled only on an exact, sure match, otherwise the text is shown (`CUSTOMER_UNSURE:` / `CUSTOMER_NOT_FOUND:`); pages with different order numbers or stores are not merged (`MIXED_ORDERS:`); dates on a customer's sheet are ignored.
+
+**Fallback:** no consent, no key, allowance used up (`GEMINI_DAILY_CAP`, `GEMINI_QUOTA`), breaker open, Google unreachable or an invalid answer → the same pages are read by Tesseract and the reading carries `GEMINI_FALLBACK:<reason>`. The reading never fails for these reasons.
+
+**Admin test page:** Settings → OCR test (`company.manage`): engine, model, whether a key is set, today's allowance, accuracy per engine against lines staff confirmed, the latest requests, and any one reading with the scan, the validated JSON, the draft lines and the Tesseract lines side by side (`GET /ocr/engine`, `GET /ocr/extractions/{id}/engine`).
+
+**Moving to pay-as-you-go later (owner only):** in AI Studio open the project → **Set up billing**, then raise `GEMINI_REQUESTS_PER_MINUTE` and `GEMINI_DAILY_REQUEST_CAP` in `.env` to the paid limits shown on the project's Rate Limit page and restart the API and the worker. On a paid plan Google does not use the content to improve its products. Nothing in the app switches plans by itself.

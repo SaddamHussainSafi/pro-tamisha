@@ -19,7 +19,7 @@ import { useAuth } from "../auth";
 import { DocViewer, PriceList, SupplierHeader, ToReceiving, type Flag } from "./OcrSupplier";
 import { ScanProcessing } from "../components/scanner/ScanProcessing";
 import { stockUnits, wholeOnly } from "../lib/inventory";
-import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, trimQty, warningText } from "../lib/ocr";
+import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, trimQty, warningText, engineText, lineNotes } from "../lib/ocr";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { Icon } from "../ui/Icon";
@@ -414,6 +414,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
       {error && <Notice tone="error">{error}</Notice>}
       {notice && <Notice tone="ok">{notice}</Notice>}
       {ex.warnings.map((w) => <Info key={w} tone="warn">{warningText(w)}</Info>)}
+      {engineText(ex.engine) && <p className="text-xs text-ink-muted">{engineText(ex.engine)}</p>}
       {ex.status === "ACCEPTED" && ex.sales_order_id && (
         <Notice tone="ok">
           Draft order <Link className={link} to={`/orders/${ex.sales_order_id}`}>{ex.sales_order_no}</Link> was created by {ex.reviewed_by_name}. Confirm it from the order page.
@@ -682,6 +683,11 @@ function FieldRow({
           <p className="text-sm text-ink-muted">
             {f.kind === "MANUAL" ? "Added by hand" : <>Sheet says: <span className="text-ink">{`${f.label}${f.raw_text && f.raw_text !== f.label ? ` · “${f.raw_text}”` : ""}`}</span></>}
           </p>
+          {lineNotes(f.detail).length > 0 && (
+            <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-ink">
+              {lineNotes(f.detail).map((n) => <li key={n}>{n}</li>)}
+            </ul>
+          )}
           {f.resolution !== "NONE" && f.resolution !== "REMOVED" && (
             <p className="text-sm">
               <span className="text-ink-muted">On order: </span>

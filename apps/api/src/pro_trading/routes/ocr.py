@@ -90,6 +90,14 @@ def _readable(db: Session, p: Principal) -> list[uuid.UUID]:
     return [w for w in ids if p.can(PERM, w)]
 
 
+def engine_summary(engine: dict[str, Any] | None) -> dict[str, Any]:
+    """The engine record without the pages' raw answers or the local comparison."""
+    e = dict(engine or {})
+    e.pop("tesseract", None)
+    e["pages"] = [{k: v for k, v in p.items() if k != "raw"} for p in e.get("pages", [])]
+    return e if engine else {}
+
+
 def extraction_out(db: Session, ex: OcrExtraction, detail: bool = False) -> dict[str, Any]:
     job = db.get(ScanJob, ex.scan_job_id)
     doc = db.get(SourceDocument, ex.document_id)
@@ -115,6 +123,7 @@ def extraction_out(db: Session, ex: OcrExtraction, detail: bool = False) -> dict
         "customer_name": cust.name if cust else None,
         "warnings": list(ex.warnings or []),
         "header": dict(ex.header or {}),
+        "engine": engine_summary(ex.engine),
         "vendor_id": str(ex.vendor_id) if ex.vendor_id else None,
         "shipment_id": str(ex.shipment_id) if ex.shipment_id else None,
         "page_count": ex.page_count,
@@ -160,6 +169,7 @@ def field_out(db: Session, f: OcrField) -> dict[str, Any]:
         "confidence": _s(f.confidence),
         "status": f.status,
         "bbox": f.bbox,
+        "detail": f.detail,
         "resolution": f.resolution,
         "final_product_id": str(f.final_product_id) if f.final_product_id else None,
         "final_sku": fp.sku if fp else None,

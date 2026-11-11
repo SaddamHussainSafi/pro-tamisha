@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api";
-import { canConfirm, confidencePct, needsReason, ocrMessage, openLines, pctText, trimQty, warningText } from "./ocr";
+import { canConfirm, confidencePct, engineText, lineNotes, needsReason, ocrMessage, openLines, pctText, trimQty, warningText } from "./ocr";
 
 describe("ocr helpers", () => {
   it("only clear readings can be confirmed", () => {
@@ -47,5 +47,34 @@ describe("ocr helpers", () => {
     expect(warningText("NO_TEXT")).toMatch(/by hand/);
     expect(warningText("ODD")).toBe("ODD");
     expect(warningText("PACKET_INVOICE_MISMATCH")).toMatch(/CFIA Confirmation of Sale/);
+  });
+});
+
+describe("Gemini readings in words", () => {
+  it("explains a fallback, an unsure customer and a file with two orders", () => {
+    expect(warningText("GEMINI_FALLBACK:GEMINI_DAILY_CAP")).toMatch(/Gemini wasn't used \(today's free allowance is used up\).*built-in reader/);
+    expect(warningText("GEMINI_FALLBACK:GEMINI_UNAVAILABLE:p2,3")).toMatch(/for page 2,3 \(Google could not be reached\)/);
+    expect(warningText("CUSTOMER_UNSURE:Sarangan Miss")).toMatch(/“Sarangan Miss”, but not clearly/);
+    expect(warningText("MIXED_ORDERS:p1=080778;p2=080781")).toMatch(/more than one order.*p1: order 080778; p2: order 080781/);
+    expect(warningText("TOTAL_DIFFERS:written=67,lines=7,sum=38:p1")).toMatch(/total of 67 is written on page 1, but the 7 lines read add up to 38/);
+    expect(warningText("CUSTOMER_IS_SUPPLIER")).toMatch(/we are the seller/);
+    expect(warningText("DOC_TYPE_MISMATCH:AIRWAY_BILL")).toMatch(/looks like an airway bill/);
+  });
+  it("lists what was seen on a line apart from the quantity", () => {
+    expect(lineNotes(null)).toEqual([]);
+    expect(lineNotes({ crossed_out: "8", no_mark: true, pkg: "cs", notes: "small", checkmark: true, supplied: null, flags: ["RECHECK_DIFFERS:3", "NO_INK_SEEN", "QTY_UNREADABLE"] })).toEqual([
+      "Crossed out: 8",
+      "“NO” is written on this row",
+      "Package: cs",
+      "Notes: small",
+      "Ticked",
+      "A second look read 3.",
+      "No writing was found in this row's box: the number may belong to another row.",
+    ]);
+  });
+  it("says which engine really read the scan", () => {
+    expect(engineText(undefined)).toBe("");
+    expect(engineText({ provider: "gemini", model: "gemini-3.8-flash", seconds: 13.6 })).toBe("Read by Gemini (gemini-3.8-flash) in 14 s.");
+    expect(engineText({ provider: "tesseract", model: "gemini-3.8-flash", seconds: 6 })).toBe("Read by the built-in reader in 6 s.");
   });
 });

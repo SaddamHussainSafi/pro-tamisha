@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type OcrExtractionDetail as OcrExtraction, type OcrField, type Vendor } from "../api";
+import { engineText, warningText } from "../lib/ocr";
 import { Icon } from "../ui/Icon";
 
 type Box = { page: number; x0: string; y0: string; x1: string; y1: string } | null;
@@ -144,7 +145,7 @@ const WARN: Record<string, string> = {
 function warnText(w: string): string {
   if (w.startsWith("LINE_MATH:")) return `Line ${w.split(":")[1]}: quantity × price doesn't match the amount.`;
   if (w.startsWith("POSSIBLE_DUPLICATE:")) return `Possible duplicate: the same supplier and number are already on ${w.slice(19)}.`;
-  return WARN[w] ?? w;
+  return WARN[w] ?? warningText(w);
 }
 
 /** Header values as read, with engine confidence; low-confidence values are marked. */
@@ -178,6 +179,7 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
           ))}
         </ul>
       )}
+      {engineText(ex.engine) && <p className="text-xs text-ink-muted">{engineText(ex.engine)}</p>}
       {error && (
         <p role="alert" className="alert-danger">
           {error}

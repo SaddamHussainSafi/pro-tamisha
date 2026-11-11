@@ -1224,6 +1224,38 @@ OCR_FIELD_STATUSES = ("OK", "LOW_CONFIDENCE", "UNREADABLE", "UNMAPPED")
 OCR_RESOLUTIONS = ("NONE", "CONFIRMED", "CORRECTED", "REMOVED")
 
 
+OCR_CALL_OUTCOMES = (
+    "PENDING", "OK", "RATE_LIMITED", "QUOTA_DAY", "HTTP_ERROR", "TIMEOUT", "BAD_JSON", "BLOCKED",
+)  # fmt: skip
+
+
+class OcrEngineCall(Base):
+    """One request sent to an outside OCR engine (migration 0023): engine, model, stage, how it
+    ended, tokens and seconds. No document content. The reader counts these rows to stay inside
+    the engine's per-minute and per-day limits and to stop after repeated failures."""
+
+    __tablename__ = "ocr_engine_calls"
+    __table_args__ = (
+        CheckConstraint(f"outcome {_in(OCR_CALL_OUTCOMES)}", name="outcome_valid"),
+        Index("ix_ocr_engine_calls_provider_time", "provider", "created_at"),
+        Index("ix_ocr_engine_calls_extraction", "extraction_id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.id"))
+    extraction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    page: Mapped[int | None] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False, server_default="PENDING")
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    seconds: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    created_at: Mapped[datetime] = _created()
+
+
 class OcrExtraction(Base):
     """One OCR run over a scan's source document. Re-running creates a new version; the old one
     becomes SUPERSEDED. Accepting creates at most a DRAFT order - never an invoice or stock."""
@@ -1272,6 +1304,9 @@ class OcrExtraction(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_note: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which engine and model really read it, requests, tokens, seconds, any fallback and the
+    # validated answer per page (migration 0023). Never holds a key.
+    engine: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     created_at: Mapped[datetime] = _created()
 
@@ -1307,6 +1342,9 @@ class OcrField(Base):
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     bbox: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Kept apart from the quantity: package, weight, case size, notes, crossed-out number, NO,
+    # checkmark, supplied / unavailable, and the checks that sent the line to review (0023).
+    detail: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     # --- reviewer decision
     resolution: Mapped[str] = mapped_column(String(10), nullable=False, server_default="NONE")
     final_product_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("products.id"))

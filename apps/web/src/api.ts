@@ -633,6 +633,8 @@ export type OcrField = {
   confidence: string | null;
   status: OcrFieldStatus;
   bbox: Record<string, unknown> | null;
+  /** Kept apart from the quantity by the handwriting reader (package, weight, notes, NO, ...). */
+  detail?: OcrLineDetail | null;
   resolution: OcrResolution;
   final_product_id: string | null;
   final_sku: string | null;
@@ -643,7 +645,66 @@ export type OcrField = {
   resolved_at: string | null;
   corrections: OcrCorrection[];
 };
+export type OcrLineDetail = {
+  pkg?: string | null;
+  weight?: string | null;
+  case_size?: string | null;
+  notes?: string | null;
+  crossed_out?: string | null;
+  no_mark?: boolean;
+  checkmark?: boolean;
+  supplied?: string | null;
+  unavailable?: string | null;
+  flags?: string[];
+  engine?: string;
+  page?: number;
+};
+/** Which engine really read the scan and what it cost. Never holds a key. */
+export type OcrEngine = {
+  provider?: string;
+  model?: string;
+  requests?: number;
+  total_tokens?: number;
+  seconds?: number;
+  fallback?: string | null;
+  doc_type?: string | null;
+  mode?: string;
+  pages?: { page: number; engine: string; seconds: number; error: string | null; doc_type: string | null; rows: number; raw?: unknown }[];
+};
+export type OcrEngineStatus = {
+  provider: string;
+  fallback_provider: string;
+  model: string;
+  key_set: boolean;
+  data_consent: boolean;
+  target_seconds: number;
+  requests_per_minute: number;
+  daily_request_cap: number;
+  used_today: number;
+  remaining_today: number;
+  used_this_minute: number;
+  breaker_open_seconds: number;
+  quota_hit_today: boolean;
+  recent_calls: { at: string; model: string; stage: string; page: number | null; outcome: string; http_status: number | null; total_tokens: number; seconds: string | null }[];
+  accuracy: { engine: string; samples: number; correct: number; accuracy: string | null }[];
+};
+export type OcrEngineReading = {
+  extraction_id: string;
+  status: OcrStatus;
+  provider: string;
+  page_count: number | null;
+  warnings: string[];
+  engine: OcrEngine;
+  lines: number;
+  uncertain: number;
+  no_marks: number;
+  crossed_out: number;
+  corrections: number;
+  validation_errors: string[];
+  tesseract_lines: { page: number | null; label: string; status: string; qty: string | null; raw: string }[];
+};
 export type OcrExtraction = {
+  engine?: OcrEngine;
   header?: Record<string, OcrHeaderValue>;
   vendor_id?: string | null;
   shipment_id?: string | null;
@@ -1099,6 +1160,8 @@ export const api = {
     request<Page<OcrExtraction>>("GET", `/ocr/extractions?${qs(q)}`),
   ocrExtraction: (id: string) => request<OcrExtractionDetail>("GET", `/ocr/extractions/${id}`),
   ocrAccuracy: () => request<OcrAccuracy>("GET", "/ocr/accuracy"),
+  ocrEngine: () => request<OcrEngineStatus>("GET", "/ocr/engine"),
+  ocrEngineReading: (id: string) => request<OcrEngineReading>("GET", `/ocr/extractions/${id}/engine`),
   readScan: (scan_job_id: string) => request<OcrExtractionDetail>("POST", "/ocr/extractions", { scan_job_id }, true),
   resolveOcrField: (id: string, fieldId: string, b: OcrResolveIn) =>
     request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/fields/${fieldId}/resolve`, b, true),

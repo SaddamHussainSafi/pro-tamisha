@@ -3,7 +3,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_MFA_KEY = "dev-only-insecure-key-change-me-000000000000="
@@ -55,7 +55,8 @@ class Settings(BaseSettings):
     scan_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     # Module 07 OCR. "fake" reads text drawn into synthetic PDFs (dev/test only); "document_ai"
     # calls Google Document AI server-side (unverified until the pilot); "disabled" = manual only.
-    ocr_provider: Literal["fake", "tesseract", "document_ai", "disabled"] = "fake"
+    # "gemini" sends each page to Google's Gemini API (handwriting) and checks the answer here.
+    ocr_provider: Literal["fake", "tesseract", "document_ai", "gemini", "disabled"] = "fake"
     ocr_tesseract_cmd: str = "tesseract"
     ocr_confidence_threshold: str = Field(default="0.900", pattern=r"^0\.\d{3}$")
     ocr_docai_endpoint: str = (
@@ -66,6 +67,34 @@ class Settings(BaseSettings):
     # A reading still queued with no reader working on it and no progress for this long is
     # stopped as OCR_TIMEOUT (the worker is down or gave up); the reviewer can read it again.
     ocr_stall_seconds: int = Field(default=180, ge=30, le=3600)
+    # Gemini OCR (OCR_PROVIDER=gemini). The key is read from the server's environment only: it
+    # is never logged, returned by the API or sent to the browser. GEMINI_MODEL must be a model
+    # code exactly as Google lists it. Free plan limits measured in AI Studio on 2026-11-11 for
+    # gemini-3.8-flash: 5 requests/minute, 250,000 tokens/minute, 20 requests/day; the caps below
+    # keep the reader inside them. When the cap is used up, Google is unreachable or the answer
+    # is not valid, the page is read by OCR_FALLBACK_PROVIDER instead and the reading says so.
+    # Nothing here ever switches to another Google product or to a paid plan.
+    gemini_api_key: SecretStr = SecretStr("")
+    gemini_model: str = Field(default="gemini-3.8-flash", pattern=r"^[a-z0-9][a-z0-9.\-]{2,63}$")
+    gemini_endpoint: str = "https://generativelanguage.googleapis.com/v1beta/interactions"
+    gemini_api_revision: str = "2026-05-20"
+    gemini_requests_per_minute: int = Field(default=5, ge=1, le=600)
+    gemini_daily_request_cap: int = Field(default=20, ge=0, le=100_000)
+    gemini_timeout_seconds: int = Field(default=90, ge=10, le=600)
+    gemini_max_retries: int = Field(default=2, ge=0, le=5)
+    # After this many failed calls in a row nothing is sent for the cool-down (circuit breaker).
+    # Unclear rows are read a second time (one more request per page) only while more than
+    # this many requests of the day are left, so new pages always come first.
+    gemini_recheck_reserve: int = Field(default=5, ge=0, le=100_000)
+    gemini_breaker_failures: int = Field(default=3, ge=1, le=20)
+    gemini_breaker_seconds: int = Field(default=300, ge=10, le=86_400)
+    # On the free plan Google may use what is sent to improve its products and its staff may
+    # read it. Nothing is sent until the owner has agreed and set this to true.
+    gemini_data_consent: bool = False
+    ocr_fallback_provider: Literal["tesseract", "disabled"] = "tesseract"
+    # A page should be read in about this long. A slower page keeps going (progress is shown);
+    # the time is recorded with the reading and a slow document gets a SLOW_READING warning.
+    ocr_target_seconds: int = Field(default=25, ge=5, le=600)
     # Module 09 document filing. "local" copies filed documents into drive_local_root (dev/test
     # stand-in for Google Drive); "google" uses the Drive v3 API with a service account
     # (unverified until D-15 Workspace decision); "disabled" keeps documents in the database only.
@@ -145,6 +174,10 @@ class Settings(BaseSettings):
             problems.append("PUBLIC_APP_ORIGIN must be https")
         if self.ocr_provider == "fake":
             problems.append("OCR_PROVIDER=fake is for dev/test only")
+        if self.ocr_provider == "gemini" and not self.gemini_api_key.get_secret_value():
+            problems.append("OCR_PROVIDER=gemini needs GEMINI_API_KEY")
+        if not self.gemini_endpoint.startswith("https://"):
+            problems.append("GEMINI_ENDPOINT must be https")
         if self.drive_fault:
             problems.append("DRIVE_FAULT is for dev/test only")
         if problems:

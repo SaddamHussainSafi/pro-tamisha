@@ -1305,6 +1305,9 @@ class OcrFieldOut(BaseModel):
     confidence: str | None
     status: OcrFieldStatus
     bbox: dict[str, Any] | None
+    # Kept apart from the quantity (handwriting reader): package, weight, case size, notes,
+    # crossed-out number, NO, checkmark, supplied / unavailable, and why the line needs a look.
+    detail: dict[str, Any] | None = None
     resolution: OcrResolution
     final_product_id: uuid.UUID | None
     final_sku: str | None
@@ -1334,6 +1337,9 @@ class OcrExtractionOut(BaseModel):
     header: dict[str, Any] = Field(default_factory=dict)
     vendor_id: str | None = None
     shipment_id: str | None = None
+    # Which engine and model really read it, requests, tokens, seconds, any fallback (no page
+    # content; the full record is on the admin OCR test page).
+    engine: dict[str, Any] = Field(default_factory=dict)
     page_count: int | None
     error_code: str | None
     error_detail: str | None
@@ -1387,6 +1393,63 @@ class OcrAcceptIn(BaseModel):
     requested_for: datetime | None = None
     note: str = Field(default="", max_length=1000)
     reviewed_all: Literal[True]
+
+
+class OcrEngineCallOut(BaseModel):
+    at: datetime
+    model: str
+    stage: str
+    page: int | None
+    outcome: str
+    http_status: int | None
+    total_tokens: int
+    seconds: str | None
+
+
+class OcrEngineAccuracyOut(BaseModel):
+    engine: str
+    samples: int
+    correct: int
+    accuracy: str | None
+
+
+class OcrEngineStatusOut(BaseModel):
+    """The OCR engine as configured on the server. Never contains the key."""
+
+    provider: str
+    fallback_provider: str
+    model: str
+    key_set: bool
+    data_consent: bool
+    target_seconds: int
+    requests_per_minute: int
+    daily_request_cap: int
+    used_today: int
+    remaining_today: int
+    used_this_minute: int
+    breaker_open_seconds: int
+    quota_hit_today: bool
+    recent_calls: list[OcrEngineCallOut]
+    accuracy: list[OcrEngineAccuracyOut]
+
+
+class OcrEngineReadingOut(BaseModel):
+    """One reading for the admin OCR test page: the engine record with each page's validated
+    answer, the local (Tesseract) reading of the same pages, and how the review went."""
+
+    extraction_id: uuid.UUID
+    status: OcrStatus
+    provider: str
+    page_count: int | None
+    warnings: list[str]
+    engine: dict[str, Any]
+    lines: int
+    uncertain: int
+    no_marks: int
+    crossed_out: int
+    corrections: int
+    validation_errors: list[str]
+    tesseract_lines: list[dict[str, Any]]
 
 
 class OcrAccuracyOut(BaseModel):
