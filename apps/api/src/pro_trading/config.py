@@ -9,6 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEV_MFA_KEY = "dev-only-insecure-key-change-me-000000000000="
 DEV_SCAN_KEY = "dev-only-scan-capability-key-change-me"
 DEV_ORDER_CONNECT_KEY = "dev-only-order-connect-key-change-me"
+DEV_GMAIL_KEY = "dev-only-gmail-token-key-change-me"
+GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
@@ -76,11 +78,15 @@ class Settings(BaseSettings):
     # Nothing here ever switches to another Google product or to a paid plan.
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = Field(default="gemini-3.8-flash", pattern=r"^[a-z0-9][a-z0-9.\-]{2,63}$")
-    gemini_endpoint: str = "https://generativelanguage.googleapis.com/v1beta/interactions"
-    gemini_api_revision: str = "2026-05-20"
+    # Google serves the same models through two APIs. "generate_content" is the long-standing
+    # one; "interactions" is the newer one (it answered 503 "high demand" on the free plan on
+    # 2026-11-11 while generate_content answered normally, so it is not the default).
+    gemini_api: Literal["generate_content", "interactions"] = "generate_content"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    gemini_api_revision: str = "2026-05-20"  # Interactions API only
     gemini_requests_per_minute: int = Field(default=5, ge=1, le=600)
     gemini_daily_request_cap: int = Field(default=20, ge=0, le=100_000)
-    gemini_timeout_seconds: int = Field(default=90, ge=10, le=600)
+    gemini_timeout_seconds: int = Field(default=60, ge=10, le=600)
     gemini_max_retries: int = Field(default=2, ge=0, le=5)
     # After this many failed calls in a row nothing is sent for the cool-down (circuit breaker).
     # Unclear rows are read a second time (one more request per page) only while more than
@@ -121,10 +127,60 @@ class Settings(BaseSettings):
     public_app_origin: str = ""
     order_connect_key: str = DEV_ORDER_CONNECT_KEY
     order_connect_max_body_bytes: int = Field(default=64 * 1024, ge=4 * 1024, le=512 * 1024)
+    # Gmail Inbox (docs/modules/15-gmail-inbox.md). One dedicated mailbox, read-only
+    # (scope gmail.readonly: nothing here can send, delete or change mail). Everything is
+    # server-side: the client secret and the tokens never reach the browser. Empty
+    # GMAIL_CLIENT_ID = the feature is off and the page says "not set up".
+    gmail_client_id: str = ""
+    gmail_client_secret: SecretStr = SecretStr("")
+    # Where Google sends the person back: {FRONTEND_ORIGIN}/gmail/oauth/callback when empty.
+    # Must be listed exactly under the OAuth client's "Authorized redirect URIs".
+    gmail_redirect_uri: str = ""
+    # Fernet key (urlsafe base64, 32 bytes) that encrypts the stored OAuth tokens.
+    gmail_token_key: str = DEV_GMAIL_KEY
+    # Optional: only this mailbox may be connected (stops a personal account by mistake).
+    gmail_allowed_address: str = ""
+    # Pub/Sub topic Gmail publishes to (projects/<project>/topics/<topic>). Empty = no push;
+    # the worker still checks the mailbox every GMAIL_POLL_SECONDS.
+    gmail_pubsub_topic: str = ""
+    # POST /api/v1/gmail/push is refused unless the caller proves it is that subscription:
+    # the OIDC token Google signs (audience + service account), and/or a shared ?token=.
+    gmail_push_audience: str = ""
+    gmail_push_service_account: str = ""
+    gmail_push_token: SecretStr = SecretStr("")
+    gmail_poll_seconds: int = Field(default=60, ge=15, le=3600)
+    # How far back the first import goes (0 = the whole mailbox), and messages per step.
+    gmail_backfill_days: int = Field(default=0, ge=0, le=3650)
+    gmail_backfill_batch: int = Field(default=50, ge=1, le=200)
+    gmail_api_base: str = "https://gmail.googleapis.com/gmail/v1"
+    gmail_oauth_auth_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    gmail_oauth_token_url: str = "https://oauth2.googleapis.com/token"  # noqa: S105
+    gmail_oauth_revoke_url: str = "https://oauth2.googleapis.com/revoke"
+    gmail_oauth_certs_url: str = "https://www.googleapis.com/oauth2/v3/certs"
+    gmail_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    gmail_max_retries: int = Field(default=3, ge=0, le=6)
+    # Stored body text / sanitized HTML per email (longer bodies are cut and marked).
+    gmail_max_body_chars: int = Field(default=200_000, ge=1_000, le=2_000_000)
 
     @property
     def public_origin(self) -> str:
         return (self.public_app_origin or self.frontend_origin).rstrip("/")
+
+    @property
+    def gmail_configured(self) -> bool:
+        return bool(self.gmail_client_id and self.gmail_client_secret.get_secret_value())
+
+    @property
+    def gmail_redirect(self) -> str:
+        return self.gmail_redirect_uri or f"{self.frontend_origin.rstrip('/')}/gmail/oauth/callback"
+
+    @property
+    def gmail_push_configured(self) -> bool:
+        """Push can be verified: an OIDC identity to expect, or a shared token."""
+        return bool(
+            (self.gmail_push_audience and self.gmail_push_service_account)
+            or self.gmail_push_token.get_secret_value()
+        )
 
     @property
     def is_production_like(self) -> bool:
@@ -176,10 +232,28 @@ class Settings(BaseSettings):
             problems.append("OCR_PROVIDER=fake is for dev/test only")
         if self.ocr_provider == "gemini" and not self.gemini_api_key.get_secret_value():
             problems.append("OCR_PROVIDER=gemini needs GEMINI_API_KEY")
-        if not self.gemini_endpoint.startswith("https://"):
-            problems.append("GEMINI_ENDPOINT must be https")
+        if not self.gemini_base_url.startswith("https://"):
+            problems.append("GEMINI_BASE_URL must be https")
         if self.drive_fault:
             problems.append("DRIVE_FAULT is for dev/test only")
+        if self.gmail_configured:
+            if self.gmail_token_key == DEV_GMAIL_KEY:
+                problems.append("GMAIL_TOKEN_KEY is the dev placeholder")
+            else:
+                try:
+                    Fernet(self.gmail_token_key)
+                except ValueError:
+                    problems.append("GMAIL_TOKEN_KEY is not a valid Fernet key")
+            if not self.gmail_redirect.startswith("https://"):
+                problems.append("GMAIL_REDIRECT_URI must be https")
+            if self.gmail_pubsub_topic and not self.gmail_push_configured:
+                problems.append(
+                    "GMAIL_PUBSUB_TOPIC needs GMAIL_PUSH_AUDIENCE + GMAIL_PUSH_SERVICE_ACCOUNT "
+                    "(or GMAIL_PUSH_TOKEN) so pushes can be verified"
+                )
+        for name in ("gmail_api_base", "gmail_oauth_token_url", "gmail_oauth_certs_url"):
+            if not str(getattr(self, name)).startswith("https://"):
+                problems.append(f"{name.upper()} must be https")
         if problems:
             raise ValueError("Unsafe production settings: " + "; ".join(problems))
         return self

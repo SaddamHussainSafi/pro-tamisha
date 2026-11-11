@@ -86,8 +86,12 @@ across to the mark. Writing often spills over a line: go by where most of the ma
 move a mark to the row above or below.
 - qty: the quantity exactly as it appears. Keep apart "1", "1/2" (fraction bar), "1.5" (decimal \
 point), "5" and "15". Copy a fraction as a fraction. A tick, dash or scribble is not a number.
+- In the Q box of an order sheet people write a number, not a tick. A quickly written 2 (or 1 or \
+7) can look like a tick: when a lone tick-like mark sits in a Q box, put the digit it most looks \
+like in qty and set unsure = true. Use chk only for a tick beside a number or outside the Q box.
 - A number crossed out with another written beside it: old = the crossed-out number, qty = the \
-new one. Crossed out with no replacement: old = that number, qty = null.
+new one. Crossed out with no replacement: old = that number, qty = null. A mark scribbled over \
+or blacked out so it cannot be read: old = "?", qty = null.
 - no: true only when the word NO is written on that same row. It says nothing about other rows.
 - chk: a checkmark or tick on the row.
 - pkg, wt, size, notes: each from its own column; never merge them into qty.

@@ -119,7 +119,12 @@ def _state(s: Any, now: datetime) -> tuple[int, bool, int, float, int]:
     seconds the breaker stays open)."""
     st = get_settings()
     day = _day_start(now)
-    base = select(func.count()).select_from(OcrEngineCall).where(OcrEngineCall.provider == PROVIDER)
+    # Google's allowance is per model: another model's requests (after a switch) do not count
+    base = (
+        select(func.count())
+        .select_from(OcrEngineCall)
+        .where(OcrEngineCall.provider == PROVIDER, OcrEngineCall.model == st.gemini_model)
+    )
     used = s.scalar(
         base.where(
             OcrEngineCall.created_at >= day,
@@ -135,6 +140,7 @@ def _state(s: Any, now: datetime) -> tuple[int, bool, int, float, int]:
         select(OcrEngineCall.created_at)
         .where(
             OcrEngineCall.provider == PROVIDER,
+            OcrEngineCall.model == st.gemini_model,
             OcrEngineCall.created_at >= now - timedelta(seconds=60),
         )
         .order_by(OcrEngineCall.created_at)
@@ -145,7 +151,11 @@ def _state(s: Any, now: datetime) -> tuple[int, bool, int, float, int]:
         wait = max(0.0, 60.0 - (now - oldest).total_seconds()) + 0.25
     last = s.execute(
         select(OcrEngineCall.outcome, OcrEngineCall.created_at)
-        .where(OcrEngineCall.provider == PROVIDER, OcrEngineCall.outcome != "PENDING")
+        .where(
+            OcrEngineCall.provider == PROVIDER,
+            OcrEngineCall.model == st.gemini_model,
+            OcrEngineCall.outcome != "PENDING",
+        )
         .order_by(OcrEngineCall.id.desc())
         .limit(st.gemini_breaker_failures)
     ).all()
@@ -248,13 +258,90 @@ def _error_info(body: bytes) -> tuple[str, float | None, bool]:
 
 
 def _output_text(env: dict[str, Any]) -> str:
+    """The model's text from either API's answer (thought parts are not the answer)."""
     out: list[str] = []
-    for step in env.get("steps") or []:
+    for step in env.get("steps") or []:  # Interactions API
         if isinstance(step, dict) and step.get("type") == "model_output":
             for c in step.get("content") or []:
                 if isinstance(c, dict) and c.get("type") == "text":
                     out.append(str(c.get("text") or ""))
+    for cand in (env.get("candidates") or [])[:1]:  # generateContent
+        content = cand.get("content") if isinstance(cand, dict) else None
+        for part in (content or {}).get("parts") or []:
+            if isinstance(part, dict) and not part.get("thought") and "text" in part:
+                out.append(str(part.get("text") or ""))
     return "".join(out)
+
+
+def _usage(env: dict[str, Any]) -> dict[str, Any]:
+    """Token counts under the names `_finish` stores, whichever API answered."""
+    u = env.get("usage")
+    if isinstance(u, dict):
+        return u
+    m = env.get("usageMetadata")
+    if not isinstance(m, dict):
+        return {}
+    out = int(m.get("candidatesTokenCount") or 0) + int(m.get("thoughtsTokenCount") or 0)
+    return {
+        "total_input_tokens": int(m.get("promptTokenCount") or 0),
+        "total_output_tokens": out,
+        "total_tokens": int(m.get("totalTokenCount") or 0),
+    }
+
+
+def _stopped_early(env: dict[str, Any]) -> str | None:
+    """Why the answer is not a finished one (blocked, cut off), or None."""
+    if env.get("status") not in (None, "completed"):
+        return str(env.get("status"))
+    block = (env.get("promptFeedback") or {}).get("blockReason")
+    if block:
+        return str(block)
+    for cand in (env.get("candidates") or [])[:1]:
+        reason = cand.get("finishReason") if isinstance(cand, dict) else None
+        if reason not in (None, "STOP"):
+            return str(reason)
+    return None
+
+
+def _request(
+    system: str, parts: list[dict[str, Any]], schema: dict[str, Any]
+) -> tuple[str, dict[str, str], bytes]:
+    """(url, headers without the key, body) for the configured API."""
+    st = get_settings()
+    base = st.gemini_base_url.rstrip("/")
+    if st.gemini_api == "interactions":
+        body: dict[str, Any] = {
+            "model": st.gemini_model,
+            "system_instruction": system,
+            "input": parts,
+            "generation_config": {"thinking_level": THINKING_LEVEL},
+            "response_format": {"type": "text", "mime_type": "application/json", "schema": schema},
+            "store": False,
+        }
+        return (
+            f"{base}/interactions",
+            {"Api-Revision": st.gemini_api_revision},
+            json.dumps(body).encode(),
+        )
+    body = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": p["text"]}
+                    if p["type"] == "text"
+                    else {"inline_data": {"mime_type": p["mime_type"], "data": p["data"]}}
+                    for p in parts
+                ],
+            }
+        ],
+        "generationConfig": {
+            "thinkingConfig": {"thinkingLevel": THINKING_LEVEL},
+            "responseFormat": {"text": {"mimeType": "APPLICATION_JSON", "schema": schema}},
+        },
+    }
+    return f"{base}/models/{st.gemini_model}:generateContent", {}, json.dumps(body).encode()
 
 
 def call(
@@ -275,23 +362,10 @@ def call(
     key = st.gemini_api_key.get_secret_value()
     if not key:
         raise GeminiError("GEMINI_NOT_CONFIGURED", "GEMINI_API_KEY is not set")
-    body = json.dumps(
-        {
-            "model": st.gemini_model,
-            "system_instruction": system,
-            "input": parts,
-            "generation_config": {"thinking_level": THINKING_LEVEL},
-            "response_format": {"type": "text", "mime_type": "application/json", "schema": schema},
-            "store": False,
-        }
-    ).encode()
+    url, extra, body = _request(system, parts, schema)
     if len(body) > MAX_REQUEST_BYTES:
         raise GeminiError("GEMINI_TOO_LARGE", "the page images are too large to send")
-    headers = {
-        "x-goog-api-key": key,
-        "Content-Type": "application/json",
-        "Api-Revision": st.gemini_api_revision,
-    }
+    headers = {"x-goog-api-key": key, "Content-Type": "application/json", **extra}
     deadline = time.monotonic() + max_wait
     started = time.monotonic()
     tin = tout = ttot = requests = 0
@@ -302,7 +376,7 @@ def call(
         t0 = time.monotonic()
         pause = min(2.0 * 2**attempt, 20.0)
         try:
-            status, _, raw = transport(st.gemini_endpoint, headers, body, st.gemini_timeout_seconds)
+            status, _, raw = transport(url, headers, body, st.gemini_timeout_seconds)
         except GeminiError:
             _finish(call_id, "HTTP_ERROR", None, {}, time.monotonic() - t0)
             raise
@@ -316,13 +390,15 @@ def call(
                     env = json.loads(raw.decode("utf-8"))
                 except ValueError:
                     env = {}
-                usage = env.get("usage") if isinstance(env.get("usage"), dict) else {}
+                if not isinstance(env, dict):
+                    env = {}
+                usage = _usage(env)
                 tin += int(usage.get("total_input_tokens") or 0)
                 tout += int(usage.get("total_output_tokens") or 0)
                 ttot += int(usage.get("total_tokens") or 0)
-                if env.get("status") not in (None, "completed"):
+                if (why := _stopped_early(env)) is not None:
                     _finish(call_id, "BLOCKED", status, usage, secs)
-                    last = GeminiError("GEMINI_NO_ANSWER", f"status {env.get('status')}"[:80])
+                    last = GeminiError("GEMINI_NO_ANSWER", f"stopped: {why}"[:80])
                     break
                 try:
                     obj = json.loads(_output_text(env))

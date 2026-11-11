@@ -57,11 +57,10 @@ def page(rows, **kw):
 
 def envelope(obj, tokens=(1200, 300)):
     text = obj if isinstance(obj, str) else json.dumps(obj)
-    return json.dumps({
-        "status": "completed",
-        "steps": [{"type": "model_output", "content": [{"type": "text", "text": text}]}],
-        "usage": {"total_input_tokens": tokens[0], "total_output_tokens": tokens[1],
-                  "total_tokens": sum(tokens)},
+    return json.dumps({  # as generateContent answers
+        "candidates": [{"content": {"parts": [{"text": text}]}, "finishReason": "STOP"}],
+        "usageMetadata": {"promptTokenCount": tokens[0], "candidatesTokenCount": tokens[1],
+                          "totalTokenCount": sum(tokens)},
     }).encode()  # fmt: skip
 
 
@@ -72,8 +71,10 @@ class Google:
     def __init__(self, *answers):
         self.answers = list(answers)
         self.sent: list[tuple[dict, dict]] = []
+        self.urls: list[str] = []
 
     def __call__(self, url, headers, body, timeout):
+        self.urls.append(url)
         self.sent.append((headers, json.loads(body)))
         a = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
         if isinstance(a, Exception):
@@ -104,6 +105,7 @@ def gemini(monkeypatch):
         "GEMINI_REQUESTS_PER_MINUTE": "600", "GEMINI_DAILY_REQUEST_CAP": "20",
         "GEMINI_MAX_RETRIES": "1", "GEMINI_BREAKER_FAILURES": "3", "GEMINI_RECHECK_RESERVE": "5",
         "GEMINI_MODEL": "gemini-3.8-flash", "GEMINI_TIMEOUT_SECONDS": "90",
+        "GEMINI_API": "generate_content",
     }.items():  # fmt: skip
         monkeypatch.setenv(k, v)
     get_settings.cache_clear()
@@ -340,12 +342,33 @@ def test_bad_answers_and_rejections(gemini):
     # what is sent: the key in one header, the configured model, schema output, not stored
     headers, body = g.sent[0]
     assert headers["x-goog-api-key"] == KEY and KEY not in json.dumps(body)
-    assert body["model"] == "gemini-3.8-flash" and body["store"] is False
-    assert body["response_format"] == {
-        "type": "text",
-        "mime_type": "application/json",
-        "schema": schema,
+    assert g.urls[0].endswith("/v1beta/models/gemini-3.8-flash:generateContent")
+    assert KEY not in g.urls[0] and "Api-Revision" not in headers
+    assert body["generationConfig"]["responseFormat"] == {
+        "text": {"mimeType": "APPLICATION_JSON", "schema": schema}
     }
+
+
+def test_interactions_api_can_still_be_chosen(gemini, monkeypatch):
+    setenv(monkeypatch, GEMINI_API="interactions")
+    answer = {
+        "status": "completed",
+        "steps": [{"type": "model_output", "content": [{"type": "text", "text": '{"a": 1}'}]}],
+        "usage": {"total_input_tokens": 7, "total_output_tokens": 3, "total_tokens": 10},
+    }
+    g = gemini((200, answer))
+    a = gemini_client.call("B", "sys", [gemini_client.text_part("x")], {"type": "object"}, dict)
+    assert a.data == {"a": 1} and a.total_tokens == 10
+    headers, body = g.sent[0]
+    assert g.urls[0].endswith("/v1beta/interactions") and headers["Api-Revision"]
+    assert body["model"] == "gemini-3.8-flash" and body["store"] is False
+    assert body["response_format"]["schema"] == {"type": "object"}
+    # an answer Google cut short or blocked is not an answer, on either API
+    g = gemini((200, {"candidates": [{"content": {"parts": []}, "finishReason": "MAX_TOKENS"}]}))
+    setenv(monkeypatch, GEMINI_API="generate_content")
+    with pytest.raises(gemini_client.GeminiError) as e:
+        gemini_client.call("B", "sys", [gemini_client.text_part("x")], {"type": "object"}, dict)
+    assert e.value.code == "GEMINI_NO_ANSWER" and calls()[-1] == ("B", "BLOCKED")
 
 
 # ------------------------------------------------------------------ scan -> reading -> draft
@@ -396,11 +419,12 @@ def test_scan_gemini_reading_then_editable_draft_only(owner, user, world, catalo
     assert "raw" not in eng["pages"][0] and KEY not in json.dumps(ex)
     # one request: whole page + one enlarged crop per table, each announced, then the rules
     (_, body), (_, again) = g.sent
-    assert [p["type"] for p in again["input"]].count("image") == 4  # four doubted rows, cut out
-    assert again["response_format"]["schema"] == rules.CHECK_SCHEMA
-    kinds = [p["type"] for p in body["input"]]
-    assert kinds.count("image") == 4 and kinds[-1] == "text"
-    assert "Table 1: " in body["input"][-1]["text"] and "never" in body["system_instruction"]
+    parts, parts2 = body["contents"][0]["parts"], again["contents"][0]["parts"]
+    assert sum("inline_data" in p for p in parts2) == 4  # four doubted rows, cut out
+    assert again["generationConfig"]["responseFormat"]["text"]["schema"] == rules.CHECK_SCHEMA
+    assert sum("inline_data" in p for p in parts) == 4 and "text" in parts[-1]
+    assert "Table 1: " in parts[-1]["text"]
+    assert "never" in body["system_instruction"]["parts"][0]["text"]
     assert ex["customer_name"] == "Island Grocers"  # exact, sure -> prefilled
 
     f = by_sku(ex)
