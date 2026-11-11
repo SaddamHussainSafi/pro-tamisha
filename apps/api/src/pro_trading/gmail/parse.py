@@ -272,7 +272,10 @@ def parse_message(msg: dict[str, Any], max_body: int) -> ParsedMessage:
                     filename=filename,
                     mime_type=mime,
                     byte_size=size,
-                    inline=disposition.startswith("inline") or "content-id" in ph,
+                    # A picture placed in the message text (a signature logo). Gmail gives real
+                    # attachments a Content-ID too, so that header alone says nothing, and a PDF
+                    # is never "inside the message".
+                    inline=disposition.startswith("inline") and mime.startswith("image/"),
                     eligible=eligible_mime(mime, filename) is not None,
                     inline_data=str(body["data"]) if body.get("data") else None,
                 )

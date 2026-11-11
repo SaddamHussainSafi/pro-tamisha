@@ -523,7 +523,7 @@ def test_only_the_allowed_mailbox_and_one_at_a_time(owner, google, world, monkey
     r, q = connect(owner)
     assert r.status_code == 409 and code(r) == "GMAIL_WRONG_MAILBOX"
     assert q["login_hint"] == ["orders@example.test"]
-    monkeypatch.delenv("GMAIL_ALLOWED_ADDRESS")
+    monkeypatch.setenv("GMAIL_ALLOWED_ADDRESS", "")  # not delenv: .env may name a mailbox
     get_settings.cache_clear()
     google.revoked = False
     r, _ = connect(owner)
@@ -877,6 +877,52 @@ def test_email_body_is_sanitized_and_instructions_in_it_are_only_text(
         assert db.scalar(text("SELECT count(*) FROM sales_orders WHERE company_id = :c"), c) == 0
 
 
+def test_real_attachments_are_not_mistaken_for_pictures_in_the_text():
+    """Seen on the first real mailbox (2026-11-11): Gmail puts a Content-ID on ordinary
+    attachments, and scanners send PDFs with an inline disposition. Only a picture with an
+    inline disposition is a signature-style image."""
+
+    def part(pid, name, mime, headers):
+        return {
+            "partId": pid,
+            "filename": name,
+            "mimeType": mime,
+            "headers": [{"name": k, "value": v} for k, v in headers.items()],
+            "body": {"attachmentId": f"A{pid}", "size": 10},
+        }
+
+    pm = parse_message(
+        {
+            "id": "abc",
+            "labelIds": ["INBOX"],
+            "internalDate": "1794000000000",
+            "payload": {
+                "headers": [{"name": "From", "value": "Scanner <s@example.test>"}],
+                "parts": [
+                    part("1", "scan.pdf", "application/pdf",
+                         {"Content-Disposition": 'attachment; filename="scan.pdf"',
+                          "Content-ID": "<f_abc>", "X-Attachment-Id": "f_abc"}),
+                    part("2", "scan2.pdf", "application/pdf",
+                         {"Content-Disposition": 'inline; filename="scan2.pdf"'}),
+                    part("3", "logo.png", "image/png",
+                         {"Content-Disposition": 'inline; filename="logo.png"',
+                          "Content-ID": "<logo>"}),
+                    part("4", "photo.jpg", "image/jpeg",
+                         {"Content-Disposition": 'attachment; filename="photo.jpg"',
+                          "Content-ID": "<f_def>"}),
+                ],
+            },
+        },
+        1000,
+    )  # fmt: skip
+    assert [(a.filename, a.inline) for a in pm.attachments] == [
+        ("scan.pdf", False),
+        ("scan2.pdf", False),
+        ("logo.png", True),
+        ("photo.jpg", False),
+    ]
+
+
 def test_sanitizer_and_parser_edge_cases():
     safe, plain, cut = sanitize_html("<div>a<br>b</div><p>x" + "y" * 5000, 200)
     assert cut is True and len(safe) <= 400 and "<script" not in safe
@@ -1097,11 +1143,9 @@ def test_ocr_failure_is_reported_and_can_be_read_again(
     def down(content, mime):
         raise ocr.ProviderError("ENGINE_DOWN", "synthetic outage", transient=False)
 
-    monkeypatch.setattr(ocr, "provider", lambda: down)
-    drain(world)
-    monkeypatch.undo()
-    get_settings.cache_clear()
-    monkeypatch.setattr(g, "transport", google)
+    with monkeypatch.context() as m:  # only the engine is swapped, and only for this reading
+        m.setattr(ocr, "provider", lambda: down)
+        drain(world)
     ex = sales.get(f"{P}/ocr/extractions/{out['extraction_id']}").json()
     assert ex["status"] == "FAILED"
     d = sales.get(f"{P}/gmail/attachments/{att['id']}").json()
