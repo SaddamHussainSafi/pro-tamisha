@@ -220,7 +220,8 @@ test("staff review the order and convert it into a draft sales order", async ({ 
 
   await page.getByRole("link", { name: /^SO-/ }).first().click();
   await expect(page.getByRole("heading", { name: /^SO-/ })).toBeVisible();
-  await expect(page.getByText("sent from the website, converted")).toBeVisible();
+  // a draft opens as the order form (2026-11-11); its header says where it came from
+  await expect(page.getByText("from the website", { exact: true })).toBeVisible();
   await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
 });
 
