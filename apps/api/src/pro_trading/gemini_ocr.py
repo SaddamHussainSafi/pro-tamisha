@@ -95,7 +95,8 @@ belongs to pkg or wt. It is not a crossing-out.
 - A number crossed out with another written beside it: old = the crossed-out number, qty = the \
 new one. Crossed out with no replacement: old = that number, qty = null. A mark scribbled over \
 or blacked out so it cannot be read: old = "?", qty = null.
-- no: true only when the word NO is written on that same row. It says nothing about other rows.
+- no: true only when the word NO is written on that same row (it may sit beside or over the \
+item name). It says nothing about other rows.
 - chk: a checkmark or tick on the row.
 - pkg, wt, size, notes: each from its own column; never merge them into qty.
 - sup / unav: only when a supplied / packed / received, or a short / unavailable, quantity is \
