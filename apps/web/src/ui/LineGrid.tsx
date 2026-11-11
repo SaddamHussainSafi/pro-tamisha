@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import type { UnitCode } from "../api";
 import {
   applyPaste,
+  blankLine,
   ensureRows,
   isBlock,
   isFilled,
@@ -19,6 +20,8 @@ import {
   type PasteField,
   type Pos,
 } from "../lib/lineGrid";
+import { Icon } from "./Icon";
+import { ProductThumb } from "./ProductThumb";
 
 /** A grid column. `sn` row number; `item` product autocomplete; `qty`, `note` text cells;
  * `unit` and `lot` dropdown cells; `display` read-only figures (LB, rate, gross, ...). */
@@ -68,6 +71,8 @@ export function LineGrid({
   onDone,
   onActiveRow,
   handle,
+  thumbs = false,
+  addRows = 0,
 }: {
   label: string;
   columns: GridColumn[];
@@ -83,6 +88,10 @@ export function LineGrid({
   /** The row the cursor is in (null when focus leaves the grid). */
   onActiveRow?: (row: number | null) => void;
   handle?: Ref<LineGridHandle>;
+  /** Show each row's product photo (about 40 px) in the Item cell; rows are a little taller. */
+  thumbs?: boolean;
+  /** Offer an "Add N more rows" button under the grid (rows also appear as you fill them). */
+  addRows?: number;
 }) {
   const cells = useRef(new Map<string, HTMLInputElement | HTMLSelectElement>());
   const now = useRef(lines);
@@ -92,6 +101,9 @@ export function LineGrid({
   const fields = columns.map((c) => PASTE[c.kind]);
   const byId = new Map(products.map((p) => [p.id, p]));
   const itemCol = columns.findIndex((c) => c.kind === "item");
+  // The Item column takes what the fixed columns leave: keep it readable on narrow screens
+  // (the grid then scrolls sideways inside its own frame).
+  const fixedRem = columns.reduce((n, c) => n + (c.width?.endsWith("rem") ? parseFloat(c.width) : 0), 0);
 
   const focusCell = (p: Pos) => {
     const el = cells.current.get(`${p.row}:${p.col}`);
@@ -200,11 +212,12 @@ export function LineGrid({
     if (el) cells.current.set(k, el);
     else cells.current.delete(k);
   };
-  const cellCls = "block h-9 w-full min-w-0 scroll-mt-14 scroll-mb-32 border-0 bg-transparent px-2.5 text-sm text-ink outline-none placeholder:text-ink-muted/70 focus:bg-card focus:shadow-[inset_0_0_0_2px_var(--color-brand-primary)]";
+  const cellCls = `block ${thumbs ? "h-11" : "h-9"} w-full min-w-0 scroll-mt-14 scroll-mb-32 border-0 bg-transparent px-2.5 text-sm text-ink outline-none placeholder:text-ink-muted/70 focus:bg-card focus:shadow-[inset_0_0_0_2px_var(--color-brand-primary)]`;
 
   return (
+    <>
     <div className="overflow-x-auto rounded-[var(--radius-ctl)] border border-line xl:overflow-visible">
-      <table className="w-full min-w-[52rem] table-fixed border-collapse text-sm" aria-label={label}>
+      <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${Math.max(52, fixedRem + (thumbs ? 16 : 13))}rem` }} aria-label={label}>
         <colgroup>
           {columns.map((c) => (
             <col key={c.key} style={c.width ? { width: c.width } : undefined} />
@@ -274,6 +287,7 @@ export function LineGrid({
                       const listId = `lg-list-${l.key}`;
                       return (
                         <td key={c.key} className={`${td} relative`}>
+                          {thumbs && l.product_id && byId.get(l.product_id) && <ProductThumb sku={(byId.get(l.product_id) as GridProduct).sku} className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2" />}
                           <input
                             {...common}
                             role="combobox"
@@ -285,7 +299,7 @@ export function LineGrid({
                             aria-describedby={prob ? probId : undefined}
                             autoComplete="off"
                             spellCheck={false}
-                            className={`${cellCls} ${l.prefilled && !l.qty ? "text-ink-muted" : ""}`}
+                            className={`${cellCls} ${thumbs ? "pl-[3.25rem]" : ""} ${l.prefilled && !l.qty ? "text-ink-muted" : ""}`}
                             value={l.text}
                             onChange={(e) => {
                               const text = e.target.value;
@@ -408,5 +422,16 @@ export function LineGrid({
         </tbody>
       </table>
     </div>
+    {addRows > 0 && lines.length < maxRows && (
+      <button
+        type="button"
+        className="btn-ghost px-4 py-2 text-xs"
+        onClick={() => setLines((ls) => [...ls, ...Array.from({ length: Math.min(addRows, maxRows - ls.length) }, () => blankLine())])}
+      >
+        <Icon name="plus" size={14} />
+        {`Add ${addRows} more rows`}
+      </button>
+    )}
+    </>
   );
 }

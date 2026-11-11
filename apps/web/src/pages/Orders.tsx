@@ -136,6 +136,7 @@ export function OrdersPage() {
 /* ================================ New order ================================ */
 
 const MAX_ORDER_LINES = 200; // the order API takes up to 200 lines
+const ORDER_FORM = "so-form"; // the page header's buttons submit this form
 const UNIT_SHORT: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
 
 /** New sales order: the same always-open entry grid as Create invoice › Direct. Saved as a
@@ -149,7 +150,15 @@ export function NewOrderPage() {
         </Link>{" "}
         / New
       </nav>
-      <PageHeader title="New sales order" subtitle="Saved as a draft. Prices are fixed when you confirm." />
+      <PageHeader
+        title="Create sales order"
+        subtitle="Saved as a draft. Prices are fixed when you confirm."
+        actions={
+          <button type="submit" form={ORDER_FORM} className="btn-primary">
+            Save draft
+          </button>
+        }
+      />
       <OrderForm />
     </div>
   );
@@ -194,6 +203,7 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
   const [busy, setBusy] = useState<"save" | "confirm" | null>(null);
   const grid = useRef<LineGridHandle>(null);
   const saveBtn = useRef<HTMLButtonElement>(null);
+  const sending = useRef(false);
 
   useEffect(() => {
     api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active || x.id === draft?.customer_id)), () => setCustomers([]));
@@ -247,10 +257,12 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
   };
 
   const submit = async (mode: "save" | "confirm") => {
+    if (sending.current) return; // the header and the bar both submit: one request at a time
     setError(null);
     const problem = !wh ? "Your account can't create orders." : !customer ? "Choose the customer." : gridProblem(lines);
     if (problem) return setError(problem);
     setBusy(mode);
+    sending.current = true;
     try {
       if (!draft) {
         const o = await api.createOrder({ ...body(), source_text: sourceText });
@@ -267,6 +279,7 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
       fail(err);
       if (draft && err instanceof ApiError && err.code === "VERSION_CONFLICT") await onChanged?.();
     } finally {
+      sending.current = false;
       setBusy(null);
     }
   };
@@ -282,7 +295,11 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
   const cust = customers.find((c) => c.id === customer);
 
   return (
-    <form className="card space-y-5 p-6" onSubmit={(e: FormEvent) => (e.preventDefault(), void submit(draft ? "confirm" : "save"))} aria-label={draft ? `Order ${draft.order_no}` : "New sales order"}>
+    <form id={ORDER_FORM} className="card space-y-5 p-6" onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        const by = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        void submit(draft && by?.value !== "save" ? "confirm" : "save");
+      }} aria-label={draft ? `Order ${draft.order_no}` : "New sales order"}>
       <div className="grid gap-x-5 gap-y-4 md:grid-cols-12">
         <div className="md:col-span-8">
           <label className="label" htmlFor="so-cust">
@@ -352,6 +369,8 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
           onActiveRow={setActiveRow}
           onDone={() => saveBtn.current?.focus()}
           onPasted={(n, bad) => setNotice(`Pasted ${n} ${n === 1 ? "row" : "rows"}.${bad ? ` ${bad} ${bad === 1 ? "item doesn't" : "items don't"} match a product — fix the lines marked !` : ""}`)}
+          thumbs
+          addRows={10}
         />
         <p className="flex items-start gap-2 text-xs text-ink-muted">
           <Icon name="info" size={14} className="mt-0.5 shrink-0" />
@@ -467,6 +486,12 @@ export function OrderPage() {
               <DeleteAction kind="sales_order" id={o.id} label={`Order ${o.order_no}`} warehouseId={o.warehouse_id} onDone={() => nav("/orders")} />
               <button className="btn-ghost" onClick={() => setDialog("cancel")}>
                 Cancel draft
+              </button>
+              <button type="submit" form={ORDER_FORM} name="mode" value="save" className="btn-ghost">
+                Save draft
+              </button>
+              <button type="submit" form={ORDER_FORM} className="btn-primary">
+                Confirm order
               </button>
             </>
           }
