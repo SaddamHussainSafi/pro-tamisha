@@ -416,10 +416,20 @@ def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
         flags.append("NO_MARK")
     if unit_txt and not r.pkg:
         flags.append("UNIT_IN_QTY")
+    if (
+        r.qty is not None
+        and r.pkg
+        and hand_qty(r.pkg)[0] is not None
+        and hand_qty(r.pkg)[1] is None
+    ):
+        # a bare number in the package box beside the quantity: on a real sheet it was the
+        # replacement for a struck-out quantity ("5" struck, "6" beside it). A person decides.
+        flags.append("PKG_NUMBER")
     caps = {
         "POSSIBLE_SHIFT": C_CONFLICT, "NO_INK_SEEN": C_DOUBT, "UNSURE": C_DOUBT,
         "LOCAL_READ_DIFFERS": C_CHECK, "FRACTION": C_CHECK, "CROSSED_OUT": C_CHECK,
         "NO_MARK": C_CHECK, "UNIT_IN_QTY": C_CHECK, "NEIGHBOUR_UNREAD": C_CHECK,
+        "PKG_NUMBER": C_CHECK,
     }  # fmt: skip
     for f in flags:
         conf = min(conf, caps.get(f.split(":")[0], conf))

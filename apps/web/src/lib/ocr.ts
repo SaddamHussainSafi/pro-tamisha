@@ -103,6 +103,7 @@ const FLAG: Record<string, (arg: string) => string> = {
   DUPLICATE_ROW: () => "This row was read twice.",
   PRODUCT_GUESSED: () => "The product is a near match: check it.",
   UNIT_IN_QTY: () => "A unit was written with the quantity.",
+  PKG_NUMBER: () => "A second number is written in the package box: check which one is the quantity.",
   AMOUNT_DIFFERS: () => "Quantity × price doesn't match the amount.",
 };
 /** What the handwriting reader saw on a line besides the quantity, in words. */

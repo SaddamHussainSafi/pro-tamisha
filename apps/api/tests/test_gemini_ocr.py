@@ -219,6 +219,17 @@ def test_marks_stay_facts_about_their_own_row():
     # crossed out with nothing written instead: no quantity, and NOT "unavailable"
     j = rules.judge(R(row("Okra", None, old="3", w=True)), ink, handwritten_form=True)
     assert j.qty is None and j.detail["crossed_out"] == "3" and j.detail["unavailable"] is None
+    # a bare number in the package box beside the quantity goes to a person ("5" struck, "6" beside)
+    j = rules.judge(R(row("Yulima Mango", "5", pkg="6")), ink, handwritten_form=True)
+    assert j.qty == D(5) and "PKG_NUMBER" in j.flags and j.confidence < D("0.9")
+    assert (
+        "PKG_NUMBER"
+        in rules.judge(R(row("Thai Chilli", "2", pkg="1/2")), ink, handwritten_form=True).flags
+    )
+    assert (
+        "PKG_NUMBER"
+        not in rules.judge(R(row("Okra", "2", pkg="cs")), ink, handwritten_form=True).flags
+    )
     # a tick is not a delivery, and NO on one row says nothing about the next
     j = rules.judge(R(row("Squash", "4", chk=True)), ink, handwritten_form=True)
     assert j.detail["supplied"] is None and j.detail["no_mark"] is False and j.flags == []
