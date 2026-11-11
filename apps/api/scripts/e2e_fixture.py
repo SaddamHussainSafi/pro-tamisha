@@ -1,15 +1,19 @@
 """Create a fresh SYNTHETIC company + users for browser E2E and print them as JSON.
 
-Refuses to run outside development/test. Usage: uv run python scripts/e2e_fixture.py [--sheet PATH]
+Refuses to run outside development/test.
+Usage: uv run python scripts/e2e_fixture.py [--sheet PATH] [--paper-sheet PATH]
 --sheet also writes a hand-filled synthetic PT-OS-1 order sheet (customer C-1001) for OCR tests.
+--paper-sheet loads the office order-sheet catalog and writes a synthetic, sideways, image-only
+scan of the office's paper order sheet (TT-PAPER-1) with a few quantities filled in.
 """
 
 import json
 import secrets
 import sys
 import uuid
+from pathlib import Path
 
-from pro_trading import ocr
+from pro_trading import ocr, paper_sheet
 from pro_trading.bootstrap import ensure_default_roles, sync_permissions
 from pro_trading.config import get_settings
 from pro_trading.db import get_sessionmaker
@@ -80,6 +84,25 @@ def main() -> int:
             with open(path, "wb") as fh:
                 fh.write(pdf)
             out["sheet"] = path
+        if "--paper-sheet" in sys.argv:
+            path = sys.argv[sys.argv.index("--paper-sheet") + 1]
+            sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # run as a script
+            from scripts.load_catalog import CATALOG, load_catalog
+
+            load_catalog(db, co.id)
+
+            def names(cat: str) -> list[str]:
+                return [printed for _, _, printed in CATALOG[cat]]
+
+            layout = [
+                [("VEGETABLES", names("VEG")), ("PEPPERS", names("PEP"))],
+                [("ROOTS", names("ROOT")), ("HERBS", names("HERB")), ("OTHERS", names("OTHER"))],
+                [("FRUITS", names("FRUIT"))],
+            ]
+            fills = {"Okra": "12", "Yellow Yam": "3", "Spice Mango": "2"}
+            with open(path, "wb") as fh:
+                fh.write(paper_sheet.synthetic_scan(layout, fills, rotate=90))
+            out["paper_sheet"] = path
     print(json.dumps(out))
     return 0
 

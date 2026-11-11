@@ -47,11 +47,11 @@ export function StageSteps({ stage, progress, error }: { stage: Stage; progress?
   );
 }
 
-type Item = { key: string; file: File; progress: number; job: ScanJob | null; ex: OcrExtraction | null; error: string | null };
+type Item = { key: string; file: File; progress: number; job: ScanJob | null; ex: OcrExtraction | null; checked: boolean; error: string | null };
 
 /** Several files at once: uploaded one after another (real byte progress), each its own scan. */
 export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: File[]; warehouseId: string; jobType: ScanJobType; onDone: () => void }) {
-  const [items, setItems] = useState<Item[]>(() => files.map((file, i) => ({ key: `${i}-${file.name}`, file, progress: 0, job: null, ex: null, error: checkFile(file) })));
+  const [items, setItems] = useState<Item[]>(() => files.map((file, i) => ({ key: `${i}-${file.name}`, file, progress: 0, job: null, ex: null, checked: false, error: checkFile(file) })));
   const set = (key: string, patch: Partial<Item>) => setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
 
   useEffect(() => {
@@ -75,13 +75,18 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const reading = items.filter((x) => x.job && AUTO_READ.includes(jobType) && (!x.ex || x.ex.status === "QUEUED"));
+  const auto = AUTO_READ.includes(jobType);
+  // a fresh upload of a type read automatically always has a reading; a re-upload of an older scan
+  // or an "Other" document may have none (then it can be read on request)
+  const expected = (x: Item) => auto && !x.job?.duplicate;
+  const unread = (x: Item) => !!x.job && x.checked && !x.ex && !expected(x);
+  const reading = items.filter((x) => x.job && (x.ex ? x.ex.status === "QUEUED" : !x.checked || expected(x)));
   useEffect(() => {
     if (!reading.length) return;
     const t = setInterval(() => {
       for (const it of reading) {
         if (!it.job) continue;
-        api.ocrExtractions({ scan_job_id: it.job.id, status: "QUEUED,NEEDS_REVIEW,FAILED,ACCEPTED,REJECTED" }).then((r) => set(it.key, { ex: r.items[0] ?? null }), () => undefined);
+        api.ocrExtractions({ scan_job_id: it.job.id, status: "QUEUED,NEEDS_REVIEW,FAILED,ACCEPTED,REJECTED" }).then((r) => set(it.key, { ex: r.items[0] ?? null, checked: true }), () => undefined);
       }
     }, POLL_MS);
     return () => clearInterval(t);
@@ -90,8 +95,7 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
   async function retry(it: Item) {
     if (!it.job) return;
     try {
-      await api.readScan(it.job.id);
-      set(it.key, { ex: null });
+      set(it.key, { ex: await api.readScan(it.job.id) });
     } catch (e) {
       set(it.key, { error: scanMessage(e) });
     }
@@ -112,10 +116,12 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
                 <span className="min-w-0 flex-1 truncate">{it.file.name}</span>
                 {it.ex?.page_count ? <span className="text-ink-muted">{it.ex.page_count} p.</span> : null}
               </div>
-              {AUTO_READ.includes(jobType) || !it.job ? (
+              {unread(it) ? (
+                <p className="text-sm">{it.job?.duplicate ? `Already on file as ${it.job.job_no}; not read yet.` : "Saved. This document type isn't read automatically."}</p>
+              ) : auto || !it.job || it.ex ? (
                 <StageSteps stage={stage} progress={it.job ? undefined : it.progress} error={it.error ?? it.ex?.error_detail ?? null} />
               ) : (
-                <p className="text-sm">Saved. This document type isn't read automatically.</p>
+                <p className="text-sm text-ink-muted">Saved.</p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {it.job && (
@@ -131,6 +137,11 @@ export function UploadQueue({ files, warehouseId, jobType, onDone }: { files: Fi
                 {it.ex?.status === "FAILED" && (
                   <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => void retry(it)}>
                     Read again
+                  </button>
+                )}
+                {unread(it) && (
+                  <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={() => void retry(it)}>
+                    Read this scan
                   </button>
                 )}
               </div>

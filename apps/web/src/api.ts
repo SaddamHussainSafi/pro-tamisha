@@ -602,6 +602,8 @@ export type ScanJob = {
   document_size: number | null;
   document_filename: string | null;
   duplicate: boolean;
+  /** Only on single-scan answers (upload, detail); lists leave it out. */
+  page_count?: number | null;
   version: number;
 };
 export type OcrStatus = "QUEUED" | "NEEDS_REVIEW" | "FAILED" | "ACCEPTED" | "REJECTED" | "SUPERSEDED";

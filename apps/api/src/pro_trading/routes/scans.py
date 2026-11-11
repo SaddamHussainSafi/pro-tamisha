@@ -126,7 +126,9 @@ def device_out(db: Session, d: ScanDevice) -> dict[str, Any]:
     }
 
 
-def job_out(db: Session, j: ScanJob) -> dict[str, Any]:
+def job_out(db: Session, j: ScanJob, pages: bool = False) -> dict[str, Any]:
+    """`pages=True` also counts the document's pages (one pdfinfo call): single-scan answers only,
+    never lists."""
     w = db.get(Warehouse, j.warehouse_id)
     dev = db.get(ScanDevice, j.device_id) if j.device_id else None
     doc = db.get(SourceDocument, j.document_id) if j.document_id else None
@@ -153,6 +155,7 @@ def job_out(db: Session, j: ScanJob) -> dict[str, Any]:
         "document_size": doc.byte_size if doc else None,
         "document_filename": doc.original_filename if doc else None,
         "duplicate": j.duplicate,
+        "page_count": svc.page_count(doc.content, doc.mime_type) if pages and doc else None,
         "version": j.version,
     }
 
@@ -425,7 +428,7 @@ def read_job(job_id: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep) ->
     if j.status in ("REQUESTED", "SCANNING") and svc.sweep(db, p.company_id):
         db.commit()
         db.refresh(j)
-    return job_out(db, j)
+    return job_out(db, j, pages=True)
 
 
 @router.post("/scans/jobs", status_code=201, response_model=ScanJobCreatedOut)
@@ -548,7 +551,7 @@ def manual_upload(
             # Don't reveal another location's document; still refuse to duplicate it.
             raise ApiError(409, "DUPLICATE_UPLOAD", "This file was already uploaded elsewhere")
         db.rollback()
-        out = {**job_out(db, existing), "duplicate": True}
+        out = {**job_out(db, existing, pages=True), "duplicate": True}
         return JSONResponse(out, 200, headers={"X-Duplicate-Of": str(existing.id)})
 
     def fn() -> Result:
@@ -571,7 +574,8 @@ def manual_upload(
         db.flush()
         documents.file_scan(db, j, doc)
         ocr.auto_queue(db, j, p.employee.id)
-        return job_out(db, j), str(j.id), {"job_no": j.job_no, "sha256": digest, "bytes": len(data)}
+        out = job_out(db, j, pages=True)
+        return out, str(j.id), {"job_no": j.job_no, "sha256": digest, "bytes": len(data)}
 
     return mutate(db, request, p, key, "scan.upload", params, 201, "scan_job.upload", fn)
 

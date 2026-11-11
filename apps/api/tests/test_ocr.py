@@ -345,7 +345,7 @@ def test_disabled_engine_means_manual_review(user, world, setup, monkeypatch):
     assert r.json()["status"] == "NEEDS_REVIEW" and r.json()["warnings"] == ["OCR_DISABLED"]
 
 
-def test_other_document_types_are_not_auto_read(user, world, setup):  # picking sheets / other
+def test_other_document_types_are_not_auto_read(user, world, setup):  # picking sheets are read
     sales = user("sales")
     upload(sales, world, sheet(world, {"CAS": "1"}), job_type="OTHER")
     assert sales.get(f"{P}/ocr/extractions").json()["total"] == 0

@@ -460,7 +460,8 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
   );
 }
 
-/** "Scan completed" card; for sales orders the recognized lines open underneath by themselves. */
+/** "Scan completed" card; for order sheets the recognized lines open underneath by themselves. A
+ * scan that was never read (a re-upload of an older scan, an "Other" document) can be read here. */
 function ScanDone({
   job,
   duplicate,
@@ -480,12 +481,16 @@ function ScanDone({
   const canRead = !!session && canInWarehouse(session, "scan.review", job.warehouse_id);
   const [ex, setEx] = useState<OcrExtraction | null>(null);
   const [checked, setChecked] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
   const below = useRef<HTMLDivElement>(null);
   const url = job.document_id ? scanDocumentUrl(job.document_id) : null;
   const reads = AUTO_READ.includes(job.job_type);
+  // a fresh upload of a type that is read automatically always has a reading on the server
+  const expected = reads && !duplicate;
 
   const load = useCallback(() => {
-    if (!canRead || !reads) return;
+    if (!canRead) return;
     api.ocrExtractions({ scan_job_id: job.id, status: "QUEUED,NEEDS_REVIEW,FAILED,ACCEPTED,REJECTED" }).then(
       (r) => {
         setEx(r.items[0] ?? null);
@@ -493,18 +498,36 @@ function ScanDone({
       },
       () => setChecked(true),
     );
-  }, [canRead, reads, job.id]);
+  }, [canRead, job.id]);
   useEffect(() => {
     setEx(null);
     setChecked(false);
+    setReadError(null);
     load();
   }, [load]);
   useEffect(() => {
-    if (ex && ex.status !== "QUEUED") return;
-    if (!checked && ex === null) return;
+    const waiting = ex ? ex.status === "QUEUED" : checked && expected;
+    if (!waiting) return;
     const t = setInterval(load, POLL_MS);
     return () => clearInterval(t);
-  }, [ex, checked, load]);
+  }, [ex, checked, expected, load]);
+  async function readNow() {
+    setStarting(true);
+    setReadError(null);
+    try {
+      setEx(await api.readScan(job.id));
+    } catch (e) {
+      setReadError(scanMessage(e));
+    } finally {
+      setStarting(false);
+    }
+  }
+  const readButton = (label: string) => (
+    <button className="btn-primary mt-3" disabled={starting} onClick={() => void readNow()}>
+      <Icon name="refresh" />
+      {starting ? "Starting…" : label}
+    </button>
+  );
   const review = ex?.status === "NEEDS_REVIEW";
   useEffect(() => {
     if (review) below.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -513,7 +536,7 @@ function ScanDone({
   const details: [IconName, string, React.ReactNode][] = [
     ["file", "Document type", JOB_TYPE[job.job_type]],
     ["printer", "Source", job.channel === "BRIDGE" ? job.device_name ?? "Scanner" : "File upload"],
-    ["layers", "Pages", ex?.page_count ?? "—"],
+    ["layers", "Pages", ex?.page_count ?? job.page_count ?? "—"],
     ["documents", "File name", job.document_filename ?? "—"],
     ["user", "Scanned by", job.requested_by_name],
     ["calendar", "Scan date & time", when(job.completed_at ?? job.created_at)],
@@ -566,15 +589,23 @@ function ScanDone({
             </div>
             <div>
               <h3 className="mb-3 text-lg font-semibold">OCR / extraction summary</h3>
-              {reads && canRead && (
+              {canRead && (ex || expected) && (
                 <div className="mb-4">
                   <StageSteps stage={stageOf(true, ex?.status ?? (checked ? "QUEUED" : null))} error={ex?.error_detail ?? null} />
                 </div>
               )}
-              {!reads ? (
-                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">Picking sheets and “Other” documents are kept but not read automatically.</p>
-              ) : !canRead ? (
-                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">Someone who reviews scans will check the lines read from this scan.</p>
+              {!canRead ? (
+                <p className="rounded-ctl bg-subtle p-4 text-sm text-ink-muted">
+                  {reads ? "Someone who reviews scans will check the lines read from this scan." : "“Other” documents are kept but not read automatically."}
+                </p>
+              ) : !ex && checked && !expected ? (
+                <div className="rounded-ctl bg-subtle p-4 text-sm" data-testid="scan-unread">
+                  <p>
+                    <strong>{reads ? `${job.job_no} hasn't been read yet.` : "“Other” documents aren't read automatically."}</strong> Read it to list the products and quantities for review. Nothing changes stock.
+                  </p>
+                  {readButton("Read this scan")}
+                  {readError && <p className="mt-2 text-danger" role="alert">{readError}</p>}
+                </div>
               ) : !ex || ex.status === "QUEUED" ? (
                 <div className="flex items-center gap-3 rounded-ctl bg-brand-accent/10 p-4 text-sm">
                   <span aria-hidden className="size-5 animate-spin rounded-full border-2 border-brand-accent border-t-transparent" />
@@ -582,7 +613,9 @@ function ScanDone({
                 </div>
               ) : ex.status === "FAILED" ? (
                 <div className="rounded-ctl bg-danger/8 p-4 text-sm text-danger">
-                  <strong>This scan couldn't be read{ex.error_code ? ` (${ex.error_code})` : ""}.</strong> Open the scan to read it again, or enter the order by hand.
+                  <strong>This scan couldn't be read{ex.error_code ? ` (${ex.error_code})` : ""}.</strong> Read it again, or enter the order by hand.
+                  <div>{readButton("Read again")}</div>
+                  {readError && <p className="mt-2" role="alert">{readError}</p>}
                 </div>
               ) : (
                 <dl className="divide-y divide-line rounded-ctl bg-brand-accent/10 text-sm">
@@ -608,6 +641,9 @@ function ScanDone({
               <button className="btn-accent px-6 py-3 text-base" onClick={() => below.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
                 <Icon name="check" />Review lines
               </button>
+            )}
+            {ex && !review && ex.status !== "QUEUED" && (
+              <Link className="btn-ghost px-5 py-3" to={`/scan/review/${ex.id}`}><Icon name="orders" />Open reading</Link>
             )}
             <Link className="btn-ghost px-5 py-3" to={`/scan/${job.id}`}><Icon name="file" />Scan details</Link>
             {url && <a className="btn-ghost px-5 py-3" href={url} download={job.document_filename ?? undefined}><Icon name="download" />Download original</a>}

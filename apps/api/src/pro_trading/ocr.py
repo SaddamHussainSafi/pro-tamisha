@@ -36,7 +36,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from . import audit, outbox, scanning, supplier_ocr
+from . import audit, outbox, paper_sheet, scanning, supplier_ocr
 from . import inventory as inv
 from .config import get_settings
 from .errors import ApiError
@@ -55,6 +55,7 @@ from .models import (
 
 EXTRACT_EVENT = "ocr.extract"
 TEMPLATE = "PT-OS-1"
+ORDER_TYPES = ("SALES_ORDER", "PICK_SHEET")  # read as order sheets
 UNITS = ("LB", "KG", "BOX", "PIECE")
 LIVE = ("QUEUED", "NEEDS_REVIEW", "FAILED")
 ROW_TOLERANCE = Decimal("0.008")  # same printed row if centres are within ~6pt on Letter
@@ -270,8 +271,8 @@ def _rotation(img: str, timeout: int) -> int:
     return int(m.group(1)) if m and r.returncode == 0 else 0
 
 
-def _prepare(img: Path, rot: int) -> None:
-    """Grayscale, undo the detected rotation, stretch contrast. Rewrites the file as PNG."""
+def _prepare(img: Path, rot: int) -> Any:
+    """Grayscale, undo the rotation, stretch contrast. Returns the Pillow image."""
     from PIL import Image, ImageOps
 
     try:
@@ -283,7 +284,100 @@ def _prepare(img: Path, rot: int) -> None:
         raise ProviderError("UNREADABLE", "The image could not be opened", False) from None
     if rot:
         g = g.rotate(-rot, expand=True, fillcolor=255)
-    ImageOps.autocontrast(g, cutoff=1).save(img, format="PNG")
+    return ImageOps.autocontrast(g, cutoff=1)
+
+
+_WORD = re.compile(r"[A-Za-z]{3,}")
+GOOD_PAGE = 25  # confidently read, level words that show the page is the right way up
+HAND_CAP = Decimal("0.800")  # Tesseract has no handwriting model: such reads are always checked
+HAND_FLOOR = Decimal("0.500")  # below this a digit read from a box is only a hint
+
+# (text, confidence 0..1, left, top, width, height) in pixels
+_Word = tuple[str, Decimal, int, int, int, int]
+
+
+def _tsv(img: Path, timeout: int) -> list[_Word]:
+    r = _run([get_settings().ocr_tesseract_cmd, str(img), "-", "--psm", "3", "-l", "eng", "tsv"],
+             timeout)  # fmt: skip
+    if r.returncode != 0:
+        raise ProviderError("OCR_FAILED", r.stderr.decode(errors="replace")[:200], False)
+    words: list[_Word] = []
+    for line in r.stdout.decode("utf-8", "replace").splitlines()[1:]:
+        f = line.split("\t")
+        if len(f) < 12 or f[0] != "5":
+            continue
+        text, conf = f[11].strip(), _d(f[10])
+        if text and conf >= 0:
+            left, top, width, height = (int(x) for x in f[6:10])
+            words.append((text, (conf / 100).quantize(C3), left, top, width, height))
+    return words
+
+
+def _upright(words: list[_Word]) -> tuple[int, float]:
+    """(words read confidently on a level line, their share of all words). Tesseract also reads
+    sideways text, but then the boxes stand upright and the layout is lost; an upside-down page
+    reads as low-confidence garbage."""
+    lettered = [w for w in words if _WORD.search(w[0])]
+    good = sum(1 for t, c, _, _, bw, bh in lettered if c >= Decimal("0.8") and bw >= bh)
+    return good, good / max(len(lettered), 1)
+
+
+def _read_page(img: Path, n: int, timeout: int) -> list[Token]:
+    """One page image -> tokens. Rulings are removed before reading (they glue onto words), the
+    page is turned by OSD and, if few words read well, the other ways up are tried. Narrow boxes
+    with writing in them come back as handwritten tokens ("?" when the digits can't be read)."""
+    from . import ocr_grid
+
+    base = _prepare(img, 0)
+    rot = _rotation(str(img), timeout)  # OSD: often unsure on forms, so it is checked below
+    best: tuple[int, Any, list[_Word]] | None = None
+    for r in dict.fromkeys((rot, (rot + 180) % 360, (rot + 90) % 360, (rot + 270) % 360)):
+        grid = ocr_grid.find_grid(base.rotate(-r, expand=True, fillcolor=255) if r else base)
+        path = img.with_name(f"{img.stem}-r{r}.png")
+        grid.clean.save(path, format="PNG")
+        words = _tsv(path, timeout)
+        score, ratio = _upright(words)
+        if best is None or score > best[0]:
+            best = (score, grid, words)
+        if score >= GOOD_PAGE and ratio >= 0.3:
+            break  # clearly the right way up; otherwise the best of the four is kept
+    assert best is not None
+    _, grid, words = best
+    w, h = (Decimal(v) for v in grid.clean.size)
+    printed = [
+        (x, y, x + bw, y + bh)
+        for t, c, x, y, bw, bh in words
+        if c >= Decimal("0.6") and _WORD.search(t)
+    ]
+    cells = ocr_grid.marked_cells(grid, printed)
+    reads = ocr_grid.read_cells(
+        grid.clean, cells, get_settings().ocr_tesseract_cmd, img.parent, timeout
+    )
+
+    def in_cell(x: float, y: float) -> bool:
+        return any(a <= x <= c and b <= y <= d for a, b, c, d in cells)
+
+    def tok(text: str, x0: int, y0: int, x1: int, y1: int, conf: Decimal, hand: bool) -> Token:
+        return Token(
+            text=text, page=n,
+            x0=(x0 / w).quantize(C3), y0=(y0 / h).quantize(C3),
+            x1=(x1 / w).quantize(C3), y1=(y1 / h).quantize(C3),
+            confidence=conf, handwritten=hand,
+        )  # fmt: skip
+
+    out = [
+        tok(t, x, y, x + bw, y + bh, c, False)
+        for t, c, x, y, bw, bh in words
+        if not in_cell(x + bw / 2, y + bh / 2)  # what Tesseract made of the writing: re-read below
+    ]
+    for (x0, y0, x1, y1), (text, conf) in zip(cells, reads, strict=True):
+        c = _d(conf).quantize(C3)
+        if parse_qty(text) is None:
+            text, c = "?", Decimal(0)
+        elif c < HAND_FLOOR:
+            text, c = f"{text}?", Decimal(0)  # a guess: shown as a hint, never as the quantity
+        out.append(tok(text, x0, y0, x1, y1, min(c, HAND_CAP), True))
+    return out
 
 
 def tesseract_provider(content: bytes, mime: str) -> OcrResult:
@@ -314,32 +408,7 @@ def tesseract_provider(content: bytes, mime: str) -> OcrResult:
             raise ProviderError("UNREADABLE", "No pages found", False)
         tokens: list[Token] = []
         for n, img in enumerate(images, start=1):
-            rot = _rotation(str(img), t)
-            _prepare(img, rot)
-            args = [st.ocr_tesseract_cmd, str(img), "-", "--psm", "3", "-l", "eng", "tsv"]
-            r = _run(args, t)
-            if r.returncode != 0:
-                raise ProviderError("OCR_FAILED", r.stderr.decode(errors="replace")[:200], False)
-            w = h = Decimal(1)
-            for line in r.stdout.decode("utf-8", "replace").splitlines()[1:]:
-                f = line.split("\t")
-                if len(f) < 12:
-                    continue
-                left, top, width, height = (_d(x) for x in f[6:10])
-                if f[0] == "1":
-                    w, h = max(width, Decimal(1)), max(height, Decimal(1))
-                    continue
-                text, conf = f[11].strip(), _d(f[10])
-                if f[0] != "5" or not text or conf < 0:
-                    continue
-                tokens.append(
-                    Token(
-                        text=text, page=n,
-                        x0=(left / w).quantize(C3), y0=(top / h).quantize(C3),
-                        x1=((left + width) / w).quantize(C3), y1=((top + height) / h).quantize(C3),
-                        confidence=(conf / 100).quantize(C3), handwritten=False,
-                    )
-                )  # fmt: skip
+            tokens.extend(_read_page(img, n, t))
         return OcrResult(len(images), tokens)
 
 
@@ -510,10 +579,19 @@ def map_result(db: Session, company_id: uuid.UUID, job_type: str, res: OcrResult
             None, None, sr.proposals[:200], warns, blocks[:400], sr.header, sr.vendor_id
         )
     template = TEMPLATE if any(t.text == TEMPLATE for t in res.tokens) else None
+    blocks = [{"page": r[0].page, "text": t[:300]} for r, t in zip(rows, texts, strict=True)]
+    if template is None and paper_sheet.detect(res.tokens):
+        # the office's own printed order sheet (tables by section, quantity written in Q)
+        lines, warns, cust_id = paper_sheet.read(
+            db, company_id, cat, res.tokens, threshold, Proposal, _status, parse_qty, _bbox
+        )
+        if not lines:
+            warns.append("NO_LINES")
+        return MappedSheet(paper_sheet.TEMPLATE, cust_id, lines[:200], warns, blocks[:400])
     warnings: list[str] = []
     if not res.tokens:
         warnings.append("NO_TEXT")
-    elif job_type == "SALES_ORDER" and template is None:
+    elif job_type in ORDER_TYPES and template is None:
         warnings.append("NO_TEMPLATE")
 
     customer_id: uuid.UUID | None = None
@@ -597,7 +675,6 @@ def map_result(db: Session, company_id: uuid.UUID, job_type: str, res: OcrResult
                 out.append(p)
     if res.tokens and not out:
         warnings.append("NO_LINES")
-    blocks = [{"page": r[0].page, "text": t[:300]} for r, t in zip(rows, texts, strict=True)]
     return MappedSheet(template, customer_id, out[:200], warnings, blocks[:400])
 
 
@@ -653,8 +730,10 @@ def queue(db: Session, job: ScanJob, actor_id: uuid.UUID | None) -> OcrExtractio
 
 
 def auto_queue(db: Session, job: ScanJob, actor_id: uuid.UUID | None) -> None:
-    """Sales-order scans are read automatically when they arrive (if an engine is configured)."""
-    auto = ("SALES_ORDER", *supplier_ocr.SUPPLIER_TYPES)
+    """Order sheets (sales orders and picking sheets: the office uses one paper form for both)
+    and supplier documents are read automatically when they arrive, if an engine is configured.
+    "Other" documents are kept unread; anyone with scan.review can still ask for a reading."""
+    auto = (*ORDER_TYPES, *supplier_ocr.SUPPLIER_TYPES)
     if job.job_type in auto and get_settings().ocr_provider != "disabled":
         queue(db, job, actor_id)
 

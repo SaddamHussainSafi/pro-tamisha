@@ -387,6 +387,28 @@ def pdf_info(src: Any, first: int, last: int) -> tuple[int, list[tuple[float, fl
         return 0, []
 
 
+def page_count(content: bytes, mime: str) -> int | None:
+    """Pages in a stored document, None when it can't be told (shown as "—")."""
+    import io
+    import tempfile
+    from pathlib import Path
+
+    if mime == "application/pdf":
+        with tempfile.TemporaryDirectory(prefix="ptinfo-") as tmp:
+            src = Path(tmp) / "d.pdf"
+            src.write_bytes(content)
+            return _pdfinfo_pages(src) or None
+    if mime == "image/tiff":
+        from PIL import Image
+
+        try:
+            with Image.open(io.BytesIO(content)) as im:
+                return int(getattr(im, "n_frames", 1))
+        except (OSError, Image.DecompressionBombError):
+            return None
+    return 1
+
+
 def _pdfinfo_pages(src: Any) -> int:
     out = _pdfinfo(src)
     m = re.search(rb"Pages:\s+(\d+)", out or b"")

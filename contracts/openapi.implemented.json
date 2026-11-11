@@ -12199,6 +12199,17 @@
             ],
             "title": "Note"
           },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
           "requested_by_name": {
             "title": "Requested By Name",
             "type": "string"
@@ -12483,6 +12494,17 @@
               }
             ],
             "title": "Note"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
           },
           "requested_by_name": {
             "title": "Requested By Name",

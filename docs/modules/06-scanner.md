@@ -41,6 +41,7 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 - **Permissions:** `scan.create` (start/upload, warehouse-scoped), `scan.review` (read), `scan.device.manage` (pair/approve/revoke). Defaults: Owner/Manager all three; Sales create+review.
 - **UI:** `/scan` Scan Center — *New scan* (location, document type, scanner, note; **Scan now** via bridge, **Upload a file** fallback), job list with status views (In progress / Received / Failed / Cancelled-expired) auto-refreshing while scans are open; *Scanners* tab (managers) to add a PC, show the pair command, approve by confirmation code, revoke with reason; `/scan/:id` detail with the original PDF/image inline, SHA-256 and failure guidance.
 - **Not built here:** OCR extraction and review (Module 07). Scans never change stock, orders or invoices.
+- **Which scans are read (2026-11-10):** sales orders, picking sheets (the office uses the same paper order sheet for both) and supplier documents are read automatically; "Other" is kept unread until someone with `scan.review` presses **Read this scan**. Single-scan answers (upload, duplicate, detail) carry `page_count` from the stored document (pdfinfo / TIFF frames), so the result card shows pages before any reading; lists leave it empty.
 
 ## Failure recovery
 | Failure | What the system does | Operator action |
@@ -50,7 +51,7 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 | Browser closes mid-scan | Job stays SCANNING until upload or the 180 s timeout → EXPIRED | Start a new scan |
 | Capability replay / expired / other device | 403 `CAPABILITY_USED` / `CAPABILITY_EXPIRED` / `CAPABILITY_INVALID`; audited | None (start a new scan) |
 | Foreign website calls the bridge | 403 `ORIGIN_REJECTED` / `HOST_REJECTED` before anything runs | None |
-| Same file uploaded twice | Same sha256 → existing job returned (`duplicate: true`), one source document | None |
+| Same file uploaded twice | Same sha256 → existing job returned (`duplicate: true`, its own document type), one source document. The result card shows that scan's reading (review, or **Open reading**); if it was never read (e.g. a picking sheet uploaded before 2026-11-10) it offers **Read this scan** | Read it, or open it |
 | Wrong or oversized file | 415 `UNSUPPORTED_FILE` / `FILE_TYPE_MISMATCH`, 413 `FILE_TOO_LARGE`, 422 `EMPTY_FILE` | Convert to PDF/JPEG or split |
 | Lost or stolen scanner PC | Revoke: token rejected at once (401 `DEVICE_REVOKED`), open jobs FAILED | Pair a replacement PC |
 | Second scan while busy | Bridge 409 `BUSY`; DB index guarantees one SCANNING job per device | Wait, then scan |

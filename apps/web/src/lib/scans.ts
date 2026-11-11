@@ -164,8 +164,9 @@ export async function bridgeStatus(f: Fetch = fetch, base = BRIDGE_URL): Promise
   }
 }
 
-/** Scans that are read automatically by OCR when they arrive. */
-export const AUTO_READ: ScanJobType[] = ["SALES_ORDER", "VENDOR_DOCUMENT", "PURCHASE_ORDER", "DELIVERY_NOTE", "PACKING_LIST", "RECEIPT"];
+/** Scans that are read automatically by OCR when they arrive. Picking sheets are the same paper
+ * order sheet as sales orders, so they are read too; "Other" can be read on request. */
+export const AUTO_READ: ScanJobType[] = ["SALES_ORDER", "PICK_SHEET", "VENDOR_DOCUMENT", "PURCHASE_ORDER", "DELIVERY_NOTE", "PACKING_LIST", "RECEIPT"];
 
 export type Stage = "upload" | "read" | "review" | "done" | "failed";
 export const STAGES: { key: Exclude<Stage, "failed" | "done">; label: string }[] = [

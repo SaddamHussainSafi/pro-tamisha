@@ -1200,6 +1200,7 @@ class ScanJobOut(BaseModel):
     document_size: int | None
     document_filename: str | None
     duplicate: bool
+    page_count: int | None = None  # single-scan answers only (lists leave it empty)
     version: int
 
 

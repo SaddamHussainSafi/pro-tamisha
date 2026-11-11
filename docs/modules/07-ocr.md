@@ -38,7 +38,7 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 ## As built (2026-11-08)
 
 ### Flow
-1. A `SALES_ORDER` scan is received (bridge or upload) → `ocr.auto_queue` creates an extraction (`QUEUED`) and an outbox event `ocr.extract`.
+1. A `SALES_ORDER` or `PICK_SHEET` scan is received (bridge or upload) → `ocr.auto_queue` creates an extraction (`QUEUED`) and an outbox event `ocr.extract`. (Picking sheets were kept unread until 2026-11-10; the office fills one paper form for both, see below.) Any other received scan can be read on request (`POST /ocr/extractions`, **Read this scan**).
 2. The Celery worker reads the original with the configured engine (`OCR_PROVIDER=fake|document_ai|disabled`), maps it to the PT-OS-1 template, and stores one field per line with confidence and status:
    - `OK` — product and quantity read at or above `OCR_CONFIDENCE_THRESHOLD` (0.900).
    - `LOW_CONFIDENCE` / `UNREADABLE` — the quantity must be entered by a person; it cannot be confirmed as read.
@@ -48,6 +48,11 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 
 ### Printable sheet
 `GET /ocr/order-sheet` produces the PT-OS-1 form for a customer + location (one row per active product, a "Ref:" token with the customer code, and write-in rows). Sheets filled on this form read best.
+
+### Office paper order sheet (TT-PAPER-1, 2026-11-10)
+The office's own pre-printed sheet ("TAMISHA TRADING INC  CUSTOMER NAME", three tables VEGETABLES+PEPPERS / ROOTS+HERBS+OTHERS / FRUITS with columns ITEM | Q | PKG | WEIGHT | NOTES) is not the PT-OS-1 form and has no SKUs, so it is recognised by its section bars and PKG headers (`paper_sheet.detect`). Reading (`paper_sheet.read`): a printed product name (matched to the catalog by name or the sheet's own spelling kept as an alias by `scripts/load_catalog.py`; spacing ignored; one or two OCR slips on long names allowed but sent for review) plus a mark in **that table's Q box** on the same row = one line in the product's stock unit. PKG / WEIGHT / NOTES marks are packing notes, never quantities; an empty Q box means not ordered; a Q mark whose name can't be matched becomes an "unknown product" line with the printed text. The handwritten customer name is matched only if the engine reads handwriting (Document AI).
+
+**Tesseract on forms** (`ocr_grid.py`, Pillow only): table rulings are found as long ink runs and painted out before reading (otherwise names come back glued to `|`/`[`); each orientation is scored by confidently read *level* words, because OSD is often unsure on these sheets and Tesseract also reads sideways text with the layout lost; narrow boxes holding ink but no printed word are read once more, digits only. Tesseract has no handwriting model: on the two office scans (SCN-20261110-0001/0003) it found the product rows with a Q mark (22 and 9 lines, including some scribbles/signatures over the boxes) but read almost none of the handwritten numbers correctly, so such reads are capped below the confidence threshold, and a read under 0.5 is shown only as a hint ("10?") with the quantity left for the reviewer. Expect to type the quantities with Tesseract; Document AI (handwriting) is the path to reading them.
 
 ### Accuracy (acceptance)
 `GET /ocr/accuracy` measures exact-field accuracy over accepted readings: a line counts as correct only if it was Confirmed as read; corrections and removals of read lines are errors; lines added by hand count as misses. The UI shows "— / N of 50 lines needed" until 50 samples exist and only says "Meets 95% target" when it does. Per D-18 every reading is still fully reviewed regardless of accuracy. The 50-sample measurement on real office handwriting is **pending** (requires the office PoC and Document AI credentials).
@@ -66,4 +71,4 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 Document AI credentials stay server-side (`OCR_DOCAI_CREDENTIALS_FILE`); the browser only receives extracted text and the original via the authenticated document endpoint. Extraction identity, read values, corrections and final states are protected by DB triggers (migration `0008_ocr.py`).
 
 ### Evidence
-Migration `0008_ocr.py`; `src/pro_trading/ocr.py`, `routes/ocr.py`; `tests/test_ocr.py` (12); web `pages/OcrReview.tsx`, `lib/ocr.ts` (+tests); `e2e/ocr.spec.ts`; screenshots `ocr-queue-1440.png`, `ocr-review-1440.png`, `ocr-draft-order-1440.png`; contract `/ocr/*` paths.
+Migration `0008_ocr.py`; `src/pro_trading/ocr.py`, `ocr_grid.py`, `paper_sheet.py`, `routes/ocr.py`; `tests/test_ocr.py` (12), `tests/test_paper_sheet.py` (6); `e2e/paper-sheet.spec.ts` (2); web `pages/OcrReview.tsx`, `lib/ocr.ts` (+tests); `e2e/ocr.spec.ts`; screenshots `ocr-queue-1440.png`, `ocr-review-1440.png`, `ocr-draft-order-1440.png`; contract `/ocr/*` paths.
