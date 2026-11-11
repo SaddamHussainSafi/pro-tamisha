@@ -308,9 +308,21 @@ def google(monkeypatch, world):
     get_settings.cache_clear()
 
 
+REAL_SETTINGS = (
+    "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REDIRECT_URI", "GMAIL_ALLOWED_ADDRESS",
+    "GMAIL_PUBSUB_TOPIC", "GMAIL_PUSH_AUDIENCE", "GMAIL_PUSH_SERVICE_ACCOUNT", "GMAIL_PUSH_TOKEN",
+)  # fmt: skip
+
+
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch, request):
-    """Without the `google` fixture, any attempt to call Google fails the test."""
+    """The developer's own .env may hold a real Google client: blank it for every test here
+    (an empty environment variable wins over .env), and, without the `google` fixture, fail
+    any attempt to call Google."""
+    for k in REAL_SETTINGS:
+        monkeypatch.setenv(k, "")
+    get_settings.cache_clear()
+    request.addfinalizer(get_settings.cache_clear)
     if "google" in request.fixturenames:
         return
 
