@@ -180,6 +180,27 @@ Notifications: `gmail.message_received` (`gmail.read`), `gmail.sync_failed` and
 Staging / production refuse to start with Gmail configured and the placeholder token key, a
 non-HTTPS redirect, or a Pub/Sub topic without a way to verify pushes.
 
+### Ending the 7-day reconnect (looked into 2026-11-11, nothing changed in Google)
+
+- The 7-day limit is stated by Google only for apps in "Testing". The console's **Publish app**
+  button (Audience page) is greyed out until the Branding page has an **application home page**
+  and a **privacy policy link** (its tooltip: "Valid app name, support email, homepage url, and
+  privacy policy url are required for switching the app to external production mode").
+- Published but unverified: Google shows its "hasn't verified this app" warning when connecting
+  and allows 100 users over the project's lifetime (one is needed). Google lists "personal use"
+  (only you, or a few people you know) as a case where no review has to be requested. Its help
+  pages are not consistent on whether a restricted scope such as `gmail.readonly` is then only
+  warned about or refused; that can only be settled by publishing and reconnecting once, and
+  "Back to testing" undoes it.
+- After publishing, connect the mailbox again once: the sign-in granted while in Testing still
+  ends after its 7 days.
+- Full verification (privacy policy on a verified domain, written justification, demo video and
+  a security assessment by an outside assessor, repeated every 12 months; Google says several
+  weeks, possibly months) is only needed if the app must be verified. A Google Workspace mailbox
+  with an Internal app avoids both the limit and verification.
+- Google also ends a sign-in when the mailbox password changes or the connection is unused for
+  six months; the page then shows "Disconnected" and the mailbox is connected again.
+
 ## Rollback
 
 Unset `GMAIL_CLIENT_ID` (the feature is off; stored mail stays visible) or disconnect in
