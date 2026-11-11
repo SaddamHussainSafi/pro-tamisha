@@ -13,6 +13,7 @@ const chunks = {
   caseSizes: () => import("./pages/CaseSizes"),
   customers: () => import("./pages/Customers"),
   documents: () => import("./pages/Documents"),
+  gmail: () => import("./pages/Gmail"),
   inventory: () => import("./pages/Inventory"),
   invoices: () => import("./pages/Invoices"),
   mfa: () => import("./pages/Mfa"),
@@ -43,6 +44,8 @@ const CaseSizesPage = page(chunks.caseSizes, (m) => m.CaseSizesPage);
 const CustomersPage = page(chunks.customers, (m) => m.CustomersPage);
 const CustomerDetailPage = page(chunks.customers, (m) => m.CustomerDetailPage);
 const DocumentsPage = page(chunks.documents, (m) => m.DocumentsPage);
+const GmailInboxPage = page(chunks.gmail, (m) => m.GmailInboxPage);
+const GmailCallbackPage = page(chunks.gmail, (m) => m.GmailCallbackPage);
 const InventoryPage = page(chunks.inventory, (m) => m.InventoryPage);
 const LotPage = page(chunks.inventory, (m) => m.LotPage);
 const InvoicesPage = page(chunks.invoices, (m) => m.InvoicesPage);
@@ -173,6 +176,8 @@ export function App() {
           <Route path="scan" element={<ScansPage />} />
           <Route path="scan/review/:id" element={<OcrReviewPage />} />
           <Route path="scan/:id" element={<ScanJobPage />} />
+          <Route path="gmail" element={<GmailInboxPage />} />
+          <Route path="gmail/oauth/callback" element={<GmailCallbackPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />

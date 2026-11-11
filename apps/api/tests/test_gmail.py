@@ -1197,6 +1197,18 @@ def test_same_product_on_two_lines_with_different_weights_stays_two_readings(
     assert all(f["read_unit_code"] == "LB" for f in yams)
 
 
+def test_a_scan_made_from_gmail_keeps_its_processing_record(owner, connected, google, setup, world):
+    """The Trash refuses a scan that still has a reading or a Gmail processing record."""
+    pdf = sheet(world, {"CAS": "1"})
+    google.add("Kept", files=[("order.pdf", "application/pdf", pdf)])
+    gsync.sync_account(connected)
+    att = first_attachment(owner)
+    out = process(owner, att["id"], world).json()
+    r = owner.delete(f"{P}/scans/jobs/{out['scan_job_id']}", headers=idem())
+    assert r.status_code == 409 and code(r) == "IN_USE", r.text
+    assert owner.get(f"{P}/gmail/attachments/{att['id']}").json()["history"][0]["attempt_no"] == 1
+
+
 # ------------------------------------------------------------------ 22. permissions
 
 

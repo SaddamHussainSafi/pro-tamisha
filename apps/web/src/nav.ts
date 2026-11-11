@@ -53,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { label: "Receiving", icon: "receiving", to: "/receiving", module: null },
       { label: "Scan Center", icon: "scan", to: "/scan", module: null },
+      { label: "Gmail Inbox", icon: "mail", to: "/gmail", module: null },
     ],
   },
   {

@@ -49,6 +49,7 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 - **Email (D-15):** outbox event `invoice.email` → dev sink table; dedupe key prevents double sends; resend creates a new key.
 - **Corrections (D-02):** void/credit deliberately not built; `invoice.correct` unused until accountant rules exist.
 - **UI:** `/invoices`, `/invoices/:id` (PDF open/download, email, stock deducted), `/picking/:id/invoice` (weights, live preview, stock check, dispatch confirmation, issue confirm). Pick sheet shows *Prepare invoice* / *View invoice*; order page lists its invoices.
+- **Create invoice › Pick from Gmail (2026-11-11):** a third way beside "From a picking sheet" and "Direct invoice": choose a scanned document from the stored Gmail Inbox (any date), have it read by the existing OCR and check it in the existing review; accepting it creates a DRAFT sales order, which is then picked and invoiced as usual. Nothing is issued from this tab. See `15-gmail-inbox.md` and OPEN_DECISIONS D-34.
 - **Create invoice › Direct (2026-11-09):** starts filled in: today's date, salesperson (company default, editable), Customer PO No., the customer's bill-to / ship-to / terms / vendor # (from the customer record), and the products of the customer's last invoice with empty quantities, so staff only type quantities; products left empty are not billed. `GET /invoice-settings` serves the letterhead and defaults.
 
 ## Failure recovery

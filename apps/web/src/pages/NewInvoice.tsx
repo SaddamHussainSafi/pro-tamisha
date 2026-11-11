@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, canInWarehouse, type Customer, type DirectInvoiceIn, type DirectPreview, type PickSummary, type UnitCode, type Warehouse } from "../api";
 import { termsLabel } from "../lib/customers";
 import { useAuth } from "../auth";
+import { GmailPicker } from "../components/gmail/GmailPicker";
 import { cad, dec } from "../lib/decimal";
 import { productsFromInvoice } from "../lib/directInvoice";
 import { qtyText } from "../lib/inventory";
@@ -18,14 +19,16 @@ import { CardTitle, ConfirmDialog, EmptyState, LoadingRows, PageHeader } from ".
 
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const tabs = [
-  { key: "sheet", label: "From a picking sheet" },
-  { key: "direct", label: "Direct invoice (no picking sheet)" },
+  { key: "sheet", label: "From a picking sheet", to: "/invoices/new" },
+  { key: "gmail", label: "Pick from Gmail", to: "/invoices/new?from=gmail" },
+  { key: "direct", label: "Direct invoice (no picking sheet)", to: "/invoices/new?from=direct" },
 ] as const;
 
 /** Invoices › Create invoice: bill a verified picking sheet, or a small sale with no sheet. */
 export function NewInvoicePage() {
   const [params] = useSearchParams();
-  const tab = params.get("from") === "direct" ? "direct" : "sheet";
+  const from = params.get("from");
+  const tab = from === "direct" || from === "gmail" ? from : "sheet";
   return (
     <div className="space-y-5">
       <nav aria-label="Breadcrumb" className="text-sm">
@@ -39,7 +42,7 @@ export function NewInvoicePage() {
         {tabs.map((t) => (
           <Link
             key={t.key}
-            to={t.key === "sheet" ? "/invoices/new" : "/invoices/new?from=direct"}
+            to={t.to}
             aria-current={tab === t.key ? "page" : undefined}
             className={`chip px-4 py-2 text-sm ${tab === t.key ? "border-brand-secondary bg-brand-secondary text-white" : "border-line bg-card text-ink hover:bg-subtle"}`}
           >
@@ -47,7 +50,7 @@ export function NewInvoicePage() {
           </Link>
         ))}
       </nav>
-      {tab === "sheet" ? <FromSheet /> : <Direct />}
+      {tab === "sheet" ? <FromSheet /> : tab === "gmail" ? <GmailPicker /> : <Direct />}
     </div>
   );
 }
