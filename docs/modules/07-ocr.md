@@ -43,7 +43,7 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
    - `OK` — product and quantity read at or above `OCR_CONFIDENCE_THRESHOLD` (0.900).
    - `LOW_CONFIDENCE` / `UNREADABLE` — the quantity must be entered by a person; it cannot be confirmed as read.
    - `UNMAPPED` — written product not matched by SKU, alias or name.
-3. A reviewer (`scan.review`) opens **Scan Center → To review → Review scan**: original on the left, lines on the right. Each line is Confirmed, Corrected or Removed; missed lines can be added. Overriding a clearly read line needs a reason. Every change is an append-only correction with actor and time.
+3. A reviewer (`scan.review`) opens **Scan Center → To review → Review scan**: original on the left, lines on the right. Each line is Confirmed, Corrected or Removed; ticked clear lines can be confirmed together (**Confirm selected**, all or none); missed lines can be added. Correcting a line needs no reason (owner, 2026-11-11); removing a clearly read line still does. Every change is an append-only correction with actor and time.
 4. **Create draft order** (needs `sales_order.manage`, all lines decided, customer chosen, "I checked every line" ticked) → a **DRAFT** sales order with source `SCAN` linked to the original document. No reservation, pick, stock movement or invoice is created; confirming the order is the normal order workflow.
 
 ### Printable sheet

@@ -7902,6 +7902,32 @@
         "title": "OcrAccuracyOut",
         "type": "object"
       },
+      "OcrConfirmLinesIn": {
+        "description": "Confirm several clearly read lines at once (the ones the reviewer ticked).",
+        "properties": {
+          "field_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Field Ids",
+            "type": "array"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "field_ids"
+        ],
+        "title": "OcrConfirmLinesIn",
+        "type": "object"
+      },
       "OcrCorrectionOut": {
         "properties": {
           "action": {
@@ -9263,7 +9289,7 @@
         "type": "object"
       },
       "OcrResolveIn": {
-        "description": "CONFIRM keeps what was read (only for OK reads). CORRECT replaces product/unit/qty.\nREMOVE drops the line. Changing a read value needs a reason.",
+        "description": "CONFIRM keeps what was read (only for OK reads). CORRECT replaces product/unit/qty (no\nreason needed). REMOVE drops the line; removing a clear reading needs a reason.",
         "properties": {
           "action": {
             "enum": [
@@ -23845,6 +23871,71 @@
           }
         },
         "summary": "Engine Reading",
+        "tags": [
+          "ocr"
+        ]
+      }
+    },
+    "/api/v1/ocr/extractions/{extraction_id}/fields/confirm": {
+      "post": {
+        "description": "Confirm the ticked lines as read, in one go: the same rule as confirming each one (clear\nreadings only), all or none. Each line keeps its own CONFIRM in its history.",
+        "operationId": "confirm_lines_api_v1_ocr_extractions__extraction_id__fields_confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extraction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Extraction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrConfirmLinesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrExtractionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Lines",
         "tags": [
           "ocr"
         ]

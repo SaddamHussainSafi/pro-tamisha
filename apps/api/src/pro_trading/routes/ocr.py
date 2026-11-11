@@ -43,6 +43,7 @@ from ..models import (
 from ..schemas import (
     OcrAcceptIn,
     OcrAccuracyOut,
+    OcrConfirmLinesIn,
     OcrExtractionDetail,
     OcrExtractionPage,
     OcrHeaderFixIn,
@@ -415,23 +416,11 @@ def resolve_field(
         before = _final(f)
         reason = (body.reason or "").strip() or None
         if body.action == "CONFIRM":
-            if f.status != "OK" or f.read_product_id is None or f.read_qty is None:
-                raise ApiError(
-                    422,
-                    "NEEDS_CORRECTION",
-                    "This line was not read clearly. Correct it or remove it.",
-                    field_status=f.status,
-                )
-            assert f.read_unit_code is not None
-            _valid_line(db, p, f.read_product_id, f.read_unit_code, f.read_qty)
-            f.resolution = "CONFIRMED"
-            f.final_product_id, f.final_unit_code = f.read_product_id, f.read_unit_code
-            f.final_qty = f.read_qty
+            _confirm(db, p, f)
         elif body.action == "CORRECT":
+            # No reason needed (owner, 2026-11-11): the correction itself is kept in history.
             if body.product_id is None or body.unit_code is None or body.qty is None:
                 raise ApiError(422, "INCOMPLETE_LINE", "Choose a product, unit and quantity")
-            if f.status == "OK" and reason is None:
-                raise ApiError(422, "REASON_REQUIRED", "Say why the reading is wrong")
             _valid_line(db, p, body.product_id, body.unit_code, body.qty)
             f.resolution = "CORRECTED"
             f.final_product_id, f.final_unit_code = body.product_id, body.unit_code
@@ -463,6 +452,77 @@ def resolve_field(
     return mutate(
         db, request, p, key, f"ocr.resolve:{field_id}", body, 200, "ocr_extraction.resolve", fn
     )
+
+
+def _confirm(db: Session, p: Principal, f: OcrField) -> None:
+    """Keep what was read. Only a clear reading (product and quantity read) can be confirmed."""
+    if f.status != "OK" or f.read_product_id is None or f.read_qty is None:
+        raise ApiError(
+            422,
+            "NEEDS_CORRECTION",
+            f"Line {f.seq} was not read clearly. Correct it or remove it.",
+            field_status=f.status,
+            line=f.seq,
+        )
+    assert f.read_unit_code is not None
+    _valid_line(db, p, f.read_product_id, f.read_unit_code, f.read_qty)
+    f.resolution = "CONFIRMED"
+    f.final_product_id, f.final_unit_code = f.read_product_id, f.read_unit_code
+    f.final_qty = f.read_qty
+
+
+@router.post(
+    "/ocr/extractions/{extraction_id}/fields/confirm",
+    response_model=OcrExtractionDetail,
+)
+def confirm_lines(
+    extraction_id: uuid.UUID,
+    body: OcrConfirmLinesIn,
+    request: Request,
+    db: DbDep,
+    key: idempotency.IdemKey,
+    p: PrincipalDep,
+) -> JSONResponse:
+    """Confirm the ticked lines as read, in one go: the same rule as confirming each one (clear
+    readings only), all or none. Each line keeps its own CONFIRM in its history."""
+    get_extraction(db, request, p, extraction_id)
+
+    def fn() -> Result:
+        ex = get_extraction(db, request, p, extraction_id, lock=True)
+        _reviewable(ex, body.version)
+        ids = list(dict.fromkeys(body.field_ids))
+        fields = db.scalars(
+            select(OcrField)
+            .where(OcrField.id.in_(ids), OcrField.extraction_id == ex.id)
+            .order_by(OcrField.seq)
+            .with_for_update()
+        ).all()
+        if len(fields) != len(ids):
+            raise ApiError(404, "NOT_FOUND", "Line not found")
+        at = _now()
+        for f in fields:
+            before = _final(f)
+            _confirm(db, p, f)
+            f.resolved_by, f.resolved_at = p.employee.id, at
+            db.add(
+                OcrCorrection(
+                    field_id=f.id,
+                    action="CONFIRM",
+                    before=before,
+                    after=_final(f),
+                    reason=None,
+                    actor_id=p.employee.id,
+                )
+            )
+        ex.version += 1
+        db.flush()
+        seqs = [f.seq for f in fields]
+        return extraction_out(db, ex, True), str(ex.id), {"fields": seqs, "action": "CONFIRM"}
+
+    return mutate(
+        db, request, p, key, f"ocr.confirm:{extraction_id}", body, 200,
+        "ocr_extraction.confirm_lines", fn,
+    )  # fmt: skip
 
 
 @router.post("/ocr/extractions/{extraction_id}/lines", response_model=OcrExtractionDetail)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api";
-import { canConfirm, confidencePct, engineText, lineNotes, needsReason, ocrMessage, openLines, pctText, trimQty, warningText } from "./ocr";
+import { canConfirm, confidencePct, engineText, lineNotes, needsReason, ocrMessage, openLines, pctText, selectable, trimQty, warningText } from "./ocr";
 
 describe("ocr helpers", () => {
   it("only clear readings can be confirmed", () => {
@@ -8,10 +8,14 @@ describe("ocr helpers", () => {
     expect(canConfirm({ status: "LOW_CONFIDENCE", read_product_id: "p", read_qty: "2.0000" })).toBe(false);
     expect(canConfirm({ status: "UNMAPPED", read_product_id: null, read_qty: "2.0000" })).toBe(false);
     expect(canConfirm({ status: "OK", read_product_id: "p", read_qty: null })).toBe(false);
+    // only clear lines still waiting can be ticked for Confirm selected
+    expect(selectable({ status: "OK", read_product_id: "p", read_qty: "2.0000", resolution: "NONE" })).toBe(true);
+    expect(selectable({ status: "OK", read_product_id: "p", read_qty: "2.0000", resolution: "CONFIRMED" })).toBe(false);
+    expect(selectable({ status: "LOW_CONFIDENCE", read_product_id: "p", read_qty: "2.0000", resolution: "NONE" })).toBe(false);
   });
 
   it("asks for a reason only when overriding a clear reading", () => {
-    expect(needsReason({ status: "OK", kind: "LINE" }, "CORRECT")).toBe(true);
+    expect(needsReason({ status: "OK", kind: "LINE" }, "CORRECT")).toBe(false); // owner, 2026-11-11
     expect(needsReason({ status: "OK", kind: "LINE" }, "REMOVE")).toBe(true);
     expect(needsReason({ status: "OK", kind: "MANUAL" }, "REMOVE")).toBe(false);
     expect(needsReason({ status: "LOW_CONFIDENCE", kind: "LINE" }, "CORRECT")).toBe(false);

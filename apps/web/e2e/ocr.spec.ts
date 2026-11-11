@@ -55,15 +55,19 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
   const plantain = lines.filter({ hasText: "PLG" });
   const writeIn = lines.filter({ hasText: "Mango" });
   await expect(plantain).toContainText(/Unclear|Unreadable/); // fake engine vs real OCR: both need a person
-  await expect(writeIn).toContainText("Unknown product");
+  await expect(writeIn).toContainText(/Unknown product|Unreadable/); // depends on the engine; both need a person
   // Unclear lines can't be waved through.
   await expect(plantain.getByRole("button", { name: /^Confirm line/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Create draft order" })).toBeDisabled();
   await axe(page);
   await page.screenshot({ path: "screenshots/ocr-review-1440.png", fullPage: true });
 
-  await cassava.getByRole("button", { name: /^Confirm line/ }).click();
+  // Clear lines are ticked and confirmed together; unclear ones can't be ticked.
+  await expect(plantain.getByRole("checkbox")).toHaveCount(0);
+  await cassava.getByRole("checkbox", { name: /^Select line/ }).check();
+  await page.getByRole("button", { name: "Confirm selected (1)" }).click();
   await expect(cassava).toContainText("Confirmed");
+  await expect(page.getByText("1 line confirmed.")).toBeVisible();
 
   await plantain.getByRole("button", { name: /^Enter line/ }).click();
   const form = page.getByRole("form", { name: "Correct line" });

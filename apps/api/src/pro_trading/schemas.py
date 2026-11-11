@@ -1376,8 +1376,8 @@ class OcrExtractionPage(BaseModel):
 
 
 class OcrResolveIn(BaseModel):
-    """CONFIRM keeps what was read (only for OK reads). CORRECT replaces product/unit/qty.
-    REMOVE drops the line. Changing a read value needs a reason."""
+    """CONFIRM keeps what was read (only for OK reads). CORRECT replaces product/unit/qty (no
+    reason needed). REMOVE drops the line; removing a clear reading needs a reason."""
 
     version: int = Field(ge=1)
     action: Literal["CONFIRM", "CORRECT", "REMOVE"]
@@ -1385,6 +1385,13 @@ class OcrResolveIn(BaseModel):
     unit_code: UnitCode | None = None
     qty: Qty | None = None
     reason: str | None = Field(default=None, max_length=500)
+
+
+class OcrConfirmLinesIn(BaseModel):
+    """Confirm several clearly read lines at once (the ones the reviewer ticked)."""
+
+    version: int = Field(ge=1)
+    field_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
 
 
 class OcrManualLineIn(BaseModel):

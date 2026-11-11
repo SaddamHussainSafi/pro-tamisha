@@ -19,10 +19,11 @@ import { useAuth } from "../auth";
 import { DocViewer, PriceList, SupplierHeader, ToReceiving, type Flag } from "./OcrSupplier";
 import { ScanProcessing } from "../components/scanner/ScanProcessing";
 import { stockUnits, wholeOnly } from "../lib/inventory";
-import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, trimQty, warningText, engineText, lineNotes } from "../lib/ocr";
+import { canConfirm, confidencePct, FIELD_STATUS, needsReason, OCR_STATUS, ocrMessage, openLines, pctText, RESOLUTION, selectable, trimQty, warningText, engineText, lineNotes } from "../lib/ocr";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { Icon } from "../ui/Icon";
+import { ActionBar } from "../ui/gridParts";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 import { ReasonDialog } from "./Orders";
 import { useDebounced } from "../lib/useDebounced";
@@ -239,7 +240,9 @@ export function ScanReading({ jobId, warehouseId, received }: { jobId: string; w
 
 type Editing = { fieldId: string | "new"; product_id: string; unit_code: UnitCode | ""; qty: string; reason: string };
 
-/** Review page (route /scan/review/:id), or embedded under a finished scan in the Scan Center. */
+/** Review page (route /scan/review/:id), or embedded under a finished scan in the Scan Center.
+ * Laid out like Create invoice: header fields, then the lines as a compact grid (tick clear
+ * lines and Confirm selected), then a sticky bar with the counts and the main actions. */
 export function OcrReviewPage({ id: given, embedded = false }: { id?: string; embedded?: boolean } = {}) {
   const params = useParams();
   const id = given ?? params.id ?? "";
@@ -260,6 +263,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const [reason, setReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [rereading, setRereading] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const nav = useNavigate();
   const [search] = useSearchParams();
   const startPage = Math.max(1, Number(search.get("page")) || 1);
@@ -286,13 +290,20 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
     api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
     api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active)), () => setCustomers([]));
   }, []);
+  // Ticks only on lines that can still be confirmed as read.
+  useEffect(() => {
+    if (!ex) return;
+    const ok = new Set(ex.fields.filter(selectable).map((f) => f.id));
+    setPicked((cur) => (Array.from(cur).every((x) => ok.has(x)) ? cur : new Set(Array.from(cur).filter((x) => ok.has(x)))));
+  }, [ex]);
 
   const product = async (pid: string): Promise<Product | undefined> => {
     if (!pid) return undefined;
     const have = details[pid];
     if (have) return have;
-    const p = await api.product(pid);
-    setDetails((d) => ({ ...d, [pid]: p }));
+    // A product that can't be loaded (removed, no access) just leaves the editor to choose one.
+    const p = await api.product(pid).catch(() => undefined);
+    if (p) setDetails((d) => ({ ...d, [pid]: p }));
     return p;
   };
 
@@ -325,6 +336,8 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const canReceive = canInWarehouse(session, "grn.record", ex.warehouse_id);
   const lit = ex.fields.find((f) => f.seq === focusSeq)?.bbox as { page: number; x0: string; y0: string; x1: string; y1: string } | undefined;
   const url = scanDocumentUrl(ex.document_id);
+  const tickable = ex.fields.filter(selectable);
+  const nPicked = tickable.filter((f) => picked.has(f.id)).length;
   // Every line still to check is outlined on the original: amber = unclear quantity, red = unknown
   // product or nothing readable. Clicking an outline brings its line into view.
   const flags: Flag[] = ex.fields.flatMap((f) => {
@@ -354,21 +367,25 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
       return;
     }
     const f = ex.fields.find((x) => x.id === edit.fieldId);
-    if (f && needsReason(f, "CORRECT") && edit.reason.trim().length < 3) return setError("Say why the reading is wrong (at least 3 characters).");
     const r = await run(
-      () =>
-        api.resolveOcrField(ex.id, edit.fieldId, {
-          version: ex.version,
-          action: "CORRECT",
-          product_id: edit.product_id,
-          unit_code: edit.unit_code as UnitCode,
-          qty,
-          reason: edit.reason.trim() || undefined,
-        }),
+      () => api.resolveOcrField(ex.id, edit.fieldId, { version: ex.version, action: "CORRECT", product_id: edit.product_id, unit_code: edit.unit_code as UnitCode, qty }),
       `Line ${f?.seq ?? ""} corrected.`,
     );
     if (r) setEdit(null);
   };
+  const confirmPicked = async () => {
+    const ids = tickable.filter((f) => picked.has(f.id)).map((f) => f.id);
+    if (!ids.length) return;
+    const r = await run(() => api.confirmOcrLines(ex.id, { version: ex.version, field_ids: ids }), `${ids.length} ${ids.length === 1 ? "line" : "lines"} confirmed.`);
+    if (r) setPicked(new Set());
+  };
+  const togglePick = (fid: string, on: boolean) =>
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (on) next.add(fid);
+      else next.delete(fid);
+      return next;
+    });
 
   const accept = async () => {
     if (!customer) return setError("Choose the customer this order is for.");
@@ -388,7 +405,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
         const units = p ? stockUnits(p) : [];
         setEdit((e) => e && { ...e, product_id: pid, unit_code: p ? (units.includes(p.stock_unit) ? p.stock_unit : units[0] ?? "") : "" });
       }}
-      reasonNeeded={edit.fieldId === "new" || ex.fields.some((f) => f.id === edit.fieldId && needsReason(f, "CORRECT"))}
+      reasonNeeded={edit.fieldId === "new"}
       busy={busy}
       onSave={() => void saveEdit()}
     />
@@ -397,7 +414,8 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const Info = embedded ? QuietNotice : Notice;
   const low = ex.fields.filter((f) => f.resolution === "NONE" && f.status === "LOW_CONFIDENCE").length;
   const unknown = ex.fields.filter((f) => f.resolution === "NONE" && (f.status === "UNMAPPED" || f.status === "UNREADABLE")).length;
-  const custName = customers.find((c) => c.id === customer)?.name ?? ex.customer_name;
+  const orderDoc = reviewing && !supplierDoc;
+  const th = "sticky top-0 z-10 border-b border-line bg-subtle px-2.5 py-2 text-left text-xs font-semibold text-ink";
 
   return (
     <div className="space-y-5">
@@ -439,149 +457,177 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
           />
         ))}
 
-      <div className={embedded ? "space-y-5" : "grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"}>
+      <div className={embedded ? "space-y-5" : "grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"}>
         {!embedded && <section aria-label="Original scan" className="card min-h-[24rem] overflow-hidden xl:sticky xl:top-4 xl:h-[calc(100vh-8rem)]">
           <DocViewer documentId={ex.document_id} title={`Original scan ${ex.scan_job_no}`} highlight={lit ?? null} flags={reviewing ? flags : []} initialPage={startPage} onFlag={showLine} />
         </section>}
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {supplierDoc && <SupplierHeader ex={ex} threshold={0.9} editable={reviewing} onFixed={setEx} />}
-          <section aria-labelledby="lines-h" className="card overflow-hidden">
-            <div className="flex flex-wrap items-center gap-4 p-5 sm:p-6">
-              <span className="grid size-14 shrink-0 place-items-center rounded-ctl bg-brand-primary text-white"><Icon name="scan" size={26} /></span>
-              <div className="min-w-0 flex-1">
-                <h2 id="lines-h" className="text-[22px] font-semibold tracking-tight">Recognized lines</h2>
-                <p className="text-sm text-ink-muted">
-                  Check each line against the scan and fix what was misread.{" "}
-                  <span aria-live="polite">{reviewing ? (open.length ? `${open.length} of ${ex.fields.length} still to check` : "All lines checked") : `${ex.fields.length} lines`}</span>
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {low > 0 && <span className="inline-flex items-center gap-2 rounded-full bg-warning/12 px-4 py-2 text-sm font-semibold text-ink [&_svg]:text-warning"><Icon name="clock" size={16} />{low} low-confidence</span>}
-                {unknown > 0 && <span className="inline-flex items-center gap-2 rounded-full bg-danger/10 px-4 py-2 text-sm font-semibold text-danger"><Icon name="alert" size={16} />{unknown} need{unknown === 1 ? "s" : ""} fixing</span>}
-              </div>
-            </div>
-            {ex.fields.length > 0 && (
-              <div aria-hidden className="hidden grid-cols-[3.25rem_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)] gap-4 border-y border-line bg-brand-accent/8 px-6 py-3 text-sm font-semibold md:grid">
-                <span />
-                <span>Product / line</span>
-                <span>Read as</span>
-                <span>Status</span>
-              </div>
-            )}
-            {ex.fields.length === 0 ? (
-              <p className="px-6 pb-6 text-sm text-ink-muted">No lines were read.</p>
-            ) : (
-              <ol
-                className="divide-y divide-line"
-                onMouseOver={(e) => {
-                  const li = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
-                  if (li) setFocusSeq(Number(li.getAttribute("data-testid")?.slice(9)));
-                }}
-                onFocus={(e) => {
-                  const li = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
-                  if (li) setFocusSeq(Number(li.getAttribute("data-testid")?.slice(9)));
-                }}
-              >
-                {ex.fields.map((f) => (
-                  <FieldRow
-                    key={f.id}
-                    f={f}
-                    reviewing={reviewing}
-                    busy={busy}
-                    editing={edit?.fieldId === f.id}
-                    editor={edit?.fieldId === f.id ? editor : null}
-                    onConfirm={() => void run(() => api.resolveOcrField(ex.id, f.id, { version: ex.version, action: "CONFIRM" }))}
-                    onCorrect={() => void startEdit(f)}
-                    onRemove={() => {
-                      if (needsReason(f, "REMOVE")) {
-                        setReason("");
-                        setRemoving(f);
-                      } else void run(() => api.resolveOcrField(ex.id, f.id, { version: ex.version, action: "REMOVE" }));
-                    }}
-                  />
-                ))}
-              </ol>
-            )}
-            {reviewing && (
-              <div className="border-t border-line px-6 py-4">
-                {edit?.fieldId === "new" ? (
-                  editor
-                ) : (
-                  <button className="btn-ghost" disabled={busy} onClick={() => void startEdit(null)}>
-                    <Icon name="plus" size={18} />Add a line the reading missed
-                  </button>
-                )}
-              </div>
-            )}
-            <div className="m-4 mt-0 grid gap-4 rounded-ctl bg-brand-accent/8 p-5 sm:grid-cols-3">
-              {([
-                ["check", "Lines kept", kept.length],
-                ["alert", "Still to check", open.length],
-                ["users", "Customer", custName ?? "Not chosen yet"],
-              ] as const).map(([icon, k, v], i) => (
-                <div key={k} className={`flex items-center gap-4 ${i > 0 ? "sm:border-l sm:border-line sm:pl-4" : ""}`}>
-                  <span className="grid size-12 shrink-0 place-items-center rounded-ctl bg-card text-brand-primary"><Icon name={icon} size={22} /></span>
-                  <span className="min-w-0">
-                    <span className="block text-sm text-ink-muted">{k}</span>
-                    <span className="num block truncate text-[22px] font-semibold leading-tight">{v}</span>
-                  </span>
+          <section aria-labelledby="lines-h" className="card space-y-5 p-6">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="lines-h" className="text-xl font-semibold tracking-tight">Recognized lines</h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {low > 0 && <StatusChip tone="warning">{`${low} unclear`}</StatusChip>}
+                  {unknown > 0 && <StatusChip tone="danger">{`${unknown} to fix`}</StatusChip>}
                 </div>
-              ))}
-            </div>
-          </section>
-
-          {supplierDoc && (reviewing || ex.shipment_id) && (
-            <>
-              <section aria-label="Prices as read" className="card p-6">
-                <PriceList fields={ex.fields} />
-              </section>
-              <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} />
-            </>
-          )}
-          {reviewing && !supplierDoc && (
-            <section aria-labelledby="accept-h" className="card space-y-3 p-6">
-              <h2 id="accept-h" className="font-semibold">Create the draft order</h2>
+              </div>
               <p className="text-sm text-ink-muted">
-                This only creates a <strong>draft</strong> sales order with {kept.length} line{kept.length === 1 ? "" : "s"}. Nothing is reserved, picked or invoiced until someone confirms it.
+                Check each line against the scan and fix what was misread. Tick the clear ones and confirm them together.{" "}
+                <span aria-live="polite">{reviewing ? (open.length ? `${open.length} of ${ex.fields.length} still to check.` : "All lines checked.") : `${ex.fields.length} lines.`}</span>
               </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
+            </div>
+            {orderDoc && (
+              <div className="grid gap-x-5 gap-y-4 md:grid-cols-12">
+                <div className="md:col-span-7">
                   <label className="label" htmlFor="ocr-cust">Customer</label>
                   <select id="ocr-cust" className="input" value={customer} onChange={(e) => setCustomer(e.target.value)}>
                     <option value="">Choose…</option>
                     {customers.map((c) => <option key={c.id} value={c.id}>{c.external_ref ? `${c.external_ref} — ` : ""}{c.name}</option>)}
                   </select>
                 </div>
-                <div>
+                <div className="md:col-span-5">
                   <label className="label" htmlFor="ocr-note">Note (optional)</label>
                   <input id="ocr-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
                 </div>
               </div>
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" className="mt-0.5" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-                I checked every line against the scan.
-              </label>
-              <div className="flex flex-wrap justify-end gap-2">
-                <button className="btn-ghost" disabled={busy} onClick={() => { setReason(""); setRejecting(true); }}>Reject</button>
-                <button className="btn-ghost" disabled={busy} onClick={() => setRereading(true)}>Read again</button>
-                {canAccept ? (
-                  <button className="btn-primary" disabled={busy || open.length > 0 || kept.length === 0 || !checked || !customer} onClick={() => void accept()}>
-                    Create draft order
-                  </button>
-                ) : (
-                  <span className="self-center text-sm text-ink-muted">Someone who can manage orders must create the draft.</span>
-                )}
+            )}
+            {ex.fields.length === 0 ? (
+              <p className="text-sm text-ink-muted">No lines were read.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-[var(--radius-ctl)] border border-line 2xl:overflow-visible">
+                <table className="w-full min-w-[36rem] table-fixed border-collapse text-sm" aria-label="Recognized lines">
+                  <colgroup>
+                    {reviewing && <col style={{ width: "2.25rem" }} />}
+                    <col style={{ width: "2.5rem" }} />
+                    <col />
+                    <col style={{ width: "5.25rem" }} />
+                    <col style={{ width: "8.5rem" }} />
+                    {reviewing && <col style={{ width: "8rem" }} />}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      {reviewing && (
+                        <th scope="col" className={`${th} text-center`}>
+                          <input
+                            type="checkbox"
+                            className="size-4 cursor-pointer accent-brand-primary align-middle"
+                            aria-label="Select all clear lines"
+                            disabled={!tickable.length || busy}
+                            checked={tickable.length > 0 && nPicked === tickable.length}
+                            ref={(el) => {
+                              if (el) el.indeterminate = nPicked > 0 && nPicked < tickable.length;
+                            }}
+                            onChange={(e) => setPicked(e.target.checked ? new Set(tickable.map((f) => f.id)) : new Set())}
+                          />
+                        </th>
+                      )}
+                      <th scope="col" className={`${th} text-center`}>S/N</th>
+                      <th scope="col" className={th}>Item</th>
+                      <th scope="col" className={`${th} text-right`}>Qty</th>
+                      <th scope="col" className={th} title="Status, and how sure the reader is">Status</th>
+                      {reviewing && <th scope="col" className={th}><span className="sr-only">Actions</span></th>}
+                    </tr>
+                  </thead>
+                  <tbody
+                    onMouseOver={(e) => {
+                      const tr = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
+                      if (tr) setFocusSeq(Number(tr.getAttribute("data-testid")?.slice(9)));
+                    }}
+                    onFocus={(e) => {
+                      const tr = (e.target as HTMLElement).closest("[data-testid^='ocr-line-']");
+                      if (tr) setFocusSeq(Number(tr.getAttribute("data-testid")?.slice(9)));
+                    }}
+                  >
+                    {ex.fields.map((f, i) => (
+                      <FieldRow
+                        key={f.id}
+                        f={f}
+                        zebra={i % 2 === 1}
+                        lit={f.seq === focusSeq}
+                        reviewing={reviewing}
+                        busy={busy}
+                        picked={picked.has(f.id)}
+                        onPick={(on) => togglePick(f.id, on)}
+                        editor={edit?.fieldId === f.id ? editor : null}
+                        onConfirm={() => void run(() => api.resolveOcrField(ex.id, f.id, { version: ex.version, action: "CONFIRM" }))}
+                        onCorrect={() => void startEdit(f)}
+                        onRemove={() => {
+                          if (needsReason(f, "REMOVE")) {
+                            setReason("");
+                            setRemoving(f);
+                          } else void run(() => api.resolveOcrField(ex.id, f.id, { version: ex.version, action: "REMOVE" }));
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              {open.length > 0 && <p className="text-right text-xs text-ink-muted">Check lines {open.join(", ")} first.</p>}
-            </section>
-          )}
-          {ex.status === "FAILED" && (
-            <div className="flex justify-end gap-2">
-              <button className="btn-ghost" disabled={busy} onClick={() => { setReason(""); setRejecting(true); }}>Reject</button>
-              <button className="btn-primary" disabled={busy} onClick={() => setRereading(true)}>Read again</button>
-            </div>
-          )}
+            )}
+            {reviewing && (
+              <div className="flex flex-wrap items-center gap-2">
+                {edit?.fieldId === "new" ? (
+                  <div className="w-full">{editor}</div>
+                ) : (
+                  <button className="btn-ghost" disabled={busy} onClick={() => void startEdit(null)}>
+                    <Icon name="plus" size={18} />Add a line the reading missed
+                  </button>
+                )}
+                <span className="ml-auto flex gap-2">
+                  <button className="btn-ghost" disabled={busy} onClick={() => setRereading(true)}>Read again</button>
+                  {orderDoc && <button className="btn-ghost" disabled={busy} onClick={() => { setReason(""); setRejecting(true); }}>Reject</button>}
+                </span>
+              </div>
+            )}
+            {supplierDoc && (reviewing || ex.shipment_id) && (
+              <div className="border-t border-line pt-5">
+                <PriceList fields={ex.fields} />
+              </div>
+            )}
+            {(reviewing || ex.status === "FAILED") && (
+              <ActionBar
+                left={
+                  <>
+                    {reviewing ? (
+                      <button className="btn-accent whitespace-nowrap" disabled={busy || nPicked === 0} onClick={() => void confirmPicked()}>
+                        <Icon name="check" size={18} />
+                        {nPicked ? `Confirm selected (${nPicked})` : "Confirm selected"}
+                      </button>
+                    ) : (
+                      <>
+                        <button className="btn-ghost" disabled={busy} onClick={() => setRereading(true)}>Read again</button>
+                        <button className="btn-ghost" disabled={busy} onClick={() => { setReason(""); setRejecting(true); }}>Reject</button>
+                      </>
+                    )}
+                  </>
+                }
+                figures={[
+                  { label: "Lines kept", value: kept.length },
+                  { label: "Still to check", value: open.length, green: reviewing && open.length === 0 },
+                ]}
+                status={orderDoc ? (open.length > 0 ? `Check ${open.length > 6 ? `the ${open.length} open lines` : `lines ${open.join(", ")}`} first.` : "Every line is checked. This only creates a draft order: nothing is reserved, picked or invoiced.") : undefined}
+              >
+                {orderDoc && (
+                  <>
+                    <label className="flex items-center gap-2.5 whitespace-nowrap text-sm">
+                      <input type="checkbox" className="size-4 accent-brand-primary" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+                      I checked every line against the scan.
+                    </label>
+                    {canAccept ? (
+                      <button className="btn-primary whitespace-nowrap" disabled={busy || open.length > 0 || kept.length === 0 || !checked || !customer} onClick={() => void accept()}>
+                        Create draft order
+                      </button>
+                    ) : (
+                      <span className="text-sm text-ink-muted">Someone who can manage orders must create the draft.</span>
+                    )}
+                  </>
+                )}
+              </ActionBar>
+            )}
+          </section>
+
+          {supplierDoc && (reviewing || ex.shipment_id) && <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} />}
           <p className="text-sm">
             <Link className={link} to={`/scan/${ex.scan_job_id}`}>Scan details</Link>
             {" · "}
@@ -633,20 +679,27 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   );
 }
 
+/** One recognized line as a grid row (same look as the Create invoice grid), plus its editor. */
 function FieldRow({
   f,
+  zebra,
+  lit,
   reviewing,
   busy,
-  editing,
+  picked,
+  onPick,
   editor,
   onConfirm,
   onCorrect,
   onRemove,
 }: {
   f: OcrField;
+  zebra: boolean;
+  lit: boolean;
   reviewing: boolean;
   busy: boolean;
-  editing: boolean;
+  picked: boolean;
+  onPick: (on: boolean) => void;
   editor: React.ReactNode;
   onConfirm: () => void;
   onCorrect: () => void;
@@ -656,94 +709,112 @@ function FieldRow({
   const res = RESOLUTION[f.resolution];
   const pct = confidencePct(f.confidence);
   const open = f.resolution === "NONE";
-  const title = f.resolution !== "NONE" && f.resolution !== "REMOVED" && f.final_product_name ? f.final_product_name : f.kind === "MANUAL" ? "Added by hand" : f.label;
-  const tint = open && (f.status === "UNMAPPED" || f.status === "UNREADABLE") ? "bg-danger/[0.04]" : open && f.status === "LOW_CONFIDENCE" ? "bg-warning/[0.06]" : "";
+  const resolved = !open && f.resolution !== "REMOVED";
+  const name = resolved && f.final_product_name ? f.final_product_name : f.kind === "MANUAL" ? "Added by hand" : f.label;
+  const sku = resolved ? f.final_sku : f.read_sku;
+  const qty = resolved ? f.final_qty : f.read_qty;
+  const unit = resolved ? f.final_unit_code : f.read_unit_code;
   const doubtful = pct !== undefined && (pct < 90 || f.status !== "OK");
   // What exactly needs a person: the product (not recognised) or the quantity (unclear).
   const badProduct = open && f.kind !== "MANUAL" && f.status === "UNMAPPED";
   const badQty = open && f.kind !== "MANUAL" && (f.status === "LOW_CONFIDENCE" || f.status === "UNREADABLE");
+  const notes = lineNotes(f.detail);
+  const tint = lit ? "bg-apple-50/30" : open && (f.status === "UNMAPPED" || f.status === "UNREADABLE") ? "bg-danger/[0.04]" : open && f.status === "LOW_CONFIDENCE" ? "bg-warning/[0.06]" : zebra ? "bg-subtle/60" : "bg-card";
+  const td = "border-b border-r border-line px-2.5 py-2 align-top last:border-r-0";
+  const small = "btn px-3 py-1 text-xs";
+  const canTick = selectable(f);
   return (
-    <li className={`space-y-3 px-5 py-4 sm:px-6 ${tint} ${f.resolution === "REMOVED" ? "opacity-70" : ""}`} data-testid={`ocr-line-${f.seq}`}>
-      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 md:grid-cols-[3.25rem_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)] md:items-center">
-        <span className="relative grid size-[3.25rem] place-items-center rounded-ctl border border-line bg-subtle text-ink-muted">
-          <Icon name="inventory" size={22} />
-          <span className="num absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-card text-xs font-semibold text-ink ring-1 ring-line">{f.seq}</span>
-        </span>
-        <div className="min-w-0 space-y-0.5">
-          <p className="truncate text-base font-semibold">
+    <>
+      <tr className={`${tint} ${f.resolution === "REMOVED" ? "text-ink-muted" : ""}`} data-testid={`ocr-line-${f.seq}`}>
+        {reviewing && (
+          <td className={`${td} text-center`}>
+            {canTick && (
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 cursor-pointer accent-brand-primary"
+                aria-label={`Select line ${f.seq}`}
+                checked={picked}
+                disabled={busy}
+                onChange={(e) => onPick(e.target.checked)}
+              />
+            )}
+          </td>
+        )}
+        <td className={`${td} num text-center text-xs text-ink-muted`}>{f.seq}</td>
+        <td className={`${td} min-w-0`}>
+          <p className={f.resolution === "REMOVED" ? "line-through" : ""}>
+            {sku && !name.startsWith(`${sku} `) && <span className="num mr-1.5 text-xs font-semibold text-ink-muted">{sku}</span>}
             {badProduct ? (
               <span className="rounded bg-danger/8 px-1 underline decoration-danger decoration-dashed decoration-2 underline-offset-4" data-uncertain="product">
-                {title || "Unknown product"}
+                {name || "Unknown product"}
                 <span className="sr-only"> (product not recognised, check it)</span>
               </span>
             ) : (
-              title
+              name
             )}
           </p>
-          <p className="text-sm text-ink-muted">
-            {f.kind === "MANUAL" ? "Added by hand" : <>Sheet says: <span className="text-ink">{`${f.label}${f.raw_text && f.raw_text !== f.label ? ` · “${f.raw_text}”` : ""}`}</span></>}
-          </p>
-          {lineNotes(f.detail).length > 0 && (
-            <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-ink">
-              {lineNotes(f.detail).map((n) => <li key={n}>{n}</li>)}
-            </ul>
-          )}
-          {f.resolution !== "NONE" && f.resolution !== "REMOVED" && (
-            <p className="text-sm">
-              <span className="text-ink-muted">On order: </span>
-              <span className="num font-semibold">{f.final_sku} · {f.final_qty ? trimQty(f.final_qty) : ""} {f.final_unit_code}</span>
+          {f.kind !== "MANUAL" && f.raw_text && (
+            <p className="text-xs text-ink-muted">
+              Sheet says: <span className="text-ink">{`“${f.raw_text}”`}</span>
             </p>
           )}
-          {open && f.status !== "OK" && <p className={`text-sm ${f.status === "LOW_CONFIDENCE" ? "text-ink" : "text-danger"}`}>{st.hint}</p>}
+          {open && f.status !== "OK" && <p className={`text-xs ${f.status === "LOW_CONFIDENCE" ? "text-warning" : "text-danger"}`}>{st.hint}</p>}
+          {notes.length > 0 && <p className="text-xs text-ink">{notes.join(" · ")}</p>}
           {f.corrections.length > 0 && (
             <p className="text-xs text-ink-muted">
               {f.corrections.map((c) => `${c.action.toLowerCase()} by ${c.actor_name}${c.reason ? ` — “${c.reason}”` : ""}`).join("; ")}
             </p>
           )}
-        </div>
-        <div className="col-start-2 min-w-0 md:col-start-auto">
-          {f.kind !== "MANUAL" && (
-            <>
-              <p className="text-sm">
-                <span className="text-ink-muted md:hidden">Read as: </span>
-                <span className={`num inline-block whitespace-nowrap rounded-ctl border bg-card px-3 py-1.5 font-semibold ${badQty ? (f.status === "UNREADABLE" ? "border-danger ring-2 ring-danger/20" : "border-warning ring-2 ring-warning/25") : badProduct ? "border-danger/60" : "border-line"}`} data-uncertain={badQty ? "quantity" : badProduct ? "product" : undefined}>
-                  {f.read_sku ?? "?"} ·{" "}
-                  <span className={badQty ? "rounded bg-warning/15 px-1 underline decoration-warning decoration-dashed decoration-2 underline-offset-4" : undefined}>{f.read_qty ? trimQty(f.read_qty) : "?"}</span> {f.read_unit_code ?? ""}
-                  {badQty && <span className="sr-only"> (quantity unclear, check it)</span>}
-                </span>
-              </p>
-              {pct !== undefined && (
-                doubtful ? (
-                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-ctl bg-warning/12 px-2.5 py-1 text-xs font-medium text-ink [&_svg]:text-warning">
-                    <Icon name="alert" size={14} />OCR {pct}% · check against original
-                  </p>
-                ) : (
-                  <p className="mt-2 text-xs text-ink-muted">{pct}% sure</p>
-                )
-              )}
-            </>
+        </td>
+        <td className={`${td} num whitespace-nowrap text-right`}>
+          <span
+            className={`font-semibold ${badQty ? `rounded px-1 underline decoration-dashed decoration-2 underline-offset-4 ${f.status === "UNREADABLE" ? "bg-danger/10 decoration-danger" : "bg-warning/15 decoration-warning"}` : ""}`}
+            data-uncertain={badQty ? "quantity" : undefined}
+          >
+            {qty ? trimQty(qty) : "?"}
+          </span>
+          {badQty && <span className="sr-only"> (quantity unclear, check it)</span>}
+          <span className="ml-1 text-xs text-ink-muted">{unit ?? ""}</span>
+        </td>
+        <td className={`${td} overflow-hidden`}>
+          {/* Waiting: how it was read (Clear / Unclear / Unknown product); decided: what was done. */}
+          {open && f.kind !== "MANUAL" ? <StatusChip tone={st.tone}>{st.label}</StatusChip> : <StatusChip tone={res.tone}>{res.label}</StatusChip>}
+          {pct !== undefined && f.kind !== "MANUAL" && open && (
+            <span className={`mt-1 block text-xs ${doubtful ? "font-medium text-warning" : "text-ink-muted"}`} title={doubtful ? "Check against the original" : undefined}>
+              {`${pct}% sure`}
+            </span>
           )}
-        </div>
-        <div className="col-start-2 flex flex-wrap items-center gap-1.5 md:col-start-auto">
-          {f.kind !== "MANUAL" && <StatusChip tone={st.tone}>{st.label}</StatusChip>}
-          <StatusChip tone={res.tone}>{res.label}</StatusChip>
-        </div>
-      </div>
-      {reviewing && !editing && (
-        <div className="flex flex-wrap justify-end gap-2">
-          {open && canConfirm(f) && (
-            <button className="btn-accent py-2" disabled={busy} onClick={onConfirm} aria-label={`Confirm line ${f.seq}`}><Icon name="check" size={18} />Confirm</button>
-          )}
-          <button className="btn-ghost py-2" disabled={busy} onClick={onCorrect} aria-label={`${open && !canConfirm(f) ? "Enter" : "Correct"} line ${f.seq}`}>
-            {open && !canConfirm(f) ? "Enter correct line" : "Correct"}
-          </button>
-          {f.resolution !== "REMOVED" && (
-            <button className="btn-ghost py-2" disabled={busy} onClick={onRemove} aria-label={`Remove line ${f.seq}`}>Remove</button>
-          )}
-        </div>
+        </td>
+        {reviewing && (
+          <td className={td}>
+            {!editor && (
+              <span className="flex items-center justify-end gap-0.5">
+                {open && canConfirm(f) && (
+                  <button className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover disabled:opacity-50" disabled={busy} onClick={onConfirm} aria-label={`Confirm line ${f.seq}`} title="Confirm as read">
+                    <Icon name="check" size={15} />
+                  </button>
+                )}
+                <button className={`${small} shrink-0 border border-line bg-card text-ink hover:bg-subtle`} disabled={busy} onClick={onCorrect} aria-label={`${open && !canConfirm(f) ? "Enter" : "Correct"} line ${f.seq}`}>
+                  {open && !canConfirm(f) ? "Enter" : "Correct"}
+                </button>
+                {f.resolution !== "REMOVED" && (
+                  <button className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-ink-muted hover:bg-line hover:text-ink disabled:opacity-50" disabled={busy} onClick={onRemove} aria-label={`Remove line ${f.seq}`} title="Remove this line">
+                    <Icon name="trash" size={15} />
+                  </button>
+                )}
+              </span>
+            )}
+          </td>
+        )}
+      </tr>
+      {editor && (
+        <tr>
+          <td colSpan={reviewing ? 6 : 4} className="border-b border-line bg-subtle p-3">
+            {editor}
+          </td>
+        </tr>
       )}
-      {editing && editor}
-    </li>
+    </>
   );
 }
 
@@ -771,7 +842,7 @@ function LineEditor({
   const set = (v: Partial<Editing>) => setEdit((e) => e && { ...e, ...v });
   return (
     <form
-      className="grid items-end gap-3 rounded-ctl border border-line bg-subtle p-4 md:grid-cols-[2fr_1fr_1fr]"
+      className="grid items-end gap-3 rounded-ctl border border-line bg-card p-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
       aria-label={edit.fieldId === "new" ? "Add a missed line" : "Correct line"}
       onSubmit={(e) => {
         e.preventDefault();
@@ -780,7 +851,7 @@ function LineEditor({
     >
       <div>
         <label className="label" htmlFor="ed-p">Product</label>
-        <select id="ed-p" className="input" value={edit.product_id} onChange={(e) => onProduct(e.target.value)}>
+        <select id="ed-p" className="input" value={edit.product_id} onChange={(e) => onProduct(e.target.value)} autoFocus={!edit.product_id}>
           <option value="">Choose…</option>
           {products.map((x) => <option key={x.id} value={x.id}>{x.sku} — {x.name}</option>)}
         </select>
@@ -793,16 +864,16 @@ function LineEditor({
         </select>
       </div>
       <NumericInput label="Quantity" value={edit.qty} onChange={(v) => set({ qty: v })} places={whole ? 0 : 4} invalidHint={whole ? "Whole numbers only" : undefined} />
-      {reasonNeeded && (
-        <div className="md:col-span-3">
-          <label className="label" htmlFor="ed-r">{edit.fieldId === "new" ? "Why was it missed? (required)" : "Why is the reading wrong? (required)"}</label>
-          <input id="ed-r" className="input" value={edit.reason} onChange={(e) => set({ reason: e.target.value })} maxLength={500} />
-        </div>
-      )}
-      <div className="flex justify-end gap-2 md:col-span-3">
+      <div className="flex gap-2">
         <button type="button" className="btn-ghost" onClick={() => setEdit(() => null)}>Cancel</button>
         <button className="btn-primary" disabled={busy}>{edit.fieldId === "new" ? "Add line" : "Save line"}</button>
       </div>
+      {reasonNeeded && (
+        <div className="md:col-span-4">
+          <label className="label" htmlFor="ed-r">Why was it missed? (required)</label>
+          <input id="ed-r" className="input" value={edit.reason} onChange={(e) => set({ reason: e.target.value })} maxLength={500} />
+        </div>
+      )}
     </form>
   );
 }

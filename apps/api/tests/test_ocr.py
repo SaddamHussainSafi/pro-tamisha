@@ -175,10 +175,8 @@ def test_read_review_accept_creates_draft_only(user, world, setup):
     # an unclear reading cannot be confirmed as read
     r = resolve(sales, ex, pln, "CONFIRM")
     assert r.status_code == 422 and code(r) == "NEEDS_CORRECTION"
-    # correcting a clear reading needs a reason
-    r = resolve(
-        sales, ex, cas, "CORRECT", product_id=setup["p"]["CAS"], unit_code="BOX", qty="16"
-    )
+    # removing a clear reading needs a reason (correcting one doesn't: owner, 2026-11-11)
+    r = resolve(sales, ex, cas, "REMOVE")
     assert r.status_code == 422 and code(r) == "REASON_REQUIRED"
     # whole units only
     r = resolve(
@@ -400,3 +398,39 @@ def test_parse_qty_and_rows():
     assert ocr.parse_qty("1,250.5") == ocr.Decimal("1250.5")
     for bad in ("", "0", "-3", "1/2", "abc", "12.12345", "1e3"):
         assert ocr.parse_qty(bad) is None
+
+
+def test_confirm_ticked_lines_together_and_correct_without_reason(user, world, setup):
+    sales = user("sales")
+    upload(sales, world, sheet(world, {"CAS": "2", "PLN": "6", "YAM": "10?"}))
+    drain(world)
+    ex = only(sales)
+    clear = [f for f in ex["fields"] if f["status"] == "OK"]
+    unclear = next(f for f in ex["fields"] if f["status"] != "OK")
+    url = f"{P}/ocr/extractions/{ex['id']}/fields/confirm"
+    # one unclear line refuses the whole batch, naming it; nothing changes
+    body = {"version": ex["version"], "field_ids": [f["id"] for f in clear] + [unclear["id"]]}
+    r = sales.post(url, json=body, headers=idem())
+    assert r.status_code == 422 and code(r) == "NEEDS_CORRECTION"
+    assert r.json()["error"]["line"] == unclear["seq"]
+    assert sales.get(f"{P}/ocr/extractions/{ex['id']}").json()["open_count"] == 3
+    # another reading's line is not found
+    r = sales.post(url, json={**body, "field_ids": [str(uuid.uuid4())]}, headers=idem())
+    assert r.status_code == 404
+    # the clear ones together: one version step, each with its own CONFIRM
+    r = sales.post(url, json={**body, "field_ids": [f["id"] for f in clear]}, headers=idem())
+    assert r.status_code == 200, r.text
+    ex2 = r.json()
+    assert ex2["version"] == ex["version"] + 1 and ex2["open_count"] == 1
+    done = [f for f in ex2["fields"] if f["id"] in {c["id"] for c in clear}]
+    assert all(f["resolution"] == "CONFIRMED" for f in done)
+    assert all([c["action"] for c in f["corrections"]] == ["CONFIRM"] for f in done)
+    # stale version refused
+    assert code(sales.post(url, json=body, headers=idem())) == "VERSION_CONFLICT"
+    # correcting a line needs no reason
+    r = resolve(
+        sales, ex2, unclear, "CORRECT", product_id=unclear["read_product_id"], unit_code="LB",
+        qty="11",
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert r.json()["open_count"] == 0

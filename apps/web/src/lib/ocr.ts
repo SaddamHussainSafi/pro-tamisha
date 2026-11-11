@@ -145,9 +145,13 @@ export function engineText(e: OcrEngine | undefined): string {
 export const canConfirm = (f: Pick<OcrField, "status" | "read_product_id" | "read_qty">) =>
   f.status === "OK" && !!f.read_product_id && !!f.read_qty;
 
-/** A reason is required when overriding a clear reading (it counts against accuracy). */
+/** A reason is required only to remove a clearly read line. Corrections need none (owner,
+ * 2026-11-11): the correction itself is kept in the line's history. */
 export const needsReason = (f: Pick<OcrField, "status" | "kind">, action: "CORRECT" | "REMOVE") =>
-  f.status === "OK" && !(action === "REMOVE" && f.kind === "MANUAL");
+  action === "REMOVE" && f.status === "OK" && f.kind !== "MANUAL";
+
+/** Lines the reviewer can tick and confirm together: clear readings still waiting. */
+export const selectable = (f: Pick<OcrField, "status" | "read_product_id" | "read_qty" | "resolution">) => f.resolution === "NONE" && canConfirm(f);
 
 /** Confidence "0.620" → 62 (integer percent, string maths only — no floats). */
 export function confidencePct(c: string | null): number | undefined {
@@ -182,7 +186,7 @@ export function ocrMessage(err: unknown): string {
       return `Review every line first${ls.length ? ` (still open: ${ls.join(", ")})` : ""}.`;
     }
     case "NEEDS_CORRECTION":
-      return "This line wasn't read clearly. Enter what the sheet says, or remove it.";
+      return `${typeof err.extra.line === "number" ? `Line ${err.extra.line}` : "This line"} wasn't read clearly. Enter what the sheet says, or remove it.`;
     case "REASON_REQUIRED":
       return "Say why the reading is wrong (at least 3 characters).";
     case "INCOMPLETE_LINE":

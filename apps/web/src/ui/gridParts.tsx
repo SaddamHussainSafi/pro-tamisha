@@ -17,6 +17,48 @@ export function GridProblems({ items }: { items: { row: number; text: string }[]
   );
 }
 
+/** Sticky bottom bar under an entry grid: actions on the left, figures, then the main actions. */
+export function ActionBar({
+  left,
+  figures,
+  status,
+  children,
+  oneRow,
+}: {
+  left?: ReactNode;
+  figures: { label: string; value: ReactNode; strong?: boolean; green?: boolean; testId?: string }[];
+  status?: ReactNode;
+  children?: ReactNode;
+  /** Keep everything on one row from lg up (a wide card, e.g. Create invoice). */
+  oneRow?: boolean;
+}) {
+  return (
+    <div className="sticky bottom-0 z-20 -mx-6 -mb-6 mt-2 rounded-b-[var(--radius-card)] border-t border-line bg-card/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-card/85">
+      {/* left actions, then figures and main actions packed right; a narrow card wraps the main
+          actions onto a second row, still on the right */}
+      <div className={`flex flex-wrap items-center justify-end gap-x-6 gap-y-3 ${oneRow ? "lg:flex-nowrap" : ""}`}>
+        <div className="mr-auto flex shrink-0 flex-wrap items-center gap-3">{left}</div>
+        <dl className="flex items-end gap-6 border-l border-line pl-6" aria-live="polite">
+          {figures.map((f) => (
+            <div key={f.label}>
+              <dt className="whitespace-nowrap text-xs text-ink-muted">{f.label}</dt>
+              <dd className={`num font-semibold ${f.strong ? "text-xl" : "text-lg"} ${f.green ? "text-brand-primary" : "text-ink"}`} data-testid={f.testId}>
+                {f.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {children && <div className="flex flex-wrap items-center justify-end gap-3">{children}</div>}
+      </div>
+      {status && (
+        <p className="mt-1.5 text-right text-xs text-ink-muted" role="status">
+          {status}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Sticky bottom bar: Subtotal, Tax, Net total and the page's actions. */
 export function TotalsBar({
   left,
@@ -39,32 +81,17 @@ export function TotalsBar({
 }) {
   const fig = (v: string | null) => (v === null ? "—" : money2(v));
   return (
-    <div className="sticky bottom-0 z-20 -mx-6 -mb-6 mt-2 rounded-b-[var(--radius-card)] border-t border-line bg-card/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-card/85">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 lg:flex-nowrap">
-        <div className="flex shrink-0 items-center gap-3">{left}</div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-6 gap-y-3">
-          <dl className="flex items-end gap-6 border-l border-line pl-6" aria-live="polite">
-            <div>
-              <dt className="text-xs text-ink-muted">Subtotal</dt>
-              <dd className="num text-lg font-semibold">{fig(subtotal)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-muted">{taxLabel}</dt>
-              <dd className="num text-lg font-semibold">{fig(tax)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-muted">Net total (CAD)</dt>
-              <dd className={`num text-xl font-semibold ${checked ? "text-brand-primary" : "text-ink"}`} data-testid="net-total">
-                {total === null ? "—" : `CAD ${money2(total)}`}
-              </dd>
-            </div>
-          </dl>
-          <div className="flex items-center gap-3">{children}</div>
-        </div>
-      </div>
-      <p className="mt-1.5 text-right text-xs text-ink-muted" role="status">
-        {status}
-      </p>
-    </div>
+    <ActionBar
+      oneRow
+      left={left}
+      status={status}
+      figures={[
+        { label: "Subtotal", value: fig(subtotal) },
+        { label: taxLabel, value: fig(tax) },
+        { label: "Net total (CAD)", value: total === null ? "—" : `CAD ${money2(total)}`, strong: true, green: checked, testId: "net-total" },
+      ]}
+    >
+      {children}
+    </ActionBar>
   );
 }

@@ -1225,6 +1225,9 @@ export const api = {
   readScan: (scan_job_id: string) => request<OcrExtractionDetail>("POST", "/ocr/extractions", { scan_job_id }, true),
   resolveOcrField: (id: string, fieldId: string, b: OcrResolveIn) =>
     request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/fields/${fieldId}/resolve`, b, true),
+  /** Confirm the ticked clear lines as read, all or none. */
+  confirmOcrLines: (id: string, b: { version: number; field_ids: string[] }) =>
+    request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/fields/confirm`, b, true),
   addOcrLine: (id: string, b: { version: number; product_id: string; unit_code: UnitCode; qty: string; reason: string }) =>
     request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/lines`, b, true),
   fixOcrHeader: (id: string, b: { version: number; field: string; value: string | null; reason: string }) =>
