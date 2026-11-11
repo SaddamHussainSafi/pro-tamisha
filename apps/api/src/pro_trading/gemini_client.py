@@ -124,6 +124,8 @@ def _state(s: Any, now: datetime) -> tuple[int, bool, int, float, int]:
         base.where(
             OcrEngineCall.created_at >= day,
             OcrEngineCall.outcome.notin_(("RATE_LIMITED", "QUOTA_DAY")),
+            # a request Google turned away at the door (bad or missing key) used no allowance
+            func.coalesce(OcrEngineCall.http_status, 0).notin_((401, 403)),
         )
     )
     quota = bool(
@@ -342,7 +344,7 @@ def call(
                 pause = min(delay if delay is not None else 15.0 * 2**attempt, 65.0)
             elif status >= 500:
                 _finish(call_id, "HTTP_ERROR", status, {}, secs)
-                last = GeminiError("GEMINI_UNAVAILABLE", f"HTTP {status}", True)
+                last = GeminiError("GEMINI_UNAVAILABLE", f"HTTP {status} {msg}"[:200], True)
             else:
                 _finish(call_id, "HTTP_ERROR", status, {}, secs)
                 code = "GEMINI_NOT_CONFIGURED" if status in (401, 403) else "GEMINI_REJECTED"

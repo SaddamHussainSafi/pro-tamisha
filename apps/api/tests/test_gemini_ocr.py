@@ -83,13 +83,27 @@ class Google:
         return 200, {}, envelope(a)
 
 
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch, request):
+    """Nothing in this file may reach Google except the one test that says so (the developer's
+    own .env can hold a real key)."""
+    if request.node.name.startswith("test_live_"):
+        return
+
+    def refuse(*a, **kw):
+        raise AssertionError("a test tried to call Google")
+
+    monkeypatch.setattr(gemini_client, "transport", refuse)
+
+
 @pytest.fixture
 def gemini(monkeypatch):
     """Gemini switched on, with consent, a fake key and no waiting; `use(...)` sets the answers."""
     for k, v in {
         "OCR_PROVIDER": "gemini", "GEMINI_API_KEY": KEY, "GEMINI_DATA_CONSENT": "true",
         "GEMINI_REQUESTS_PER_MINUTE": "600", "GEMINI_DAILY_REQUEST_CAP": "20",
-        "GEMINI_MAX_RETRIES": "1", "GEMINI_BREAKER_FAILURES": "3",
+        "GEMINI_MAX_RETRIES": "1", "GEMINI_BREAKER_FAILURES": "3", "GEMINI_RECHECK_RESERVE": "5",
+        "GEMINI_MODEL": "gemini-3.8-flash", "GEMINI_TIMEOUT_SECONDS": "90",
     }.items():  # fmt: skip
         monkeypatch.setenv(k, v)
     get_settings.cache_clear()
@@ -321,6 +335,7 @@ def test_bad_answers_and_rejections(gemini):
     with pytest.raises(gemini_client.GeminiError) as e:
         ask(dict)
     assert e.value.code == "GEMINI_NOT_CONFIGURED" and len(g.sent) == 1  # never retried
+    assert gemini_client.budget().used_today == 0  # turned away at the door: no allowance used
     assert KEY not in str(e.value) and KEY not in e.value.detail
     # what is sent: the key in one header, the configured model, schema output, not stored
     headers, body = g.sent[0]
