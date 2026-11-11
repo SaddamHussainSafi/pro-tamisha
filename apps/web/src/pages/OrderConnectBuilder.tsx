@@ -548,7 +548,7 @@ function ProductsEditor({ draft, change }: { draft: DraftIn; change: (p: Partial
   const [q, setQ] = useState("");
   useEffect(() => {
     api.categories().then(setCats, () => undefined);
-    api.products({ active: true, limit: 200 }).then((r) => setProds(r.items), () => undefined);
+    api.products({ active: true, limit: 1000 }).then((r) => setProds(r.items), () => undefined);
   }, []);
   const ids = new Set(draft.scope_ids);
   const toggle = (id: string) => change({ scope_ids: ids.has(id) ? draft.scope_ids.filter((x) => x !== id) : [...draft.scope_ids, id] });

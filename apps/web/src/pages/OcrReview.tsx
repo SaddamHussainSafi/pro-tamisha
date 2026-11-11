@@ -287,7 +287,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
     return () => clearInterval(t);
   }, [ex?.status, load]);
   useEffect(() => {
-    api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
+    api.products({ active: true, limit: 1000 }).then((p) => setProducts(p.items), () => setProducts([]));
     api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active)), () => setCustomers([]));
   }, []);
   // Ticks only on lines that can still be confirmed as read.

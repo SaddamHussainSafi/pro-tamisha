@@ -512,7 +512,7 @@ function OpeningPanel({ warehouses, onDone, onCancel }: { warehouses: Warehouse[
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    api.products({ active: true, limit: 200 }).then((r) => setProducts(r.items), () => setProducts([]));
+    api.products({ active: true, limit: 1000 }).then((r) => setProducts(r.items), () => setProducts([]));
   }, []);
   useEffect(() => {
     setProduct(null);

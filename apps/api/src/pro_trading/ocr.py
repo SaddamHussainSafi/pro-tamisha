@@ -36,7 +36,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from . import audit, outbox, paper_sheet, scan_progress, scanning, supplier_ocr
+from . import audit, outbox, packaged, paper_sheet, scan_progress, scanning, supplier_ocr
 from . import inventory as inv
 from .config import get_settings
 from .errors import ApiError
@@ -497,6 +497,12 @@ class Catalog:
         self.by_id = {p.id: p for p in prods}
         self.by_sku = {p.sku.casefold(): p for p in prods}
         self.by_name = {norm(p.name): p for p in prods}
+        # product id -> its packaged twin (CAL -> CALP), ordered from a sheet's PKG column
+        self.twin = {
+            base.id: p
+            for p in prods
+            if (b := packaged.base_sku(p.sku)) and (base := self.by_sku.get(b.casefold()))
+        }
         self.by_alias: dict[str, Product] = {}
         for a in db.scalars(
             select(ProductAlias).where(ProductAlias.company_id == company_id)
@@ -507,6 +513,9 @@ class Catalog:
     def match(self, text: str) -> Product | None:
         n = norm(text)
         return self.by_sku.get(n) or self.by_alias.get(n) or self.by_name.get(n)
+
+    def packaged(self, prod: Product | None) -> Product | None:
+        return self.twin.get(prod.id) if prod is not None else None
 
     def unit_ok(self, prod: Product, unit: str) -> bool:
         return unit in inv.stock_units(self.db, prod)

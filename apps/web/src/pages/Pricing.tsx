@@ -349,7 +349,7 @@ function useMasterData() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [groups, setGroups] = useState<CustomerGroup[]>([]);
   useEffect(() => {
-    api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
+    api.products({ active: true, limit: 1000 }).then((p) => setProducts(p.items), () => setProducts([]));
     api.customers({ limit: 500 }).then(setCustomers, () => setCustomers([]));
     api.customerGroups().then(setGroups, () => setGroups([]));
   }, []);

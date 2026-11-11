@@ -458,7 +458,15 @@ def order_lines(db: Session, company_id: uuid.UUID, cat: ocr.Catalog, names: pap
             res.skipped += 1  # a printed row nobody wrote on is not an order
         else:
             rows.append((r, *_locate(p, names, r)))
+
+    def pkg_twin(r: rules.RowOut, prod: Product | None) -> Product | None:
+        """The packaged twin a bare number in the row's PKG box orders (owner, 2026-11-11)."""
+        q, unit_txt, _ = rules.hand_qty(r.pkg)
+        return cat.packaged(prod) if q is not None and unit_txt is None else None
+
+    rows = [(r, a, prod or cat.match(r.item), fuzzy) for r, a, prod, fuzzy in rows]
     reported = {a.product.id for _, a, _, _ in rows if a is not None}
+    reported |= {t.id for r, _, prod, _ in rows if (t := pkg_twin(r, prod)) is not None}
     seen: set[uuid.UUID] = set()
     pitch = Decimal("0.03")
     for r, a, prod, fuzzy in rows:
@@ -476,7 +484,8 @@ def order_lines(db: Session, company_id: uuid.UUID, cat: ocr.Catalog, names: pap
                 else None
             )
             ev = rules.Evidence(True, lp is not None, hint, bool(near))
-        line = rules.judge(r, ev, handwritten_form=p.form)
+        twin = pkg_twin(r, prod)
+        line = rules.judge(r, ev, handwritten_form=p.form, pkg_line=twin is not None)
         line.detail["local_ink"] = ev.ink if ev.known else None
         if a is not None and a.product.id in seen:
             line.flags.append("DUPLICATE_ROW")
@@ -486,8 +495,6 @@ def order_lines(db: Session, company_id: uuid.UUID, cat: ocr.Catalog, names: pap
         if a is None and fuzzy:
             line.flags.append("PRODUCT_GUESSED")
             line.confidence = min(line.confidence, rules.C_CHECK)
-        if prod is None:
-            prod = cat.match(r.item)
         unit = _unit(cat, prod, line.detail.get("pkg"))
         bbox: dict[str, Any] | None
         if lp is not None and lp.bbox:
@@ -511,7 +518,36 @@ def order_lines(db: Session, company_id: uuid.UUID, cat: ocr.Catalog, names: pap
             bbox=bbox,
             detail=line.detail,
         )
-        res.lines.append((line, prop, a))
+        if twin is None or r.qty is not None:  # Q empty, PKG written: only the packaged line
+            res.lines.append((line, prop, a))
+        if twin is not None:
+            # The PKG number as the packaged twin's own line, judged like a quantity.
+            lp2 = ink.get(twin.id)
+            hint = str(lp2.qty) if lp2 is not None and lp2.qty is not None else None
+            ev2 = rules.Evidence(ev.known, lp2 is not None, hint, False)
+            r2 = r.model_copy(update={"qty": r.pkg, "pkg": None, "old": None})
+            line2 = rules.judge(r2, ev2, handwritten_form=p.form)
+            line2.detail.update(
+                page=p.n, table=r.t, flags=line2.flags, packaged_of=prod and prod.sku
+            )
+            res.lines.append(
+                (
+                    line2,
+                    ocr.Proposal(
+                        kind="LINE",
+                        label=f"{twin.sku} {twin.name}",
+                        raw_text=_raw_text(r),
+                        product_id=twin.id,
+                        unit_code=twin.stock_unit,
+                        qty=line2.qty,
+                        confidence=line2.confidence,
+                        status="",
+                        bbox=lp2.bbox if lp2 is not None and lp2.bbox else bbox,
+                        detail=line2.detail,
+                    ),
+                    None,
+                )
+            )
     # Writing the local look found that Gemini said nothing about: kept for review, never dropped.
     for lp in local:
         if lp.product_id is None or lp.product_id not in reported:
@@ -549,6 +585,8 @@ def _strips(
     for line, prop, a in pl.lines:
         if not line.flags or prop.bbox is None or line.detail.get("engine") != "gemini":
             continue
+        if line.detail.get("packaged_of"):
+            continue  # the second look reads the Q box; a packaged line came from PKG
         if not {f.split(":")[0] for f in line.flags} & {
             "FRACTION", "UNSURE", "LOCAL_READ_DIFFERS", "NO_INK_SEEN", "POSSIBLE_SHIFT",
             "CROSSED_OUT", "DUPLICATE_ROW", "NEIGHBOUR_UNREAD",

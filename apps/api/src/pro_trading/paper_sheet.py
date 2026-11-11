@@ -6,9 +6,11 @@ bars (VEGETABLES, PEPPERS / ROOTS, HERBS, OTHERS / FRUITS). Products are printed
 catalog keeps the sheet's spellings as aliases, see scripts/load_catalog.py); the quantity is
 handwritten in Q. Sheets are often scanned sideways.
 
-Reading rule: a printed product name plus a mark in the Q box on its row is one proposed line.
-Only Q is the quantity (PKG/WEIGHT/NOTES are packing marks). A Q box with a mark that could not
-be read still gives the line, without a quantity, so the reviewer types it from the original.
+Reading rule: a printed product name plus a mark in the Q box on its row is one proposed line for
+the loose item. A number in the PKG box orders the product's packaged twin (owner, 2026-11-11:
+"pkg scans must use package and q column for regular loose items"), as its own line; a row with
+both gives both. WEIGHT/NOTES are packing marks. A box with a mark that could not be read still
+gives the line, without a quantity, so the reviewer types it from the original.
 Like every scan, this only proposes lines for review; nothing here touches stock or orders.
 """
 
@@ -25,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from . import packaged
 from .models import Customer, Product
 
 if TYPE_CHECKING:
@@ -82,7 +85,8 @@ class Names:
     def __init__(self, cat: Catalog) -> None:
         self.exact: dict[str, Product] = {}
         for p in cat.by_id.values():
-            self.exact.setdefault(_key(p.name), p)
+            if not packaged.is_packaged(p.sku):  # printed names are loose items; PKG finds twins
+                self.exact.setdefault(_key(p.name), p)
         for alias, p in cat.by_alias.items():
             self.exact.setdefault(_key(alias), p)
 
@@ -147,6 +151,8 @@ class Column:
     y: Decimal  # header row
     q0: Decimal  # Q box, left/right edges
     q1: Decimal
+    k0: Decimal = D0  # PKG box, left/right edges (0 = not found)
+    k1: Decimal = D0
 
 
 def columns(tokens: list[Token]) -> list[Column]:
@@ -173,7 +179,8 @@ def columns(tokens: list[Token]) -> list[Column]:
             q0 = q.x0 - (p.x0 - q.x0) / 2
         else:
             q0 = p.x0 - width
-        out.append(Column(p.page, p.yc, q0, p.x0 - Decimal("0.002")))
+        k1 = (min(nxt) - Decimal("0.002")) if nxt else p.x0 + width
+        out.append(Column(p.page, p.yc, q0, p.x0 - Decimal("0.002"), p.x0 - Decimal("0.002"), k1))
     return out
 
 
@@ -184,6 +191,10 @@ def _column_for(cols: list[Column], page: int, x0: Decimal, yc: Decimal) -> Colu
 
 def _in_q(c: Column, t: Token) -> bool:
     return t.page == c.page and c.q0 - Decimal("0.008") <= _xc(t) <= c.q1
+
+
+def _in_pkg(c: Column, t: Token) -> bool:
+    return t.page == c.page and c.k1 > c.k0 and c.k0 < _xc(t) <= c.k1
 
 
 # ------------------------------------------------------------------ reading
@@ -216,8 +227,12 @@ def read(
         yc = sum((t.yc for t in words), D0) / len(words)
         x0, x1 = min(t.x0 for t in words), max(t.x1 for t in words)
         col = _column_for(cols, page, x0, yc)
+        twin = cat.packaged(prod)
+        pkgs: list[Token] = []
         if col is not None:
             marks = [h for h in hand if _in_q(col, h) and abs(h.yc - yc) <= ROW_TOL]
+            if twin is not None:
+                pkgs = [h for h in hand if _in_pkg(col, h) and abs(h.yc - yc) <= ROW_TOL]
         else:  # no header found: the first mark right of the name, never trusted
             lo, hi = x1 - Decimal("0.01"), x1 + Decimal("0.12")
             near = [
@@ -226,27 +241,36 @@ def read(
             ]  # fmt: skip
             marks = sorted(near, key=lambda h: h.x0)[:1]
         marks = [h for h in marks if id(h) not in used]
-        if not marks:
-            continue  # empty Q box: not ordered
-        used.update(id(h) for h in marks)
-        marks.sort(key=lambda h: h.x0)
-        raw = "".join(h.text for h in marks).strip()
-        qty = parse_qty(raw)
-        conf = min(h.confidence for h in marks)
-        if fuzzy or col is None:
-            conf = min(conf, threshold - Decimal("0.001"))
-        p = make(
-            kind="LINE",
-            label=f"{prod.sku} {prod.name}",
-            raw_text=raw[:500],
-            product_id=prod.id,
-            unit_code=prod.stock_unit,
-            qty=qty,
-            confidence=conf,
-            status=status(cat, prod, prod.stock_unit, qty, conf, threshold),
-            bbox=bbox([*words, *marks]),
-        )
-        found.append((page, col.q0 if col else x0, yc, p))
+        pkgs = [h for h in pkgs if id(h) not in used and id(h) not in {id(m) for m in marks}]
+        if not re.search(r"\d", "".join(h.text for h in pkgs)):
+            pkgs = []  # a tick or a unit word in PKG is a packing mark, not a packaged count
+        if not marks and not pkgs:
+            continue  # empty Q and PKG boxes: not ordered
+        # Q orders the loose item, PKG the packaged twin: one line each
+        for item, box in ((prod, marks), (twin, pkgs)):
+            if not box or item is None:
+                continue
+            used.update(id(h) for h in box)
+            box.sort(key=lambda h: h.x0)
+            raw = "".join(h.text for h in box).strip()
+            qty = parse_qty(raw)
+            conf = min(h.confidence for h in box)
+            if fuzzy or col is None:
+                conf = min(conf, threshold - Decimal("0.001"))
+            p = make(
+                kind="LINE",
+                label=f"{item.sku} {item.name}",
+                raw_text=(raw if item is prod else f"PKG: {raw}")[:500],
+                product_id=item.id,
+                unit_code=item.stock_unit,
+                qty=qty,
+                confidence=conf,
+                status=status(cat, item, item.stock_unit, qty, conf, threshold),
+                bbox=bbox([*words, *box]),
+            )
+            found.append(
+                (page, col.q0 if col else x0, yc + (D0 if item is prod else ROW_TOL / 10), p)
+            )
 
     # A mark in a Q box whose product name could not be matched: show it, with the printed text
     printed = [t for t in tokens if not t.handwritten]

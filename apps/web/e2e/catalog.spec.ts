@@ -95,9 +95,9 @@ test("warehouse user can view products but not manage them", async ({ page }) =>
   await page.getByRole("link", { name: /Products/ }).click();
   // Products open as cards (Grid view) since 2026-11-08.
   const cards = page.getByRole("list", { name: "Products" });
-  await expect(cards.getByText(/^CEE/)).toBeVisible();
+  await expect(cards.getByText(/^CEE /)).toBeVisible(); // not its packaged twin, CEEP
   await expect(page.getByRole("button", { name: "New product" })).toHaveCount(0);
-  await cards.getByRole("link", { name: "Cassava frozen E2E" }).click();
+  await cards.getByRole("link", { name: "Cassava frozen E2E", exact: true }).click();
   await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
   await axe(page);
 });

@@ -39,7 +39,8 @@ Schema migration, contract, backend unit+integration tests, authorization test, 
 
 **Tables:** migration `apps/api/migrations/versions/0002_catalog.py` adds:
 - `product_categories`
-- `products`: SKU unique per company
+- `products`: SKU unique per company; three capital letters, or three plus `P` for a packaged twin (migration 0027)
+- Packaged items (owner, 2026-11-11): every product has a packaged twin, its own product (`<SKU>P`, "<name> - Packaged", own price and stock, same stock unit, no case size or price until set) in the **Packaged** category, which every list shows last (lists sort by SKU length, then SKU). New products get theirs when created; `scripts/packaged_products.py` fills in an existing catalog.
 - `product_aliases`: `alias_norm` unique per company + source
 - `product_unit_profiles`: code unique per product, at most one active default (partial unique index)
 

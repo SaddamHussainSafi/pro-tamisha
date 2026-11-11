@@ -26396,7 +26396,7 @@
     },
     "/api/v1/pick-attempts/{item_id}": {
       "delete": {
-        "description": "Move a picking sheet to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
+        "description": "Move a packing sheet to the Trash (Super Admin, two-step sign-in). 409 IN_USE names what still references it; a repeat answers 200 with already_in_trash.",
         "operationId": "trash_picking_sheet_api_v1_pick_attempts__item_id__delete",
         "parameters": [
           {
@@ -26443,7 +26443,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Move a picking sheet to the Trash",
+        "summary": "Move a packing sheet to the Trash",
         "tags": [
           "trash"
         ]
@@ -28229,7 +28229,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"

@@ -93,7 +93,7 @@ export function ReportsPage() {
   useEffect(() => {
     if (!allowed) return;
     api.customers({ limit: 500 }).then(setCustomers, () => setCustomers([]));
-    api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
+    api.products({ active: true, limit: 1000 }).then((p) => setProducts(p.items), () => setProducts([]));
   }, [allowed]);
 
   useEffect(() => {

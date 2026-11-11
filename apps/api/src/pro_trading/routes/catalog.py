@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .. import idempotency, units
+from .. import idempotency, packaged, units
 from ..deps import DbDep, Principal, PrincipalDep, authorize, require_permission
 from ..errors import ApiError
 from ..models import Product, ProductAlias, ProductCategory, ProductUnitProfile
@@ -139,7 +139,8 @@ def list_categories(request: Request, db: DbDep, p: PrincipalDep) -> list[Produc
         db.scalars(
             select(ProductCategory)
             .where(ProductCategory.company_id == p.company_id)
-            .order_by(ProductCategory.name)
+            # Packaged is listed last (owner, 2026-11-11)
+            .order_by(ProductCategory.code == packaged.CATEGORY_CODE, ProductCategory.name)
         ).all()
     )
 
@@ -181,7 +182,7 @@ def list_products(
     active: bool | None = None,
     stock_unit: UnitCode | None = None,
     cursor: str | None = Query(None, max_length=64, description="Last SKU of previous page"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=1000),
 ) -> ProductPage:
     _read(request, p)
     q = select(Product).where(Product.company_id == p.company_id)
@@ -204,9 +205,10 @@ def list_products(
         q = q.where(Product.active == active)
     if stock_unit is not None:
         q = q.where(Product.stock_unit == stock_unit)
-    if cursor:
-        q = q.where(Product.sku > cursor)
-    rows = db.scalars(q.order_by(Product.sku).limit(limit + 1)).all()
+    if cursor:  # loose items first, then the packaged ones (longer SKUs), each by SKU
+        n = func.char_length(Product.sku)
+        q = q.where(or_(n > len(cursor), (n == len(cursor)) & (Product.sku > cursor)))
+    rows = db.scalars(q.order_by(*packaged.sku_order()).limit(limit + 1)).all()
     more = len(rows) > limit
     items = [ProductSummary.model_validate(r) for r in rows[:limit]]
     return ProductPage(items=items, next_cursor=items[-1].sku if more else None)
@@ -220,7 +222,7 @@ def product_lookup(request: Request, db: DbDep, p: PrincipalDep) -> list[dict[st
     prods = db.scalars(
         select(Product)
         .where(Product.company_id == p.company_id, Product.active.is_(True))
-        .order_by(Product.sku)
+        .order_by(*packaged.sku_order())
         .limit(2000)
     ).all()
     ids = [x.id for x in prods]
@@ -293,7 +295,10 @@ def create_product(
             for a in body.aliases
         )
         db.flush()
-        return product_out(db, prod), str(prod.id), body.model_dump(mode="json")
+        # Every product has a packaged twin (owner, 2026-11-11), created with it.
+        twins = packaged.ensure_twins(db, p.company_id, [prod])
+        audit_data = body.model_dump(mode="json") | {"packaged_twin": [t.sku for t in twins]}
+        return product_out(db, prod), str(prod.id), audit_data
 
     return _mutate(
         db, request, p, key, "product.create", body, 201, "product.create", fn,
@@ -480,7 +485,10 @@ def add_unit_profile(
         db.add(_new_profile(prod, body))
         _bump(prod)
         db.flush()
-        return product_out(db, prod), str(prod.id), body.model_dump(mode="json")
+        # Every product has a packaged twin (owner, 2026-11-11), created with it.
+        twins = packaged.ensure_twins(db, p.company_id, [prod])
+        audit_data = body.model_dump(mode="json") | {"packaged_twin": [t.sku for t in twins]}
+        return product_out(db, prod), str(prod.id), audit_data
 
     return _mutate(
         db, request, p, key, f"profile.create:{product_id}", body, 201, "product.profile_add",

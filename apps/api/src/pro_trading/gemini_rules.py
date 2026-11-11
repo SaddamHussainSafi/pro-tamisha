@@ -387,8 +387,10 @@ def is_total_row(r: RowOut) -> bool:
     return bool(_TOTAL_ROW.match(r.item))
 
 
-def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
-    """Turn one reported row into a line with its own, code-made confidence."""
+def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool, pkg_line: bool = False) -> Line:
+    """Turn one reported row into a line with its own, code-made confidence. `pkg_line`: the
+    number in the PKG box is its own line for the packaged twin (owner, 2026-11-11), so it is
+    neither flagged nor kept as this line's package note."""
     qty, unit_txt, flags = hand_qty(r.qty)
     if r.qty is None:
         flags = ["NO_QTY"]
@@ -417,7 +419,8 @@ def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
     if unit_txt and not r.pkg:
         flags.append("UNIT_IN_QTY")
     if (
-        r.qty is not None
+        not pkg_line
+        and r.qty is not None
         and r.pkg
         and hand_qty(r.pkg)[0] is not None
         and hand_qty(r.pkg)[1] is None
@@ -439,7 +442,8 @@ def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
         "item_raw": r.item,
         "qty_raw": r.qty,
         "crossed_out": r.old,  # kept as written; never means "unavailable"
-        "pkg": r.pkg or unit_txt,
+        "pkg": None if pkg_line else (r.pkg or unit_txt),
+        "pkg_raw": r.pkg if pkg_line else None,
         "weight": r.wt,
         "case_size": r.size,
         "notes": r.notes,

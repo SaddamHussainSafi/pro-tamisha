@@ -49,7 +49,7 @@ function useCatalog() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [full, setFull] = useState<Record<string, Product>>({});
   useEffect(() => {
-    api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
+    api.products({ active: true, limit: 1000 }).then((p) => setProducts(p.items), () => setProducts([]));
   }, []);
   const load = useCallback(async (id: string) => {
     if (!id || full[id]) return full[id];

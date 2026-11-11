@@ -65,7 +65,7 @@ export function CaseSizesPage() {
   useEffect(() => void load(), [load]);
   useTrashChanges(load);
   useEffect(() => {
-    if (canManage) api.products({ active: true, limit: 200 }).then((p) => setProducts(p.items), () => setProducts([]));
+    if (canManage) api.products({ active: true, limit: 1000 }).then((p) => setProducts(p.items), () => setProducts([]));
   }, [canManage]);
 
   if (!session) return null;
