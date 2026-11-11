@@ -70,8 +70,10 @@ Header:
 - customer: the customer or store name exactly as written (for example after "CUSTOMER NAME:"). \
 Tamisha Trading is the seller on its own sheets: never give it as the customer. Null if none is \
 written. cust_unsure = true if any letter is doubtful.
-- order_ref: an order number such as "SO#080778" if one is written.
-- doc_no, doc_date, awb, currency, total: supplier and airline documents only, as printed.
+- order_ref: the sales order number, written with SO (such as "SO#080778"). A number written \
+with SI or INV is an invoice number: put that in doc_no, never in order_ref. If the SO number is \
+cut off or missing, order_ref is null.
+- doc_date, awb, currency, total: supplier and airline documents only, as printed.
 - totals: handwritten totals, piece counts or circled numbers that stand apart from the item \
 rows (margins, under a table). They are never the quantity of an item.
 
@@ -88,6 +90,8 @@ point), "5" and "15". Copy a fraction as a fraction. A tick, dash or scribble is
 - In the Q box of an order sheet people write a number, not a tick. A quickly written 2 (or 1 or \
 7) can look like a tick: when a lone tick-like mark sits in a Q box, put the digit it most looks \
 like in qty and set unsure = true. Use chk only for a tick beside a number or outside the Q box.
+- An x between numbers ("2 x 35", "1 x 24") means "times": the first number is qty, what follows \
+belongs to pkg or wt. It is not a crossing-out.
 - A number crossed out with another written beside it: old = the crossed-out number, qty = the \
 new one. Crossed out with no replacement: old = that number, qty = null. A mark scribbled over \
 or blacked out so it cannot be read: old = "?", qty = null.
@@ -546,7 +550,7 @@ def _strips(
             continue
         if not {f.split(":")[0] for f in line.flags} & {
             "FRACTION", "UNSURE", "LOCAL_READ_DIFFERS", "NO_INK_SEEN", "POSSIBLE_SHIFT",
-            "CROSSED_OUT", "DUPLICATE_ROW",
+            "CROSSED_OUT", "DUPLICATE_ROW", "NEIGHBOUR_UNREAD",
         }:  # fmt: skip
             continue
         b = prop.bbox

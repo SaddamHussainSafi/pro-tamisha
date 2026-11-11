@@ -365,7 +365,7 @@ class Evidence:
     known: bool = False
     ink: bool = False  # writing found in this row's quantity box
     hint: str | None = None  # digits the local reader made of it, when it was fairly sure
-    neighbour_ink: bool = False  # an adjacent row has writing and Gemini read nothing there
+    neighbour_ink: bool = False  # an adjacent row has writing that Gemini reported nowhere
 
 
 @dataclass
@@ -400,6 +400,11 @@ def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
                 hq, _, _ = hand_qty(ev.hint)
                 if hq is not None and hq != qty and "FRACTION" not in flags:
                     flags.append(f"LOCAL_READ_DIFFERS:{ev.hint}")
+            if ev.neighbour_ink and r.qty is not None:
+                # writing in the next row that Gemini reported nowhere: this number may be that
+                # row's (a mark that straddles a line). Found on a real sheet: Guava's 6 was
+                # given to Starfruit. It is flagged, never moved.
+                flags.append("NEIGHBOUR_UNREAD")
         elif r.qty is not None:
             # Gemini read a number where the local look sees an empty box
             flags.append("POSSIBLE_SHIFT" if ev.neighbour_ink else "NO_INK_SEEN")
@@ -414,7 +419,7 @@ def judge(r: RowOut, ev: Evidence, *, handwritten_form: bool) -> Line:
     caps = {
         "POSSIBLE_SHIFT": C_CONFLICT, "NO_INK_SEEN": C_DOUBT, "UNSURE": C_DOUBT,
         "LOCAL_READ_DIFFERS": C_CHECK, "FRACTION": C_CHECK, "CROSSED_OUT": C_CHECK,
-        "NO_MARK": C_CHECK, "UNIT_IN_QTY": C_CHECK,
+        "NO_MARK": C_CHECK, "UNIT_IN_QTY": C_CHECK, "NEIGHBOUR_UNREAD": C_CHECK,
     }  # fmt: skip
     for f in flags:
         conf = min(conf, caps.get(f.split(":")[0], conf))

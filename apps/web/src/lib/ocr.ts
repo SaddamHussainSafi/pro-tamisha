@@ -94,6 +94,7 @@ export const warningText = (code: string) => {
 const FLAG: Record<string, (arg: string) => string> = {
   NO_INK_SEEN: () => "No writing was found in this row's box: the number may belong to another row.",
   POSSIBLE_SHIFT: () => "The number may belong to the row above or below.",
+  NEIGHBOUR_UNREAD: () => "There is writing in the next row that was not read: check which row this number belongs to.",
   UNSURE: () => "Hard to read.",
   FRACTION: () => "A fraction or decimal: check it.",
   LOCAL_READ_DIFFERS: (a) => `The built-in reader saw ${a}.`,

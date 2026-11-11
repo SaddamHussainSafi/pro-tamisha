@@ -237,6 +237,9 @@ def test_the_models_own_confidence_is_never_enough():
     assert j.flags == ["NO_INK_SEEN"] and j.confidence < D("0.9")
     j = rules.judge(sure, rules.Evidence(True, False, None, True), handwritten_form=True)
     assert j.flags == ["POSSIBLE_SHIFT"] and j.qty == D(12)  # flagged, never moved
+    # writing in the next row that Gemini reported nowhere: this number may belong there
+    j = rules.judge(sure, rules.Evidence(True, True, None, True), handwritten_form=True)
+    assert j.flags == ["NEIGHBOUR_UNREAD"] and j.qty == D(12) and j.confidence < D("0.9")
     j = rules.judge(sure, rules.Evidence(True, True, "72"), handwritten_form=True)
     assert j.flags == ["LOCAL_READ_DIFFERS:72"] and j.qty == D(12)
     j = rules.judge(
