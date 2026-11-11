@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from pro_trading import models, notifications  # noqa: F401  (register tables)
 from pro_trading.config import get_settings
 from pro_trading.db import Base
+from pro_trading.gmail import models as _gmail  # noqa: F401
 from pro_trading.order_connect import models as _oc  # noqa: F401
 
 config = context.config

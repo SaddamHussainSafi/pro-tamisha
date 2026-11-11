@@ -10,6 +10,9 @@ from celery import Celery
 from .config import get_settings
 from .db import get_sessionmaker
 from .documents import DRIVE_EVENT, handle_sync
+from .gmail.sync import SYNC_EVENT as GMAIL_SYNC_EVENT
+from .gmail.sync import handle_sync as handle_gmail_sync
+from .gmail.sync import poll_all as poll_gmail
 from .invoicing import EMAIL_EVENT, handle_email
 from .notifications import EMAIL_EVENT as NOTIFY_EMAIL_EVENT
 from .notifications import handle_email as handle_notify_email
@@ -27,6 +30,12 @@ app.conf.beat_schedule = {
     "payment-reminders": {"task": "pro_trading.schedule_reminders", "schedule": 3600.0},
     "order-connect-retention": {"task": "pro_trading.order_connect_retention", "schedule": 86400.0},
     "purge-trash": {"task": "pro_trading.purge_trash", "schedule": 3600.0},
+    # Gmail Inbox: looks for new mail on a timer (the fallback when no Pub/Sub push arrives,
+    # and the catch-up for a push Google dropped); also renews the mailbox watch once a day.
+    "gmail-poll": {
+        "task": "pro_trading.gmail_poll",
+        "schedule": float(get_settings().gmail_poll_seconds),
+    },
 }
 
 # Module 00 has no external integrations yet; modules register handlers here.
@@ -37,6 +46,7 @@ HANDLERS: dict[str, Handler] = {
     REMINDER_EVENT: handle_reminder,
     NOTIFY_EMAIL_EVENT: handle_notify_email,
     OC_RECEIVED_EVENT: handle_oc_received,
+    GMAIL_SYNC_EVENT: handle_gmail_sync,
 }
 
 
@@ -64,3 +74,9 @@ def purge_trash(*_: Any) -> int:
     """Delete forever whatever has been in the Trash for 30 days."""
     with get_sessionmaker()() as db:
         return purge_trash_items(db)
+
+
+@app.task(name="pro_trading.gmail_poll")  # type: ignore[untyped-decorator]
+def gmail_poll(*_: Any) -> int:
+    """Sync every connected Gmail mailbox (nothing to do, and no Google call, when none is)."""
+    return int(poll_gmail()["new"])

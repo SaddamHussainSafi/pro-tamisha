@@ -32,6 +32,10 @@ BRIDGE = re.compile(r"^/api/v1/scan-bridge/")
 # Order Connect public form API: anonymous by design, never reads the staff cookie
 # (tests/test_order_connect.py covers its own protections).
 PUBLIC = re.compile(r"^/api/v1/public/")
+# Gmail Pub/Sub push: called by Google, never with a staff session. It answers 401 unless the
+# caller proves it is our subscription (tests/test_gmail.py covers that), so a session cookie
+# alone gets 401 here, not the CSRF refusal.
+WEBHOOKS = {("post", "/api/v1/gmail/push")}
 
 # A signed-in employee with no role may only use their own account.
 SELF_SERVICE = {
@@ -128,6 +132,7 @@ def test_every_mutation_needs_the_csrf_token(make_api, world):
             or (method, path) in ANONYMOUS_OK
             or BRIDGE.match(path)
             or PUBLIC.match(path)
+            or (method, path) in WEBHOOKS
         ):
             continue
         r = call(owner.c, method, url)  # cookie only: no X-CSRF-Token, no Origin

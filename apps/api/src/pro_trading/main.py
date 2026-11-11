@@ -23,6 +23,7 @@ from .routes import (
     customers,
     documents,
     employees,
+    gmail,
     health,
     inventory,
     invoices,
@@ -198,6 +199,7 @@ def create_app() -> FastAPI:
         order_connect.router,
         public_orders.router,
         trash.router,
+        gmail.router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app

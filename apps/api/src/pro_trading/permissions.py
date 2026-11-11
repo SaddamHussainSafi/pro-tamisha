@@ -52,6 +52,14 @@ PERMISSIONS: Final[dict[str, str]] = {
     "order_connect.review": "Review online requests (reviewing, reject, spam, duplicate)",
     "order_connect.approve": "Approve online requests and convert them into draft sales orders",
     "trash.manage": "Move records to the Trash, restore or delete them forever (Super Admin)",
+    # Gmail Inbox (company-wide only; who gets what is OPEN_DECISIONS D-33)
+    "gmail.read": "View the Gmail Inbox: senders, subjects, previews and attachment names",
+    "gmail.body.read": "Read the body of emails in the Gmail Inbox",
+    "gmail.attachment.read": "Preview email attachments (pages shown as pictures)",
+    "gmail.attachment.download": "Download email attachments",
+    "gmail.process": "Send an email attachment to OCR for review",
+    "gmail.reprocess": "Read an already processed email attachment again",
+    "gmail.manage": "Connect or disconnect the company's Gmail mailbox",
 }
 
 ALL: Final = frozenset(PERMISSIONS)
@@ -111,6 +119,12 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
                 "order_connect.manage",
                 "order_connect.review",
                 "order_connect.approve",
+                "gmail.read",
+                "gmail.body.read",
+                "gmail.attachment.read",
+                "gmail.attachment.download",
+                "gmail.process",
+                "gmail.reprocess",
             }
         ),
     ),
@@ -135,6 +149,11 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
                 "document.manage",
                 "order_connect.read",
                 "order_connect.review",
+                "gmail.read",
+                "gmail.body.read",
+                "gmail.attachment.read",
+                "gmail.attachment.download",
+                "gmail.process",
             }
         ),
     ),
@@ -189,4 +208,7 @@ assert all(
 assert all(
     "trash.manage" not in p for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
 ), "only Super Admin may delete records (Trash)"
+assert all(
+    "gmail.manage" not in p for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
+), "only Super Admin may connect or disconnect the Gmail mailbox"
 SUPER_ADMIN: Final = "OWNER_ADMIN"

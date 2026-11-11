@@ -3146,6 +3146,20 @@
         "title": "DirectStockOut",
         "type": "object"
       },
+      "DisconnectIn": {
+        "properties": {
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "DisconnectIn",
+        "type": "object"
+      },
       "DiscrepancyOut": {
         "properties": {
           "active_reserved": {
@@ -3900,6 +3914,671 @@
         "title": "FormPatch",
         "type": "object"
       },
+      "GmailAccountOut": {
+        "properties": {
+          "backfill_done": {
+            "title": "Backfill Done",
+            "type": "boolean"
+          },
+          "connected_at": {
+            "title": "Connected At",
+            "type": "string"
+          },
+          "connected_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected By Name"
+          },
+          "email_address": {
+            "title": "Email Address",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error At"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "last_push_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Push At"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "status": {
+            "enum": [
+              "CONNECTED",
+              "ERROR",
+              "REAUTH_REQUIRED",
+              "DISCONNECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "watch_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watch Expires At"
+          }
+        },
+        "required": [
+          "id",
+          "email_address",
+          "status",
+          "connected_at",
+          "connected_by_name",
+          "last_sync_at",
+          "last_error_code",
+          "last_error",
+          "last_error_at",
+          "watch_expires_at",
+          "last_push_at",
+          "backfill_done",
+          "version"
+        ],
+        "title": "GmailAccountOut",
+        "type": "object"
+      },
+      "GmailAttachmentDetail": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "boolean"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inline": {
+            "title": "Inline",
+            "type": "boolean"
+          },
+          "message_from": {
+            "title": "Message From",
+            "type": "string"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "string"
+          },
+          "message_subject": {
+            "title": "Message Subject",
+            "type": "string"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "received_at": {
+            "title": "Received At",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "state": {
+            "enum": [
+              "NOT_PROCESSED",
+              "RECEIVED",
+              "PROCESSING",
+              "NEEDS_REVIEW",
+              "PROCESSED",
+              "FAILED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unsupported_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsupported Reason"
+          }
+        },
+        "required": [
+          "id",
+          "message_id",
+          "filename",
+          "mime_type",
+          "byte_size",
+          "inline",
+          "eligible",
+          "unsupported_reason",
+          "page_count",
+          "sha256",
+          "state",
+          "message_subject",
+          "message_from",
+          "received_at",
+          "history"
+        ],
+        "title": "GmailAttachmentDetail",
+        "type": "object"
+      },
+      "GmailAttachmentOut": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "boolean"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inline": {
+            "title": "Inline",
+            "type": "boolean"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "string"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "state": {
+            "enum": [
+              "NOT_PROCESSED",
+              "RECEIVED",
+              "PROCESSING",
+              "NEEDS_REVIEW",
+              "PROCESSED",
+              "FAILED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unsupported_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsupported Reason"
+          }
+        },
+        "required": [
+          "id",
+          "message_id",
+          "filename",
+          "mime_type",
+          "byte_size",
+          "inline",
+          "eligible",
+          "unsupported_reason",
+          "page_count",
+          "sha256",
+          "state"
+        ],
+        "title": "GmailAttachmentOut",
+        "type": "object"
+      },
+      "GmailMessageDetail": {
+        "properties": {
+          "attachment_count": {
+            "title": "Attachment Count",
+            "type": "integer"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/GmailAttachmentOut"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "body_html": {
+            "title": "Body Html",
+            "type": "string"
+          },
+          "body_text": {
+            "title": "Body Text",
+            "type": "string"
+          },
+          "body_truncated": {
+            "title": "Body Truncated",
+            "type": "boolean"
+          },
+          "body_visible": {
+            "title": "Body Visible",
+            "type": "boolean"
+          },
+          "from_email": {
+            "title": "From Email",
+            "type": "string"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "pdf_count": {
+            "title": "Pdf Count",
+            "type": "integer"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "received_at": {
+            "title": "Received At",
+            "type": "string"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "boolean"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "NOT_PROCESSED",
+              "RECEIVED",
+              "PROCESSING",
+              "NEEDS_REVIEW",
+              "PROCESSED",
+              "FAILED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "title": "Thread Id",
+            "type": "string"
+          },
+          "to_addr": {
+            "title": "To Addr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "from_name",
+          "from_email",
+          "to_addr",
+          "subject",
+          "snippet",
+          "received_at",
+          "read",
+          "labels",
+          "attachment_count",
+          "pdf_count",
+          "removed",
+          "state",
+          "attachments",
+          "thread_id",
+          "body_visible",
+          "body_text",
+          "body_html",
+          "body_truncated"
+        ],
+        "title": "GmailMessageDetail",
+        "type": "object"
+      },
+      "GmailMessageOut": {
+        "properties": {
+          "attachment_count": {
+            "title": "Attachment Count",
+            "type": "integer"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/GmailAttachmentOut"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "from_email": {
+            "title": "From Email",
+            "type": "string"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "pdf_count": {
+            "title": "Pdf Count",
+            "type": "integer"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "received_at": {
+            "title": "Received At",
+            "type": "string"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "boolean"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "NOT_PROCESSED",
+              "RECEIVED",
+              "PROCESSING",
+              "NEEDS_REVIEW",
+              "PROCESSED",
+              "FAILED",
+              "REJECTED"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "to_addr": {
+            "title": "To Addr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "from_name",
+          "from_email",
+          "to_addr",
+          "subject",
+          "snippet",
+          "received_at",
+          "read",
+          "labels",
+          "attachment_count",
+          "pdf_count",
+          "removed",
+          "state",
+          "attachments"
+        ],
+        "title": "GmailMessageOut",
+        "type": "object"
+      },
+      "GmailMessagePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GmailMessageOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "title": "GmailMessagePage",
+        "type": "object"
+      },
+      "GmailStatusOut": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GmailAccountOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_download": {
+            "title": "Can Download",
+            "type": "boolean"
+          },
+          "can_manage": {
+            "title": "Can Manage",
+            "type": "boolean"
+          },
+          "can_preview": {
+            "title": "Can Preview",
+            "type": "boolean"
+          },
+          "can_process": {
+            "title": "Can Process",
+            "type": "boolean"
+          },
+          "can_read_body": {
+            "title": "Can Read Body",
+            "type": "boolean"
+          },
+          "can_reprocess": {
+            "title": "Can Reprocess",
+            "type": "boolean"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "poll_seconds": {
+            "title": "Poll Seconds",
+            "type": "integer"
+          },
+          "push_configured": {
+            "title": "Push Configured",
+            "type": "boolean"
+          },
+          "redirect_uri": {
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured",
+          "push_configured",
+          "poll_seconds",
+          "scope",
+          "redirect_uri",
+          "account",
+          "message_count",
+          "unread_count",
+          "can_manage",
+          "can_read_body",
+          "can_preview",
+          "can_download",
+          "can_process",
+          "can_reprocess"
+        ],
+        "title": "GmailStatusOut",
+        "type": "object"
+      },
       "GrantOut": {
         "properties": {
           "permission": {
@@ -4331,6 +5010,175 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "properties": {
+          "attempt_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt No"
+          },
+          "document_category": {
+            "title": "Document Category",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "extraction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extraction Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "order_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order No"
+          },
+          "order_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Status"
+          },
+          "processed_at": {
+            "title": "Processed At",
+            "type": "string"
+          },
+          "processed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed By Name"
+          },
+          "reprocess": {
+            "title": "Reprocess",
+            "type": "boolean"
+          },
+          "sales_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Order Id"
+          },
+          "same_attachment": {
+            "title": "Same Attachment",
+            "type": "boolean"
+          },
+          "scan_job_id": {
+            "title": "Scan Job Id",
+            "type": "string"
+          },
+          "scan_job_no": {
+            "title": "Scan Job No",
+            "type": "string"
+          },
+          "shipment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipment Id"
+          },
+          "source": {
+            "enum": [
+              "gmail",
+              "scan"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "NOT_PROCESSED",
+              "RECEIVED",
+              "PROCESSING",
+              "NEEDS_REVIEW",
+              "PROCESSED",
+              "FAILED",
+              "REJECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "attempt_no",
+          "source",
+          "same_attachment",
+          "reprocess",
+          "document_category",
+          "processed_at",
+          "processed_by_name",
+          "scan_job_id",
+          "scan_job_no",
+          "extraction_id",
+          "status",
+          "error_code",
+          "shipment_id",
+          "sales_order_id",
+          "order_no",
+          "order_status"
+        ],
+        "title": "HistoryEntry",
         "type": "object"
       },
       "InvoiceDraftLineOut": {
@@ -6864,6 +7712,41 @@
           "unread"
         ],
         "title": "NotificationPage",
+        "type": "object"
+      },
+      "OAuthCompleteIn": {
+        "properties": {
+          "code": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "state"
+        ],
+        "title": "OAuthCompleteIn",
+        "type": "object"
+      },
+      "OAuthStartOut": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "OAuthStartOut",
         "type": "object"
       },
       "OcrAcceptIn": {
@@ -11390,6 +12273,92 @@
         "title": "PriceVersionOut",
         "type": "object"
       },
+      "ProcessIn": {
+        "properties": {
+          "category": {
+            "default": "PICK_SHEET",
+            "enum": [
+              "SALES_ORDER",
+              "PICK_SHEET",
+              "VENDOR_DOCUMENT",
+              "PURCHASE_ORDER",
+              "DELIVERY_NOTE",
+              "PACKING_LIST",
+              "RECEIPT"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "confirm_duplicate": {
+            "default": false,
+            "title": "Confirm Duplicate",
+            "type": "boolean"
+          },
+          "reprocess": {
+            "default": false,
+            "title": "Reprocess",
+            "type": "boolean"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouse_id"
+        ],
+        "title": "ProcessIn",
+        "type": "object"
+      },
+      "ProcessOut": {
+        "properties": {
+          "attachment_id": {
+            "title": "Attachment Id",
+            "type": "string"
+          },
+          "attempt_no": {
+            "title": "Attempt No",
+            "type": "integer"
+          },
+          "extraction_id": {
+            "title": "Extraction Id",
+            "type": "string"
+          },
+          "extraction_status": {
+            "title": "Extraction Status",
+            "type": "string"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "review_path": {
+            "title": "Review Path",
+            "type": "string"
+          },
+          "scan_job_id": {
+            "title": "Scan Job Id",
+            "type": "string"
+          },
+          "scan_job_no": {
+            "title": "Scan Job No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "attempt_no",
+          "attachment_id",
+          "scan_job_id",
+          "scan_job_no",
+          "extraction_id",
+          "extraction_status",
+          "review_path"
+        ],
+        "title": "ProcessOut",
+        "type": "object"
+      },
       "ProductIn": {
         "properties": {
           "aliases": {
@@ -12218,6 +13187,19 @@
           }
         },
         "title": "ReadAllIn",
+        "type": "object"
+      },
+      "ReadIn": {
+        "properties": {
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "read"
+        ],
+        "title": "ReadIn",
         "type": "object"
       },
       "ReasonIn": {
@@ -15881,6 +16863,19 @@
         "title": "SupplierPaymentVoidIn",
         "type": "object"
       },
+      "SyncOut": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "SyncOut",
+        "type": "object"
+      },
       "ThemeIn": {
         "additionalProperties": false,
         "properties": {
@@ -19223,6 +20218,708 @@
         "summary": "Set Flag",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/gmail/attachments/{attachment_id}": {
+      "get": {
+        "description": "An attachment and every earlier use of it (who, when, which reading, which draft).",
+        "operationId": "read_attachment_api_v1_gmail_attachments__attachment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailAttachmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Attachment",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/attachments/{attachment_id}/content": {
+      "get": {
+        "description": "Download the original file (PDF or picture only; its type is taken from its bytes).\nAlways sent as a download, never shown inline. Audited.",
+        "operationId": "attachment_content_api_v1_gmail_attachments__attachment_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "image/jpeg": {},
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attachment Content",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/attachments/{attachment_id}/pages/{page}": {
+      "get": {
+        "description": "One page of the attachment as a PNG picture (the file itself is never sent to the\nbrowser for a preview). Header X-Page-Count gives the number of pages.",
+        "operationId": "attachment_page_api_v1_gmail_attachments__attachment_id__pages__page__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attachment Page",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/attachments/{attachment_id}/process": {
+      "post": {
+        "description": "Use for OCR: fetch and check the attachment, keep it as a source document, open a scan\nand queue the existing OCR reading. Returns where to review it. Creates no order, invoice\nor stock movement; the reviewed reading becomes a DRAFT sales order only when a person\naccepts it in the review screen.",
+        "operationId": "process_attachment_api_v1_gmail_attachments__attachment_id__process_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Process Attachment",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/disconnect": {
+      "post": {
+        "description": "Stop syncing and forget the tokens (also withdrawn at Google, best effort). Stored\nemails, processed documents and drafts stay.",
+        "operationId": "disconnect_api_v1_gmail_disconnect_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisconnectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/messages": {
+      "get": {
+        "description": "Stored emails, newest first. Search covers sender, subject and attachment file names\n(a search that is a date, YYYY-MM-DD, also matches that day); the body is not searched.",
+        "operationId": "list_messages_api_v1_gmail_messages_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "today",
+                "yesterday",
+                "7d",
+                "30d",
+                "custom"
+              ],
+              "title": "Range",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_attachments",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Has Attachments",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pdf",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Pdf",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "processed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Processed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailMessagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Messages",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/messages/{message_id}": {
+      "get": {
+        "description": "One email. The body (plain text and allow-listed HTML) is only included for callers who\nmay read email bodies.",
+        "operationId": "read_message_api_v1_gmail_messages__message_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailMessageDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Message",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/messages/{message_id}/read": {
+      "post": {
+        "description": "Read / unread inside Pro Trading only. The mailbox itself is never changed.",
+        "operationId": "mark_read_api_v1_gmail_messages__message_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailMessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/oauth/complete": {
+      "post": {
+        "description": "Finish connecting: exchange Google's one-time code (server to server), check that\nread-only access was granted, store the encrypted tokens and queue the first sync.",
+        "operationId": "oauth_complete_api_v1_gmail_oauth_complete_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthCompleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oauth Complete",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/oauth/start": {
+      "post": {
+        "description": "The Google consent address for connecting the mailbox (read-only scope, offline\naccess). The browser goes there; Google sends it back to the app's /gmail/oauth/callback\npage, which calls POST /gmail/oauth/complete.",
+        "operationId": "oauth_start_api_v1_gmail_oauth_start_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStartOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oauth Start",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/push": {
+      "post": {
+        "description": "Google Pub/Sub tells us the mailbox changed. Verified (signed OIDC token and/or shared\ntoken) before anything is read; then a sync is queued and 204 returned. An unknown mailbox\nor an unreadable body is acknowledged too, so Pub/Sub does not redeliver it forever.",
+        "operationId": "push_api_v1_gmail_push_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/status": {
+      "get": {
+        "description": "Whether Gmail is set up on the server, which mailbox is connected and how its sync is\ndoing. Never returns a token or the client secret.",
+        "operationId": "status_api_v1_gmail_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "gmail"
+        ]
+      }
+    },
+    "/api/v1/gmail/sync": {
+      "post": {
+        "description": "Refresh: ask the worker to check the mailbox now.",
+        "operationId": "sync_now_api_v1_gmail_sync_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Now",
+        "tags": [
+          "gmail"
         ]
       }
     },

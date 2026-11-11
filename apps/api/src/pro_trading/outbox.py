@@ -69,6 +69,7 @@ JOB_LABELS = {
     "ocr.extract": "OCR reading",
     "notification.email": "Notification email",
     "order_connect.submission_received": "Website order intake",
+    "gmail.sync": "Gmail Inbox sync",
 }
 
 
