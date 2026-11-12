@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from email.utils import format_datetime, formataddr, make_msgid
+from pathlib import Path
 
 from sqlalchemy import or_, select
 
@@ -23,6 +24,9 @@ from .sync import smtp_config
 
 log = logging.getLogger("pro_trading.larkmail")
 MAX_ATTEMPTS = 4
+# Signatures may show the company logo as <img src="cid:tt-logo">: it travels inside the email.
+LOGO_CID = "tt-logo"
+LOGO = Path(__file__).resolve().parent.parent / "assets" / "signature_logo.png"
 STALE_SENDING = timedelta(minutes=10)
 
 
@@ -56,6 +60,8 @@ def build(
     domain = acc.address.rsplit("@", 1)[-1]
     mid = make_msgid(domain=domain)
     safe, text, _, _ = sanitize(body_html or "", 2_000_000)
+    uses_logo = f'data-cid="{LOGO_CID}"' in safe
+    safe = safe.replace(f'data-cid="{LOGO_CID}"', f'src="cid:{LOGO_CID}"')
     safe = render(safe, remote_images=True, cid_lookup=lambda _c: None)
     m = EmailMessage()
     m["From"] = formataddr((acc.display_name or "", acc.address))
@@ -72,6 +78,11 @@ def build(
         m["References"] = " ".join(refs)
     m.set_content(text or " ")
     m.add_alternative(f"<!doctype html><html><body>{safe}</body></html>", subtype="html")
+    if uses_logo:
+        html_part = m.get_body(("html",))
+        assert html_part is not None
+        html_part.add_related(LOGO.read_bytes(), "image", "png", cid=f"<{LOGO_CID}>",
+                              filename="tamisha-trading.png")  # fmt: skip
     for f in files:
         main, _, sub = (f.mime_type or "application/octet-stream").partition("/")
         m.add_attachment(f.content, maintype=main or "application", subtype=sub or "octet-stream",

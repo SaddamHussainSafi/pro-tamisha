@@ -17705,6 +17705,72 @@
         "title": "ShipmentPage",
         "type": "object"
       },
+      "SignatureIn": {
+        "properties": {
+          "fields": {
+            "additionalProperties": true,
+            "title": "Fields",
+            "type": "object"
+          },
+          "html": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Html",
+            "type": "string"
+          },
+          "use_on_new": {
+            "default": true,
+            "title": "Use On New",
+            "type": "boolean"
+          },
+          "use_on_reply": {
+            "default": true,
+            "title": "Use On Reply",
+            "type": "boolean"
+          }
+        },
+        "title": "SignatureIn",
+        "type": "object"
+      },
+      "SignatureOut": {
+        "properties": {
+          "fields": {
+            "additionalProperties": true,
+            "title": "Fields",
+            "type": "object"
+          },
+          "html": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Html",
+            "type": "string"
+          },
+          "logo_cid": {
+            "default": "tt-logo",
+            "title": "Logo Cid",
+            "type": "string"
+          },
+          "mailbox_default_html": {
+            "title": "Mailbox Default Html",
+            "type": "string"
+          },
+          "use_on_new": {
+            "default": true,
+            "title": "Use On New",
+            "type": "boolean"
+          },
+          "use_on_reply": {
+            "default": true,
+            "title": "Use On Reply",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mailbox_default_html"
+        ],
+        "title": "SignatureOut",
+        "type": "object"
+      },
       "StaffCreateIn": {
         "description": "Invitation-based: the person sets their own password from the emailed link.",
         "properties": {
@@ -25616,6 +25682,101 @@
         ]
       }
     },
+    "/api/v1/mail/accounts/{account_id}/signature": {
+      "get": {
+        "operationId": "get_signature_api_v1_mail_accounts__account_id__signature_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignatureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Signature",
+        "tags": [
+          "email"
+        ]
+      },
+      "put": {
+        "description": "The person's own signature for this mailbox (cleaned by the same allow-list as mail).\nThe company logo is written as <img src=\"cid:tt-logo\"> and is embedded when sending.",
+        "operationId": "put_signature_api_v1_mail_accounts__account_id__signature_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignatureIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignatureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Signature",
+        "tags": [
+          "email"
+        ]
+      }
+    },
     "/api/v1/mail/admin/accounts": {
       "get": {
         "operationId": "admin_accounts_api_v1_mail_admin_accounts_get",
@@ -26911,6 +27072,26 @@
           }
         },
         "summary": "Send",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/signature-logo": {
+      "get": {
+        "description": "The company logo as it is embedded in signatures (for the editor preview).",
+        "operationId": "signature_logo_api_v1_mail_signature_logo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Signature Logo",
         "tags": [
           "email"
         ]

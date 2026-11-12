@@ -26,7 +26,8 @@ _DROP = {
     "textarea", "button", "input", "frame", "frameset", "applet",
 }  # fmt: skip
 _DROP_VOID = {"link", "meta", "base", "input"}
-_SAFE_HREF = re.compile(r"^(https?://|mailto:)[^\s\"'<>`]{1,2000}$", re.IGNORECASE)
+_SAFE_HREF = re.compile(r"^(https?://|mailto:|tel:)[^\s\"'<>`]{1,2000}$", re.IGNORECASE)
+_CID_TOKEN = re.compile(r"^[\w.@\-]{1,200}$")
 _SAFE_IMG = re.compile(r"^https?://[^\s\"'<>`]{1,2000}$", re.IGNORECASE)
 _BLOCK = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "hr"}
 # Presentation attributes kept verbatim when their value is plain.
@@ -108,6 +109,8 @@ class _Sanitizer(HTMLParser):
                 elif _SAFE_IMG.match(v):
                     self.remote_images = True
                     kept.append(f'{BLOCKED_IMG}="{html.escape(v, quote=True)}"')
+            elif tag == "img" and k == "data-cid" and _CID_TOKEN.match(v):
+                kept.append(f'data-cid="{html.escape(v, quote=True)}"')  # already-clean HTML
             elif k == "style":
                 css = _style(v)
                 if css:

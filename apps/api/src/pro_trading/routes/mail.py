@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import re
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -358,6 +359,57 @@ def _uncursor(c: str | None) -> tuple[datetime, uuid.UUID] | None:
         raise ApiError(422, "VALIDATION", "Invalid cursor") from None
 
 
+class SignatureIn(BaseModel):
+    html: str = Field(default="", max_length=20_000)
+    fields: dict[str, Any] = Field(default_factory=dict)
+    use_on_new: bool = True
+    use_on_reply: bool = True
+
+
+class SignatureOut(SignatureIn):
+    mailbox_default_html: str
+    logo_cid: str = "tt-logo"
+
+
+@router.get("/accounts/{account_id}/signature", response_model=SignatureOut)
+def get_signature(
+    account_id: uuid.UUID, request: Request, db: DbDep, p: Principal = Use
+) -> SignatureOut:
+    acc = access.account(db, request, p, account_id)
+    g = _grant(db, p, acc.id)
+    return SignatureOut(html=g.signature_html, fields=g.signature_fields,
+                        use_on_new=g.signature_on_new, use_on_reply=g.signature_on_reply,
+                        mailbox_default_html=acc.signature_html)  # fmt: skip
+
+
+@router.put("/accounts/{account_id}/signature", response_model=SignatureOut)
+def put_signature(
+    account_id: uuid.UUID, body: SignatureIn, request: Request, db: DbDep, p: Principal = Use
+) -> SignatureOut:
+    """The person's own signature for this mailbox (cleaned by the same allow-list as mail).
+    The company logo is written as <img src="cid:tt-logo"> and is embedded when sending."""
+    from ..larkmail.sanitize import sanitize
+
+    acc = access.account(db, request, p, account_id)
+    g = _grant(db, p, acc.id)
+    if len(json.dumps(body.fields)) > 10_000:
+        raise ApiError(422, "VALIDATION", "Signature details are too long")
+    g.signature_html = sanitize(body.html, 20_000)[0]
+    g.signature_fields = body.fields
+    g.signature_on_new, g.signature_on_reply = body.use_on_new, body.use_on_reply
+    db.commit()
+    return get_signature(account_id, request, db, p)
+
+
+@router.get("/signature-logo")
+def signature_logo(p: Principal = Use) -> Response:
+    """The company logo as it is embedded in signatures (for the editor preview)."""
+    from ..larkmail.outgoing import LOGO
+
+    return Response(LOGO.read_bytes(), media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=86400"})  # fmt: skip
+
+
 def _account_out(db: Session, p: Principal, acc: MailAccount, grant: MailAccess) -> AccountOut:
     inbox = db.scalar(
         select(MailFolder.id).where(MailFolder.account_id == acc.id, MailFolder.role == "INBOX")
@@ -384,7 +436,8 @@ def _account_out(db: Session, p: Principal, acc: MailAccount, grant: MailAccess)
         # A sender address is offered only once Lark accepted its SMTP login.
         can_send=grant.can_send and acc.smtp_ok_at is not None and acc.status != "AUTH_FAILED",
         unread=unread, last_sync_at=acc.last_sync_at,
-        history_complete=acc.backfill_done_at is not None, signature_html=acc.signature_html,
+        history_complete=acc.backfill_done_at is not None,
+        signature_html=grant.signature_html or acc.signature_html,
     )  # fmt: skip
 
 

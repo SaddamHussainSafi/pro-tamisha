@@ -130,6 +130,13 @@ class MailAccess(Base):
     granted_at: Mapped[datetime] = _created()
     revoked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The person's own signature for this mailbox (migration 0031). Empty = the mailbox default.
+    signature_html: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    signature_fields: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )  # the editor's template + fields, so it reopens as it was saved
+    signature_on_new: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    signature_on_reply: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class MailFolder(Base):

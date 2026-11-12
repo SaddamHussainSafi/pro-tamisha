@@ -665,3 +665,35 @@ def test_universal_search_shows_only_my_mailboxes(lark, make_api, world) -> None
         .status_code
         == 204
     )
+
+
+def test_personal_signature_with_embedded_logo(lark, make_api, world) -> None:
+    w = connect_andy(make_api, world)
+    andy = w["andy"]
+    sig = ('<table><tr><td><img src="cid:tt-logo" width="120" alt="Tamisha Trading"></td>'
+           '<td><b>Andy Narine</b><br><span style="color:#2e7d32">Sales</span><br>'
+           '<a href="tel:+14163328853">416-332-8853</a> <a href="https://tamishatrading.com">tamishatrading.com</a>'
+           '<script>x()</script></td></tr></table>')  # fmt: skip
+    r = andy.put(f"/api/v1/mail/accounts/{w['acc']}/signature",
+                 json={"html": sig, "fields": {"template": "logo-left", "title": "Sales"}})  # fmt: skip  # noqa: E501
+    assert r.status_code == 200 and "<script" not in r.json()["html"]
+    assert r.json()["fields"]["template"] == "logo-left"
+    assert 'data-cid="tt-logo"' in r.json()["html"]
+    assert andy.get("/api/v1/mail/accounts").json()[0]["signature_html"] == r.json()["html"]
+    assert andy.get("/api/v1/mail/signature-logo").headers["content-type"] == "image/png"
+    # another user's mailbox signature can't be read or written
+    other_email, _ = add_emp(world, "Vada", "MANAGER")
+    other = make_api()
+    other.login(other_email)
+    assert other.get(f"/api/v1/mail/accounts/{w['acc']}/signature").status_code == 404
+    andy.post("/api/v1/mail/send", json={"account_id": w["acc"], "to": [{"email": "a@b.example"}],
+              "subject": "sig", "body_html": "<p>Hi</p>" + r.json()["html"]}, headers=idem())  # fmt: skip  # noqa: E501
+    assert outgoing.process_queue() == 1
+    data = lark["smtp"].sent[-1].data
+    from email import message_from_bytes, policy
+
+    msg = message_from_bytes(data, policy=policy.default)
+    html = msg.get_body(("html",)).get_content()
+    assert 'src="cid:tt-logo"' in html and 'href="tel:+14163328853"' in html and "<script" not in html  # noqa: E501
+    logo = next(p for p in msg.walk() if p.get("Content-ID") == "<tt-logo>")
+    assert logo.get_content_type() == "image/png" and b"multipart/related" in data
