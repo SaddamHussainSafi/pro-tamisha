@@ -1,8 +1,9 @@
 import { ApiError } from "../api";
+import { errorText } from "./errors";
 
 /** Plain-language messages for catalog API errors (409 conflicts, unknown conversions, etc.). */
 export function catalogMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "VERSION_CONFLICT":
       return "Someone else changed this product. The latest version has been loaded — review it and retry.";
@@ -22,6 +23,6 @@ export function catalogMessage(err: unknown): string {
     case "VALIDATION":
       return "Check the highlighted fields.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }

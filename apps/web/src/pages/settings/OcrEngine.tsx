@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { errorText } from "../../lib/errors";
 import { Link } from "react-router-dom";
-import { api, ApiError, type OcrEngineReading, type OcrEngineStatus, type OcrExtraction, type OcrExtractionDetail } from "../../api";
+import { api, type OcrEngineReading, type OcrEngineStatus, type OcrExtraction, type OcrExtractionDetail } from "../../api";
 import { FIELD_STATUS, lineNotes, trimQty, warningText } from "../../lib/ocr";
 import { StatusChip } from "../../ui/primitives";
 
@@ -31,7 +32,7 @@ export function OcrEngine() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.ocrEngine().then(setSt).catch((e) => setError(e instanceof ApiError ? e.message : "The OCR engine status could not be loaded."));
+    api.ocrEngine().then(setSt).catch((e) => setError(errorText(e)));
     api.ocrExtractions({ limit: 30 }).then((p) => setList(p.items)).catch(() => setList([]));
   }, []);
   useEffect(() => {
@@ -46,7 +47,7 @@ export function OcrEngine() {
           setEx(e);
         }
       })
-      .catch((e) => live && setError(e instanceof ApiError ? e.message : "That reading could not be loaded."));
+      .catch((e) => live && setError(errorText(e)));
     return () => {
       live = false;
     };

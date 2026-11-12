@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { errorText } from "../lib/errors";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, hasCompanyWide, type Category, type ProductSummary } from "../api";
 import { useAuth } from "../auth";
@@ -23,7 +24,7 @@ import {
 import { Icon } from "../ui/Icon";
 import { EmptyState, ErrorState, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
-const errText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Try again.");
+const errText = errorText;
 
 export function FormStateChip({ f }: { f: Pick<OcForm, "published" | "accepting" | "unpublished_changes" | "archived"> }) {
   if (f.archived) return <StatusChip tone="neutral">Archived</StatusChip>;

@@ -1,4 +1,5 @@
 import { ApiError, type ScanJob, type ScanJobStatus, type ScanJobType, type ScannerState } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 
 export const BRIDGE_URL: string = (import.meta.env?.VITE_SCAN_BRIDGE_URL as string | undefined) ?? "http://127.0.0.1:47615";
@@ -89,10 +90,10 @@ export function scanMessage(err: unknown): string {
       case "CAPABILITY_EXPIRED":
         return "The scan request expired before the scanner picked it up. Start a new scan.";
       default:
-        return err.message || "The scanner bridge reported an error.";
+        return errorText(err);
     }
   }
-  if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "FILE_TOO_LARGE":
       return `That file is too large. The limit is ${fileSize(Number(err.extra.max_bytes ?? MAX_BYTES))}.`;
@@ -119,7 +120,7 @@ export function scanMessage(err: unknown): string {
     case "MFA_REQUIRED":
       return "You don't have permission to do that.";
     default:
-      return err.message || "Something went wrong. Try again.";
+      return errorText(err);
   }
 }
 

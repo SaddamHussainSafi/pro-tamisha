@@ -289,7 +289,7 @@ function RowErrors({ errors }: { errors: PricePreview["errors"] }) {
             <tr key={i} className="border-t border-line">
               <td className="num px-3 py-1.5">{e.row || "—"}</td>
               <td className="px-3 py-1.5">{e.field ?? "—"}</td>
-              <td className="px-3 py-1.5"><span className="font-medium">{e.code}</span> · {e.message}</td>
+              <td className="px-3 py-1.5">{e.field ? <span className="font-medium">{e.field}: </span> : null}{e.message}</td>
             </tr>
           ))}
         </tbody>

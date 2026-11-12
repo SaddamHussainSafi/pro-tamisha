@@ -1,4 +1,5 @@
 import { ApiError, type Customer, type CustomerIn, type CustomerPatch } from "../api";
+import { errorText } from "./errors";
 
 // Customers screen helpers: form <-> API mapping and plain-language errors. The server re-checks
 // every rule; these checks only spare the user a round trip.
@@ -117,7 +118,7 @@ export function buildPatch(c: Customer, f: CustomerForm): CustomerPatch | null {
 }
 
 export function customerMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "VERSION_CONFLICT":
       return "Someone else changed this customer. The latest details are loaded — check them and save again.";
@@ -134,6 +135,6 @@ export function customerMessage(err: unknown): string {
     case "NOT_FOUND":
       return "This customer doesn't exist.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }

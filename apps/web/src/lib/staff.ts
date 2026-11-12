@@ -1,4 +1,5 @@
 import { ApiError, type RoleCode, type SecurityEvent, type StaffMember, type StaffStatus } from "../api";
+import { errorText } from "./errors";
 
 // User management helpers. The server re-checks every rule; these only shape the screens.
 
@@ -167,7 +168,7 @@ export const when = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Never";
 
 export function staffMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Check your connection and try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "EMAIL_TAKEN":
       return "Someone already signs in with this email.";
@@ -206,6 +207,6 @@ export function staffMessage(err: unknown): string {
     case "VALIDATION":
       return "Check the fields: a name, a valid email and a role.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }

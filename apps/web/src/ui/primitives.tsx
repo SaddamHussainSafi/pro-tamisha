@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { recentFailure } from "../api";
+import { describeError, shortRef } from "../lib/errors";
 import { Icon, type IconName } from "./Icon";
 
 /* ---------- StatusChip: colour + icon + text (never colour alone) ---------- */
@@ -378,13 +380,36 @@ export function EmptyState({ title, hint, action, icon = "inbox" }: { title: str
   );
 }
 
-export function ErrorState({ title, detail, onRetry }: { title: string; detail?: string; onRetry?: () => void }) {
+/**
+ * A screen or panel that couldn't load. Says why in plain words and offers the right next step.
+ * Pass `error` (whatever was caught); without it the latest failed request of the last few
+ * seconds is used, so every error screen explains itself. `detail` overrides the explanation.
+ */
+export function ErrorState({ title, detail, onRetry, error }: { title: string; detail?: string; onRetry?: () => void; error?: unknown }) {
+  const failure = error ?? recentFailure();
+  const info = failure ? describeError(failure) : null;
+  const why = detail ?? (info ? [info.message, info.next].filter(Boolean).join(" ") : "Check your connection, then try again.");
+  const ref = info && info.status >= 500 && info.requestId ? shortRef(info.requestId) : "";
+  // Signing in again is offered by the session dialog; asking an admin has no button.
+  const retry = info?.action !== "signin" && info?.action !== "admin";
   return (
     <div role="alert" className="grid place-items-center gap-2 px-6 py-12 text-center">
       <span className="grid size-14 place-items-center rounded-full bg-danger/10"><Icon name="alert" size={24} className="text-danger" /></span>
       <div className="font-medium text-danger">{title}</div>
-      {detail && <p className="max-w-sm text-sm text-ink-muted">{detail}</p>}
-      {onRetry && <button className="btn-ghost" onClick={onRetry}>Try again</button>}
+      {why && <p className="max-w-sm text-sm text-ink-muted">{why}</p>}
+      {ref && <p className="text-xs text-ink-muted">Reference for support: <span className="font-mono">{ref}</span></p>}
+      {retry && (
+        <div className="mt-1 flex flex-wrap justify-center gap-2">
+          {onRetry ? (
+            <button className="btn-ghost" onClick={onRetry}>Try again</button>
+          ) : (
+            <button className="btn-ghost" onClick={() => window.location.reload()}>Reload page</button>
+          )}
+          {info?.code === "NOT_FOUND" && (
+            <button className="btn-ghost" onClick={() => window.history.back()}>Go back</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

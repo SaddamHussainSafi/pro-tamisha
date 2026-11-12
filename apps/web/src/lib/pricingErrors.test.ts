@@ -13,7 +13,7 @@ describe("pricingMessage", () => {
   });
   it("falls back to server message and generic text", () => {
     expect(pricingMessage(new ApiError(422, "INVALID_UNIT", "CAS has no PIECE"))).toBe("CAS has no PIECE");
-    expect(pricingMessage(new Error("boom"))).toMatch(/Something went wrong/);
+    expect(pricingMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
   });
 });
 

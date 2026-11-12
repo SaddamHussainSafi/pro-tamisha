@@ -1,4 +1,5 @@
 import { ApiError, type InvoiceState, type PaymentMethod, type PaymentStatus } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 import { dec, toFixed, type Dec } from "./decimal";
 
@@ -91,7 +92,7 @@ export function checkPlan(plan: Record<string, string>, invoices: (OpenInvoice &
 }
 
 export function paymentMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Nothing was saved — try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   const x = err.extra;
   switch (err.code) {
     case "ALREADY_VERIFIED":
@@ -115,6 +116,6 @@ export function paymentMessage(err: unknown): string {
     case "VALIDATION":
       return "Check the highlighted values and try again.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }

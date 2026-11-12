@@ -1,4 +1,5 @@
 import { ApiError, type DocFileKind, type DocSyncStatus, type DocumentFile } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 import { fileSize, MAX_BYTES } from "./scans";
 
@@ -51,7 +52,7 @@ export function syncProblem(lastError: string | null): string | null {
 }
 
 export function documentMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "VERSION_CONFLICT":
       return "This document changed while you were looking at it. The list has been refreshed; try again.";
@@ -69,6 +70,6 @@ export function documentMessage(err: unknown): string {
     case "FORBIDDEN":
       return "You don't have permission to do that.";
     default:
-      return err.message || "Something went wrong. Try again.";
+      return errorText(err);
   }
 }

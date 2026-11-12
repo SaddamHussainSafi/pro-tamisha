@@ -88,7 +88,9 @@ test("owner imports a new price book; old rate stays on the old version; duplica
   await imp.getByRole("button", { name: "Check file" }).click();
   const errs = page.getByRole("region", { name: "Row errors" });
   await expect(errs).toContainText("RJS has no active PIECE unit profile");
-  await expect(errs).toContainText("INVALID_UNIT");
+  // the column name, not the internal code (no raw codes on screen)
+  await expect(errs).toContainText("unit:");
+  await expect(errs).not.toContainText("INVALID_UNIT");
   await expect(imp.getByRole("button", { name: "Create draft" })).toBeDisabled();
   await axe(page);
 

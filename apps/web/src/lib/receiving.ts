@@ -1,4 +1,5 @@
 import { ApiError, type CompareRow, type DeclaredLine, type ProductSummary, type UnitCode, type CompareStatus, type LandedCostKind, type ShipmentDocKind, type ShipmentStatus } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 import { add, dec, isDecimal, toFixed } from "./decimal";
 import { qtyText } from "./inventory";
@@ -69,7 +70,7 @@ export function moneyText(amount: string, currency: string): string {
 }
 
 export function receivingMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Nothing was saved — try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "VERSION_CONFLICT":
       return "Someone else changed this shipment. It has been reloaded — check it and try again.";
@@ -107,7 +108,7 @@ export function receivingMessage(err: unknown): string {
     case "MFA_REQUIRED":
       return "Verify two-step sign-in to approve receiving.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }
 

@@ -7,11 +7,13 @@ stream themselves with their own SCAN_MAX_BYTES cap (routes/scans.py `raw_body`)
 
 import json
 import re
+import uuid
 from typing import Any
 
 from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+REQUEST_ID = re.compile(r"[^A-Za-z0-9._:-]")
 UPLOAD_PATHS = re.compile(
     r"^/api/v1/(scans/uploads|scan-bridge/jobs/[^/]+/upload|shipments/[^/]+/documents/upload)$"
 )
@@ -67,11 +69,14 @@ class BodySizeLimit:
 
 
 async def _too_large(scope: Scope, send: Send, limit: int) -> None:
-    rid = dict(scope["headers"]).get(b"x-request-id", b"").decode("latin-1")[:64] or None
+    # Same cleaning as the request middleware (this layer runs before it): a reference the user
+    # can quote to support, never an empty one.
+    raw_rid = dict(scope["headers"]).get(b"x-request-id", b"").decode("latin-1")
+    rid = REQUEST_ID.sub("", raw_rid)[:64] or str(uuid.uuid4())
     body: dict[str, Any] = {
         "error": {
             "code": "PAYLOAD_TOO_LARGE",
-            "message": "The request is too large",
+            "message": "This is too large to send in one go. Nothing was saved.",
             "request_id": rid,
             "max_bytes": limit,
         }
@@ -87,6 +92,7 @@ async def _too_large(scope: Scope, send: Send, limit: int) -> None:
                 (b"cache-control", b"no-store"),
                 (b"x-content-type-options", b"nosniff"),
                 (b"connection", b"close"),
+                (b"x-request-id", rid.encode()),
             ],
         }
     )

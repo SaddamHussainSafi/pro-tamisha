@@ -47,7 +47,7 @@ describe("ocr helpers", () => {
   it("explains errors and warnings in plain words", () => {
     expect(ocrMessage(new ApiError(409, "FIELDS_UNRESOLVED", "x", { open_lines: [2, 4] }))).toContain("2, 4");
     expect(ocrMessage(new ApiError(422, "NEEDS_CORRECTION", "x"))).toMatch(/wasn't read clearly/);
-    expect(ocrMessage(new Error("boom"))).toMatch(/Nothing was saved/);
+    expect(ocrMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
     expect(warningText("NO_TEXT")).toMatch(/by hand/);
     expect(warningText("ODD")).toBe("ODD");
     expect(warningText("PACKET_INVOICE_MISMATCH")).toMatch(/CFIA Confirmation of Sale/);

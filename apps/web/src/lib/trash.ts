@@ -2,6 +2,7 @@
 // other staff who may edit a record can only ask for it to be deleted.
 import { useEffect, useRef } from "react";
 import { ApiError, apiRequest, canInWarehouse, hasCompanyWide, has, type Session } from "../api";
+import { errorText } from "./errors";
 
 export type TrashKind =
   | "product"
@@ -195,10 +196,9 @@ export function trashErrorText(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.code === "IN_USE") return e.message.split(": it is used by")[0] + " while other records use it:";
     if (e.code === "TWO_STEP_REQUIRED") return "Turn on two-step sign-in in My account first, then try again.";
-    if (e.code === "FORBIDDEN") return "You don't have permission to do that.";
-    return e.message;
+    if (e.code === "FORBIDDEN") return "You don't have permission to do that. Ask an owner or admin.";
   }
-  return "Something went wrong. Try again.";
+  return errorText(e);
 }
 
 export const trashApi = {

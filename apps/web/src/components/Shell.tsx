@@ -6,12 +6,15 @@ import { roleLabel } from "../lib/staff";
 import { NAV_GROUPS, SETTINGS, TRASH, type NavItem } from "../nav";
 import { canManageTrash } from "../lib/trash";
 import { TrashToastHost } from "../ui/DeleteAction";
+import { ConnectionBanner } from "./ConnectionBanner";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { SessionExpiredDialog } from "./SessionExpired";
 import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
 import { NotificationBell } from "./notifications/NotificationBell";
 import { OrderConnectBadge } from "./OrderConnectLive";
 import { NotificationProvider } from "./notifications/NotificationProvider";
-import { QuickJump } from "./QuickJump";
+import { QuickJump, SearchButton } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
 
 const COLLAPSE_KEY = "pt.sidebar.collapsed";
@@ -259,16 +262,20 @@ export function Shell() {
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <ScannerIndicator warehouseId={active?.id} />
             <div className="hidden md:block"><QuickJump ref={jump} /></div>
+            <div className="md:hidden"><SearchButton /></div>
             <NotificationBell />
             <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{initials(name)}</span>
           </div>
         </header>
         <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-5">
           {/* Keyed by path: each screen fades in once when you arrive (not on every data refresh). */}
+          <ConnectionBanner />
           <div key={loc.pathname} className="animate-enter">
-            <Suspense fallback={<PageSkeleton />}>
-              <Outlet />
-            </Suspense>
+            <ErrorBoundary scope="page" resetKey={loc.pathname}>
+              <Suspense fallback={<PageSkeleton />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
@@ -282,6 +289,7 @@ export function Shell() {
         </>
       )}
       <TrashToastHost />
+      <SessionExpiredDialog />
     </div>
     </NotificationProvider>
   );

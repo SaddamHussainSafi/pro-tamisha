@@ -33,6 +33,6 @@ describe("payments", () => {
   it("explains a duplicate confirmation in plain words", () => {
     const e = new ApiError(409, "DUPLICATE_CONFIRMATION", "x", { payment_no: "PAY-2026-000001" });
     expect(paymentMessage(e)).toMatch(/already confirmed payment PAY-2026-000001/);
-    expect(paymentMessage(new Error("boom"))).toMatch(/Nothing was saved/);
+    expect(paymentMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
   });
 });

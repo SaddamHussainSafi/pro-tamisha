@@ -75,12 +75,14 @@ test("owner adds, edits and deactivates a customer; stale edits are refused", as
   });
   expect(bg.status()).toBe(200);
 
-  // This screen still holds version 1: its save is refused and the latest details load.
+  // This screen still holds version 1: its save is refused, the latest details load and what
+  // was typed here (the phone) is kept for a second look.
   await page.getByLabel("Phone").fill("416-555-0101");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("alert")).toContainText("Someone else changed this customer");
+  await expect(page.getByRole("alert")).toContainText("what you typed is kept");
   await expect(page.getByLabel("Payment terms (days)")).toHaveValue("30");
-  await expect(page.getByLabel("Phone")).toHaveValue("");
+  await expect(page.getByLabel("Phone")).toHaveValue("416-555-0101");
 
   // Clear the email, deactivate.
   await page.getByLabel("Email for invoices and reminders").fill("");

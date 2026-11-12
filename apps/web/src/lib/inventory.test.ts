@@ -15,7 +15,7 @@ describe("inventory helpers", () => {
   it("explains oversell with the available quantity", () => {
     const e = new ApiError(409, "INSUFFICIENT_STOCK", "x", { available: "2.0000", requested: "6" });
     expect(inventoryMessage(e)).toContain("only 2 available");
-    expect(inventoryMessage(new Error("boom"))).toContain("Nothing was saved");
+    expect(inventoryMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
   });
 
   it("lists allowed units like the server", () => {

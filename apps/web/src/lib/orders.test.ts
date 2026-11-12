@@ -27,6 +27,6 @@ describe("ordersMessage", () => {
       "Only 5.0000 is still pending.",
     );
     expect(ordersMessage(new ApiError(409, "AWAITING_INVOICE", "x"))).toMatch(/Invoice them/);
-    expect(ordersMessage(new Error("boom"))).toMatch(/Nothing was saved/);
+    expect(ordersMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
   });
 });

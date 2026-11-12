@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { errorText } from "../lib/errors";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, api, has, hasCompanyWide, type Warehouse } from "../api";
 import { useAuth } from "../auth";
@@ -35,7 +36,7 @@ import { DeleteAction } from "../ui/DeleteAction";
 import { Icon } from "../ui/Icon";
 import { CardTitle, ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
-const errText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Try again.");
+const errText = errorText;
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 const link = "font-medium text-brand-primary hover:underline";
 

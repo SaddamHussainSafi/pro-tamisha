@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { errorText } from "../lib/errors";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
@@ -56,7 +57,7 @@ export function LoginPage() {
             ? "Too many failed sign-ins from this network. Wait a few minutes and try again."
             : err instanceof ApiError && err.code === "INVALID_CREDENTIALS"
               ? "Email or password is incorrect."
-              : "Sign-in failed. Check your connection and try again.",
+              : errorText(err),
       );
     } finally {
       setBusy(false);

@@ -46,7 +46,7 @@ describe("receiving helpers", () => {
     expect(receivingMessage(e("DISCREPANCY_ACK_REQUIRED"))).toMatch(/acknowledgement/);
     expect(receivingMessage(e("VERSION_CONFLICT"))).toMatch(/reloaded/);
     expect(receivingMessage(e("UNMAPPED_LABEL", "“X” isn't known"))).toBe("“X” isn't known");
-    expect(receivingMessage(new Error("boom"))).toMatch(/Nothing was saved/);
+    expect(receivingMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
   });
 });
 

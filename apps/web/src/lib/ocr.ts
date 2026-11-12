@@ -1,4 +1,5 @@
 import { ApiError, type OcrEngine, type OcrField, type OcrFieldStatus, type OcrLineDetail, type OcrResolution, type OcrStatus } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 
 export const OCR_STATUS: Record<OcrStatus, { tone: Tone; label: string }> = {
@@ -179,7 +180,7 @@ export function pctText(ratio: string | null): string {
 }
 
 export function ocrMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Nothing was saved — try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "FIELDS_UNRESOLVED": {
       const ls = (err.extra.open_lines as number[] | undefined) ?? [];
@@ -204,6 +205,6 @@ export function ocrMessage(err: unknown): string {
     case "FORBIDDEN":
       return "You don't have permission to do that here.";
     default:
-      return err.message || "Something went wrong. Nothing was saved — try again.";
+      return errorText(err);
   }
 }

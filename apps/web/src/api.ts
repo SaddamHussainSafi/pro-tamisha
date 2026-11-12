@@ -772,9 +772,36 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public extra: Record<string, unknown> = {},
+    /** HTTP method of the failed request: a failed write says whether anything was saved. */
+    public method?: string,
   ) {
     super(message);
   }
+  /** Server request id: the reference support uses to find the log line. */
+  get requestId(): string | null {
+    return typeof this.extra.request_id === "string" ? this.extra.request_id : null;
+  }
+}
+
+/** The latest failed request (for error screens that weren't handed the error itself). */
+let lastFailure: { err: ApiError; at: number } | null = null;
+export function recentFailure(withinMs = 15_000): ApiError | null {
+  return lastFailure && Date.now() - lastFailure.at <= withinMs ? lastFailure.err : null;
+}
+function failed(err: ApiError): ApiError {
+  lastFailure = { err, at: Date.now() };
+  return err;
+}
+
+/** No answer within this time: the request is given up (the screen offers to try again). */
+const TIMEOUT_MS = 120_000;
+
+/** fetch() rejected (no answer at all): offline, dropped connection, timeout or stopped. */
+function networkError(e: unknown, method: string): ApiError {
+  const name = (e as { name?: string } | null)?.name;
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const code = offline ? "OFFLINE" : name === "TimeoutError" ? "TIMEOUT" : name === "AbortError" ? "ABORTED" : "NETWORK";
+  return failed(new ApiError(0, code, "No answer from Pro Trading", {}, method));
 }
 
 const CSRF_KEY = "pt.csrf";
@@ -829,6 +856,9 @@ async function request<T>(method: string, path: string, body?: unknown, idempote
       headers,
       credentials: "same-origin",
       body: body === undefined ? undefined : isRaw(body) ? body.raw : JSON.stringify(body),
+      signal: typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(TIMEOUT_MS) : undefined,
+    }).catch((e: unknown) => {
+      throw networkError(e, method);
     });
   };
   let res = await send();
@@ -836,13 +866,19 @@ async function request<T>(method: string, path: string, body?: unknown, idempote
   if (res.status === 403 && method !== "GET" && (await csrfRefused(res)) && (await renewCsrf())) res = await send();
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = data?.error ?? {};
-    const { code = "HTTP_ERROR", message = res.statusText, ...extra } = err;
-    if (res.status === 401 || code === "CSRF_FAILED") onUnauthorized();
-    throw new ApiError(res.status, code, message, extra);
-  }
+  if (!res.ok) throw toApiError(res.status, res.statusText, data, method, res.headers.get("X-Request-Id"));
   return data as T;
+}
+
+/** An error answer as an ApiError. No JSON envelope with a 5xx means the API itself didn't
+ * answer (the dev proxy or a load balancer did): the server is down or restarting. */
+function toApiError(status: number, statusText: string, data: unknown, method: string, headerRid: string | null): ApiError {
+  const env = (data as { error?: Record<string, unknown> } | null)?.error;
+  if (!env && status >= 500) return failed(new ApiError(status, "SERVER_UNREACHABLE", statusText, headerRid ? { request_id: headerRid } : {}, method));
+  const { code = "HTTP_ERROR", message = statusText, ...extra } = (env ?? {}) as { code?: string; message?: string } & Record<string, unknown>;
+  if (!extra.request_id && headerRid) extra.request_id = headerRid;
+  if (status === 401 || code === "CSRF_FAILED") onUnauthorized();
+  return failed(new ApiError(status, code, message, extra, method));
 }
 
 async function csrfRefused(res: Response): Promise<boolean> {
@@ -1198,9 +1234,11 @@ export const api = {
         if (csrf) x.setRequestHeader("X-CSRF-Token", csrf);
         x.setRequestHeader("Idempotency-Key", key);
         x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-        x.onerror = () => reject(new ApiError(0, "NETWORK", "The upload was interrupted. Check the connection and try again."));
+        x.timeout = 10 * 60_000;
+        x.onerror = () => reject(networkError(null, "POST"));
+        x.ontimeout = () => reject(networkError({ name: "TimeoutError" }, "POST"));
         x.onload = () => {
-          let data: { error?: { code?: string; message?: string } } & Record<string, unknown> = {};
+          let data: { error?: { code?: string; message?: string } & Record<string, unknown> } & Record<string, unknown> = {};
           try {
             data = JSON.parse(x.responseText || "{}");
           } catch {
@@ -1212,13 +1250,11 @@ export const api = {
           if (x.status === 403 && code === "CSRF_FAILED" && !retried) {
             void renewCsrf().then((token) => {
               if (token) return send(true).then(resolve, reject);
-              onUnauthorized();
-              reject(new ApiError(x.status, code, data.error?.message ?? x.statusText));
+              reject(toApiError(x.status, x.statusText, data, "POST", x.getResponseHeader("X-Request-Id")));
             });
             return;
           }
-          if (x.status === 401 || code === "CSRF_FAILED") onUnauthorized();
-          reject(new ApiError(x.status, code, data.error?.message ?? x.statusText));
+          reject(toApiError(x.status, x.statusText, data, "POST", x.getResponseHeader("X-Request-Id")));
         };
         x.send(file);
       });

@@ -1,4 +1,5 @@
 import { ApiError, type OrderStatus, type PickStatus, type ShortageReason } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 import { cad, dec, mul } from "./decimal";
 
@@ -47,7 +48,7 @@ export function pickOutcome(requested: string, picked: string): "PICKED" | "SHOR
 export const lineAmount = (rate: string, q: string): string => cad(mul(dec(rate), dec(q)));
 
 export function ordersMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Nothing was saved — try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   const x = err.extra;
   switch (err.code) {
     case "NO_PRICE":
@@ -88,6 +89,6 @@ export function ordersMessage(err: unknown): string {
     case "MFA_REQUIRED":
       return "Verify two-step authentication first.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, has, hasCompanyWide, type AgingCustomer, type Customer, type CustomerGroup, type InvoiceSummary, type OrderSummary } from "../api";
+import { api, ApiError, has, hasCompanyWide, type AgingCustomer, type Customer, type CustomerGroup, type InvoiceSummary, type OrderSummary } from "../api";
 import { useAuth } from "../auth";
 import { cad, dec } from "../lib/decimal";
+import { keepEdits } from "../lib/errors";
 import { buildCreate, buildPatch, customerMessage, EMPTY_FORM, formFrom, formProblems, termsLabel, type CustomerForm } from "../lib/customers";
 import { ORDER_STATUS } from "../lib/orders";
 import { INVOICE_STATE } from "../lib/payments";
@@ -544,8 +545,22 @@ export function CustomerDetailPage() {
       setTried(false);
       setMsg({ tone: "ok", text: "Customer saved." });
     } catch (err) {
-      setMsg({ tone: "error", text: customerMessage(err) });
-      await load();
+      if (err instanceof ApiError && err.code === "VERSION_CONFLICT") {
+        // Show the other person's change, keep what was typed here; saving again is checked.
+        const typed = f;
+        const before = formFrom(c);
+        try {
+          const x = await api.customer(c.id);
+          setC(x);
+          setF(keepEdits(before, typed, formFrom(x)));
+          setMsg({ tone: "error", text: "Someone else changed this customer while you were editing, so nothing was saved yet. Their changes are now shown and what you typed is kept — check it and press Save changes again." });
+        } catch (e2) {
+          setMsg({ tone: "error", text: customerMessage(e2) });
+        }
+      } else {
+        setMsg({ tone: "error", text: customerMessage(err) });
+        await load();
+      }
     } finally {
       setBusy(false);
     }

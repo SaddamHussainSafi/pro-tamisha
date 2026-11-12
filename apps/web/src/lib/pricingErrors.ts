@@ -1,9 +1,10 @@
 import { dec, toFixed } from "./decimal";
 import { ApiError } from "../api";
+import { errorText } from "./errors";
 
 /** Plain-language messages for pricing API errors. */
 export function pricingMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "VERSION_CONFLICT":
       return "Someone else changed this price book. The latest version has been loaded — review it and retry.";
@@ -30,7 +31,7 @@ export function pricingMessage(err: unknown): string {
     case "VALIDATION":
       return "Check the highlighted fields.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }
 

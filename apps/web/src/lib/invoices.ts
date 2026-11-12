@@ -1,4 +1,5 @@
 import { ApiError, type EmailStatus, type WeightRow } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 import { add, dec, isDecimal, mul, qty } from "./decimal";
 
@@ -29,7 +30,7 @@ export function weightTotals(rows: WeightDraft[]): { cases: number; lb: string }
 export const toWeightRows = (rows: WeightDraft[]): WeightRow[] => rows.map((r) => ({ cases: Number(r.cases), weight_lb: r.weight.trim() }));
 
 export function invoiceMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Nothing was issued — try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   const x = err.extra;
   switch (err.code) {
     case "INSUFFICIENT_STOCK":
@@ -57,6 +58,6 @@ export function invoiceMessage(err: unknown): string {
     case "MFA_REQUIRED":
       return "You don't have permission to do that.";
     default:
-      return err.message || "Something went wrong. Nothing was issued — try again.";
+      return errorText(err);
   }
 }

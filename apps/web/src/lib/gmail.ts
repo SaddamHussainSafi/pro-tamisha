@@ -2,6 +2,7 @@
 // the inbox screens share. Nothing here ever holds a Google token: the browser only talks to
 // our own API.
 import { ApiError, apiRequest as request, type ScanJobType } from "../api";
+import { errorText } from "./errors";
 import type { Tone } from "../ui/primitives";
 
 export type AccountStatus = "CONNECTED" | "ERROR" | "REAUTH_REQUIRED" | "DISCONNECTED";
@@ -210,11 +211,11 @@ export const pickable = (m: Pick<GmailMessage, "attachments">) => [...m.attachme
 
 /** Server refusal in plain words. */
 export function gmailMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return err instanceof Error ? err.message : "Something went wrong";
+  if (!(err instanceof ApiError)) return errorText(err);
   const known: Record<string, string> = {
-    GMAIL_NOT_CONFIGURED: "Gmail is not set up on this server yet.",
-    GMAIL_NOT_CONNECTED: "No mailbox is connected.",
-    GMAIL_REAUTH_REQUIRED: "The mailbox must be connected again first.",
+    GMAIL_NOT_CONFIGURED: "Gmail is not set up on this server yet. Ask an owner or admin to set up the Gmail connection.",
+    GMAIL_NOT_CONNECTED: "No mailbox is connected. Connect the company mailbox from Gmail Inbox first.",
+    GMAIL_REAUTH_REQUIRED: "Google asked for the mailbox to be connected again. Press Connect Gmail and sign in to Google.",
     GMAIL_UNAVAILABLE: "Gmail did not answer. Try again in a moment.",
     GMAIL_STATE_INVALID: "This connection attempt expired. Start again from Gmail Inbox.",
     GMAIL_SCOPE_MISSING: "Read-only access to the mailbox was not granted. Start again and allow it.",
@@ -223,9 +224,9 @@ export function gmailMessage(err: unknown): string {
     FILE_TOO_LARGE: "The file is larger than the upload limit.",
     UNREADABLE: "The file could not be opened (damaged or password-protected).",
     TOO_MANY_REQUESTS: "Too many requests. Wait a moment.",
-    FORBIDDEN: "Your account can't do this.",
+    FORBIDDEN: "Your account can't do this. Ask an owner or admin to give you access.",
   };
-  return known[err.code] ?? err.message;
+  return known[err.code] ?? errorText(err);
 }
 
 /** The earlier uses the server attaches to an ALREADY_PROCESSED / DRAFT_EXISTS refusal. */

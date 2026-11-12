@@ -1325,6 +1325,50 @@
         "title": "CategoryPrefIn",
         "type": "object"
       },
+      "ClientErrorIn": {
+        "properties": {
+          "kind": {
+            "pattern": "^(render|chunk|unhandled)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Message",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Path",
+            "type": "string"
+          },
+          "reference": {
+            "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+            "title": "Reference",
+            "type": "string"
+          },
+          "stack": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Stack",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "kind"
+        ],
+        "title": "ClientErrorIn",
+        "type": "object"
+      },
       "CompareRow": {
         "properties": {
           "accepted_qty": {
@@ -19159,6 +19203,40 @@
         "summary": "Inspect Link",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/client-errors": {
+      "post": {
+        "operationId": "report_api_v1_client_errors_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientErrorIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report",
+        "tags": [
+          "errors"
         ]
       }
     },

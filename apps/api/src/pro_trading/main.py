@@ -20,6 +20,7 @@ from .routes import (
     admin,
     auth,
     catalog,
+    client_errors,
     customers,
     documents,
     employees,
@@ -53,6 +54,9 @@ class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         base = {"level": record.levelname, "logger": record.name, "msg": record.getMessage()}
         base.update(getattr(record, "ctx", {}))
+        # Unexpected errors keep their traceback in the log (never in the response).
+        if record.exc_info:
+            base["exc"] = self.formatException(record.exc_info)
         return json.dumps(base, default=str)
 
 
@@ -200,6 +204,7 @@ def create_app() -> FastAPI:
         public_orders.router,
         trash.router,
         gmail.router,
+        client_errors.router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app

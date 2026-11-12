@@ -25,6 +25,6 @@ describe("invoiceMessage", () => {
   it("explains blocking errors", () => {
     expect(invoiceMessage(new ApiError(422, "WEIGHTS_MISMATCH", "x", { expected: "7.0000", given: "6" }))).toContain("7.0000");
     expect(invoiceMessage(new ApiError(422, "DISPATCH_NOT_CONFIRMED", "x"))).toContain("dispatch");
-    expect(invoiceMessage(new Error("boom"))).toContain("Nothing was issued");
+    expect(invoiceMessage(new Error("boom"))).toMatch(/check whether your last change was saved/);
   });
 });

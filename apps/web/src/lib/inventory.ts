@@ -1,9 +1,10 @@
 import { ApiError, type MovementType, type Product, type UnitCode } from "../api";
+import { errorText } from "./errors";
 import { dec, toFixed } from "./decimal";
 
 /** Plain-language messages for inventory API errors. */
 export function inventoryMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Nothing was saved — try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   const x = err.extra;
   switch (err.code) {
     case "INSUFFICIENT_STOCK":
@@ -53,7 +54,7 @@ export function inventoryMessage(err: unknown): string {
     case "VALIDATION":
       return "Check the highlighted fields.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }
 

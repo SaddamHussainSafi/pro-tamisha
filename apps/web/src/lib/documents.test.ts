@@ -41,6 +41,6 @@ describe("documentMessage", () => {
     expect(documentMessage(new ApiError(409, "INVALID_STATE", "x"))).toMatch(/Only a failed copy/);
     expect(documentMessage(new ApiError(413, "FILE_TOO_LARGE", "x", { max_bytes: 1048576 }))).toBe("That file is too large. The limit is 1.0 MB.");
     expect(documentMessage(new ApiError(415, "FILE_TYPE_MISMATCH", "x"))).toMatch(/PDF, PNG/);
-    expect(documentMessage(new Error("boom"))).toBe("Something went wrong. Try again.");
+    expect(documentMessage(new Error("boom"))).toMatch(/Something unexpected.*Reload the page/);
   });
 });

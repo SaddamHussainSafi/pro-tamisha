@@ -11,6 +11,6 @@ describe("catalogMessage", () => {
     expect(catalogMessage(new ApiError(422, "INVALID_QUANTITY", "x", { group: 0 }))).toMatch(/Group 1/);
   });
   it("falls back for unknown errors", () => {
-    expect(catalogMessage(new Error("boom"))).toBe("Something went wrong. Try again.");
+    expect(catalogMessage(new Error("boom"))).toMatch(/Something unexpected.*Reload the page/);
   });
 });

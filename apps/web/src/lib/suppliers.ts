@@ -1,4 +1,5 @@
 import { ApiError, type SupplierPayMethod } from "../api";
+import { errorText } from "./errors";
 import { dec, toFixed } from "./decimal";
 
 // Supplier ledger helpers. Amounts keep their own currency; nothing is converted (D-04).
@@ -39,7 +40,7 @@ export function amountProblem(s: string): string | null {
 }
 
 export function supplierMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
+  if (!(err instanceof ApiError)) return errorText(err);
   switch (err.code) {
     case "DUPLICATE_REFERENCE":
       return `${err.message}. Check you're not entering the same payment twice.`;
@@ -56,6 +57,6 @@ export function supplierMessage(err: unknown): string {
     case "VALIDATION":
       return "Check the amount, date and method.";
     default:
-      return err.message;
+      return errorText(err);
   }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import { errorText } from "../../lib/errors";
 import { ApiError } from "../../api";
 import { useAuth } from "../../auth";
 import { CATEGORIES, CATEGORY_ICON } from "../../lib/notifications";
@@ -116,7 +117,7 @@ export function NotificationPreferences() {
       if (e instanceof ApiError && e.code === "VERSION_CONFLICT") {
         setMsg({ tone: "error", text: "These settings were changed in another tab. The latest version is loaded; make your change again." });
         load();
-      } else setMsg({ tone: "error", text: e instanceof ApiError ? e.message : "Couldn't save. Try again." });
+      } else setMsg({ tone: "error", text: errorText(e) });
     } finally {
       setBusy(false);
     }

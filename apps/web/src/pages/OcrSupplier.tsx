@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { errorText } from "../lib/errors";
 import { Link } from "react-router-dom";
 import { api, type OcrExtractionDetail as OcrExtraction, type OcrField, type Vendor } from "../api";
 import { engineText, warningText } from "../lib/ocr";
@@ -279,7 +280,7 @@ export function ToReceiving({ ex, ready, canReceive, onDone }: { ex: OcrExtracti
     try {
       onDone(await api.ocrToReceiving(ex.id, { version: ex.version, vendor_id: vendor, document_no: pick("document_no"), currency: pick("currency"), reviewed_all: true }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't send to Receiving.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }

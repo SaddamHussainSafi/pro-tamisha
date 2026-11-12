@@ -78,6 +78,6 @@ describe("customer form", () => {
   it("explains errors in plain words", () => {
     expect(customerMessage(new ApiError(409, "VERSION_CONFLICT", "x"))).toMatch(/Someone else changed/);
     expect(customerMessage(new ApiError(409, "DUPLICATE", "x"))).toMatch(/already uses this reference/);
-    expect(customerMessage(new Error("boom"))).toBe("Something went wrong. Try again.");
+    expect(customerMessage(new Error("boom"))).toMatch(/Something unexpected.*Reload the page/);
   });
 });
