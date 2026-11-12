@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .. import documents, idempotency, scanning
+from .. import documents, idempotency, scanning, units
 from .. import inventory as inv
 from .. import receiving as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize, deny, require_permission
@@ -855,16 +855,20 @@ def add_declared(
                     f"“{label}” isn't a known product name for {v.name}. Choose the product.",
                 )
             pid, matched_by = hit, "alias"
-        prod = product_for(db, p, pid, body.unit_code)
-        inv.check_qty(body.unit_code, body.declared_qty)
+        unit, qty, cost = body.unit_code, body.declared_qty, body.unit_cost
+        if kg_counted_in_lb(db, p, pid, unit):  # a kg document for a product kept in lb
+            unit, qty = "LB", units.kg_to_lb(qty)
+            cost = units.q4(cost * units.LB_TO_KG) if cost is not None else None
+        prod = product_for(db, p, pid, unit)
+        inv.check_qty(unit, qty)
         d = DeclaredLine(
             shipment_id=s.id,
             shipment_document_id=link.id if link else None,
             raw_label=label,
             product_id=prod.id,
-            unit_code=body.unit_code,
-            declared_qty=inv.q4(body.declared_qty),
-            unit_cost=body.unit_cost,
+            unit_code=unit,
+            declared_qty=inv.q4(qty),
+            unit_cost=cost,
             created_by=p.employee.id,
         )
         db.add(d)
@@ -900,8 +904,9 @@ def add_declared(
             {
                 "declared_line_id": str(d.id),
                 "sku": prod.sku,
-                "unit": body.unit_code,
-                "qty": str(body.declared_qty),
+                "unit": unit,
+                "qty": str(qty),
+                "entered": f"{body.declared_qty} {body.unit_code}",
                 "matched_by": matched_by,
                 "alias_added": alias_added,
             },
@@ -953,6 +958,49 @@ def withdraw_declared(
     )
 
 
+def _num(q: Decimal) -> str:
+    return f"{q.normalize():f}"
+
+
+def kg_counted_in_lb(db: Session, p: Principal, pid: uuid.UUID, unit: str) -> bool:
+    """A product kept in lb may be counted from a kg document: the kg is converted to lb when
+    saved, so its stock stays in one measure (KG is a stock unit only for kg products)."""
+    if unit != "KG":
+        return False
+    prod = db.get(Product, pid)
+    return (
+        prod is not None
+        and prod.company_id == p.company_id
+        and "KG" not in inv.stock_units(db, prod)
+    )
+
+
+def _count_in_stock_unit[T: GrnLineIn](db: Session, p: Principal, body: T) -> T:
+    if not kg_counted_in_lb(db, p, body.product_id, body.unit_code):
+        return body
+    parts = [
+        f"{_num(q)} kg {what}"
+        for q, what in (
+            (body.accepted_qty, "good"),
+            (body.damaged_qty, "damaged"),
+            (body.rejected_qty, "refused"),
+        )
+        if q > 0
+    ]
+    said = "Counted in kg: " + ", ".join(parts)
+    own = (body.note or "").strip()
+    note = f"{own} · {said}" if own else said
+    return body.model_copy(
+        update={
+            "unit_code": "LB",
+            "accepted_qty": units.kg_to_lb(body.accepted_qty),
+            "damaged_qty": units.kg_to_lb(body.damaged_qty),
+            "rejected_qty": units.kg_to_lb(body.rejected_qty),
+            "note": note[:500],
+        }
+    )
+
+
 def _check_count(db: Session, p: Principal, body: GrnLineIn) -> Product:
     prod = product_for(db, p, body.product_id, body.unit_code)
     total = body.accepted_qty + body.damaged_qty + body.rejected_qty
@@ -981,20 +1029,21 @@ def add_count(
 
     def fn() -> Result:
         s = lock_for(db, request, p, shipment_id, "grn.record", body.version, "OPEN")
-        prod = _check_count(db, p, body)
+        b = _count_in_stock_unit(db, p, body)
+        prod = _check_count(db, p, b)
         seq = (db.scalar(select(func.max(GrnLine.seq)).where(GrnLine.shipment_id == s.id)) or 0) + 1
         ln = GrnLine(
             shipment_id=s.id,
             seq=seq,
             product_id=prod.id,
-            unit_code=body.unit_code,
-            accepted_qty=inv.q4(body.accepted_qty),
-            damaged_qty=inv.q4(body.damaged_qty),
-            rejected_qty=inv.q4(body.rejected_qty),
-            batch_ref=(body.batch_ref or "").strip()
+            unit_code=b.unit_code,
+            accepted_qty=inv.q4(b.accepted_qty),
+            damaged_qty=inv.q4(b.damaged_qty),
+            rejected_qty=inv.q4(b.rejected_qty),
+            batch_ref=(b.batch_ref or "").strip()
             or svc.next_batch_ref(db, p.company_id, batch_prefix(db, s)),
-            expires_at=body.expires_at,
-            note=(body.note or "").strip() or None,
+            expires_at=b.expires_at,
+            note=(b.note or "").strip() or None,
             counted_by=p.employee.id,
         )
         db.add(ln)
@@ -1007,10 +1056,10 @@ def add_count(
                 "grn_line_id": str(ln.id),
                 "sku": prod.sku,
                 "batch": ln.batch_ref,
-                "unit": body.unit_code,
-                "accepted": str(body.accepted_qty),
-                "damaged": str(body.damaged_qty),
-                "rejected": str(body.rejected_qty),
+                "unit": b.unit_code,
+                "accepted": str(b.accepted_qty),
+                "damaged": str(b.damaged_qty),
+                "rejected": str(b.rejected_qty),
             },
         )
 
@@ -1036,25 +1085,26 @@ def edit_count(
             raise ApiError(404, "NOT_FOUND", "Count line not found")
         if ln.version != body.line_version:
             raise ApiError(409, "VERSION_CONFLICT", "That count line changed; reload")
-        prod = _check_count(db, p, body)
+        b = _count_in_stock_unit(db, p, body)
+        prod = _check_count(db, p, b)
         before = {
             "accepted": str(ln.accepted_qty),
             "damaged": str(ln.damaged_qty),
             "rejected": str(ln.rejected_qty),
         }
         ln.product_id = prod.id
-        ln.unit_code = body.unit_code
-        ln.accepted_qty = inv.q4(body.accepted_qty)
-        ln.damaged_qty = inv.q4(body.damaged_qty)
-        ln.rejected_qty = inv.q4(body.rejected_qty)
+        ln.unit_code = b.unit_code
+        ln.accepted_qty = inv.q4(b.accepted_qty)
+        ln.damaged_qty = inv.q4(b.damaged_qty)
+        ln.rejected_qty = inv.q4(b.rejected_qty)
         # Left empty: keep the line's batch name, or give it one if it had none (D-37).
         ln.batch_ref = (
-            (body.batch_ref or "").strip()
+            (b.batch_ref or "").strip()
             or ln.batch_ref
             or svc.next_batch_ref(db, p.company_id, batch_prefix(db, s))
         )
-        ln.expires_at = body.expires_at
-        ln.note = (body.note or "").strip() or None
+        ln.expires_at = b.expires_at
+        ln.note = (b.note or "").strip() or None
         ln.counted_by = p.employee.id
         ln.version += 1
         ln.updated_at = svc.now()

@@ -81,6 +81,9 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
   const cl = page.getByRole("form", { name: "Add count line" });
   await cl.getByLabel("Batch").focus();
   await expect(cl.getByLabel("Batch")).toHaveAttribute("placeholder", "ARE-0001");
+  // Unit: box, lb and kg are offered; lb unless the documents are in kg.
+  await expect(cl.getByLabel("Unit", { exact: true })).toHaveValue("LB");
+  await expect(cl.getByLabel("Unit", { exact: true }).locator("option")).toHaveText(["box", "lb", "kg"]);
   await cl.getByLabel("Product").fill("CFZ");
   await cl.getByLabel("Unit", { exact: true }).selectOption("BOX");
   await cl.getByLabel("Good").fill("23");

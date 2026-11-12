@@ -1,4 +1,4 @@
-import { ApiError, type CompareRow, type ProductSummary, type CompareStatus, type LandedCostKind, type ShipmentDocKind, type ShipmentStatus } from "../api";
+import { ApiError, type CompareRow, type DeclaredLine, type ProductSummary, type UnitCode, type CompareStatus, type LandedCostKind, type ShipmentDocKind, type ShipmentStatus } from "../api";
 import type { Tone } from "../ui/primitives";
 import { add, dec, isDecimal, toFixed } from "./decimal";
 import { qtyText } from "./inventory";
@@ -125,3 +125,34 @@ export function findProduct<P extends Pick<ProductSummary, "sku" | "name">>(prod
     null
   );
 }
+
+/* ---------- units on the receiving screen (owner, 2026-11-12: "kg, lb and box everywhere,
+   lb by default, kg only if the shipment's documents are in kg") ---------- */
+
+export type UnitChoice = { value: UnitCode; label: string; disabled?: boolean };
+
+const KG_WORD = /\bkgs?\b|\bkilo/i;
+
+/** Box, lb and kg are always offered (piece only for products sold by the piece). A product
+ * kept in lb may be entered in kg: the server saves it as lb. A box needs a case size. */
+export function receiveUnits(stock: UnitCode[] | null): UnitChoice[] {
+  const out: UnitChoice[] = [];
+  const known = stock === null; // no product chosen yet
+  out.push(known || stock.includes("BOX") ? { value: "BOX", label: "box" } : { value: "BOX", label: "box (no case size)", disabled: true });
+  if (stock?.includes("PIECE")) out.push({ value: "PIECE", label: "piece" });
+  out.push({ value: "LB", label: "lb" }, { value: "KG", label: "kg" });
+  return out;
+}
+
+/** The shipment's documents are in kg: a line read from them says KG. */
+export function docsInKg(declared: Pick<DeclaredLine, "raw_label" | "unit_code" | "removed_at">[]): boolean {
+  return declared.some((d) => !d.removed_at && (d.unit_code === "KG" || KG_WORD.test(d.raw_label)));
+}
+
+export const mentionsKg = (text: string) => KG_WORD.test(text);
+
+/** lb unless the documents are in kg. */
+export const defaultUnit = (kg: boolean): UnitCode => (kg ? "KG" : "LB");
+
+/** True when kg is chosen for a product whose stock is kept in lb (saved as lb). */
+export const kgSavedAsLb = (unit: UnitCode, stock: UnitCode[] | null) => unit === "KG" && !!stock && !stock.includes("KG");

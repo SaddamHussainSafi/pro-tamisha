@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api";
 import { todayIso } from "./format";
-import { countTotal, diffText, findProduct, moneyText, productLabel, receivingMessage, saleableSummary, unitPlaces } from "./receiving";
+import { countTotal, defaultUnit, diffText, docsInKg, findProduct, kgSavedAsLb, receiveUnits, moneyText, productLabel, receivingMessage, saleableSummary, unitPlaces } from "./receiving";
 
 describe("receiving helpers", () => {
   it("adds count parts exactly and treats blanks as zero", () => {
@@ -73,5 +73,29 @@ describe("today's date for date fields", () => {
   it("is the local calendar day as YYYY-MM-DD", () => {
     expect(todayIso(new Date(2026, 10, 11, 23, 59))).toBe("2026-11-11");
     expect(todayIso(new Date(2027, 0, 5, 0, 1))).toBe("2027-01-05");
+  });
+});
+
+describe("receiving units: box, lb and kg everywhere; lb unless the documents are in kg", () => {
+  it("always offers box, lb and kg; box needs a case size, piece only when used", () => {
+    expect(receiveUnits(null).map((u) => u.value)).toEqual(["BOX", "LB", "KG"]);
+    expect(receiveUnits(["BOX", "LB"]).every((u) => !u.disabled)).toBe(true);
+    const lbOnly = receiveUnits(["LB"]);
+    expect(lbOnly.map((u) => [u.value, !!u.disabled])).toEqual([["BOX", true], ["LB", false], ["KG", false]]);
+    expect(receiveUnits(["PIECE", "LB"]).map((u) => u.value)).toEqual(["BOX", "PIECE", "LB", "KG"]);
+  });
+  it("defaults to kg only when a document line is in kg", () => {
+    const line = (raw_label: string, unit_code: "LB" | "KG" = "LB", removed_at: string | null = null) => ({ raw_label, unit_code, removed_at });
+    expect(defaultUnit(docsInKg([]))).toBe("LB");
+    expect(defaultUnit(docsInKg([line("0910990000 THYME co 105 KG 15 55.00")]))).toBe("KG");
+    expect(docsInKg([line("YAM 40 LB", "KG")])).toBe(true);
+    expect(docsInKg([line("THYME 105 KG", "LB", "2026-11-12T00:00:00Z")])).toBe(false); // withdrawn
+    expect(docsInKg([line("KGALA ROOTS 10 LB")])).toBe(false);
+  });
+  it("says when kg will be saved as lb", () => {
+    expect(kgSavedAsLb("KG", ["LB"])).toBe(true);
+    expect(kgSavedAsLb("KG", ["KG", "LB"])).toBe(false);
+    expect(kgSavedAsLb("LB", ["LB"])).toBe(false);
+    expect(kgSavedAsLb("KG", null)).toBe(false);
   });
 });

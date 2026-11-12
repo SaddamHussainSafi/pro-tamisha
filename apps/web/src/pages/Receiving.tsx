@@ -26,7 +26,7 @@ import { useViewMode } from "../lib/viewMode";
 import { CardGrid, CardGridSkeleton, EntityCard, Tile } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
 import { stockUnits, qtyText } from "../lib/inventory";
-import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, findProduct, productLabel, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
+import { COMPARE, COST_KIND, countTotal, defaultUnit, diffText, DOC_KIND, docsInKg, findProduct, kgSavedAsLb, mentionsKg, productLabel, receiveUnits, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
 import { ACCEPT, checkFile, fileSize } from "../lib/scans";
 import { useTrashChanges } from "../lib/trash";
 import { DeleteAction } from "../ui/DeleteAction";
@@ -64,7 +64,9 @@ function useCatalog() {
     return p;
   }, [full]);
   const units = (id: string): UnitCode[] => (full[id] ? stockUnits(full[id]) : []);
-  return { products, full, load, units };
+  /** Stock units of a loaded product; null while none is chosen or it is still loading. */
+  const stock = (id: string): UnitCode[] | null => (id && full[id] ? stockUnits(full[id]) : null);
+  return { products, full, load, units, stock };
 }
 
 /* ================================ List ================================ */
@@ -675,7 +677,8 @@ const COLS = "md:grid-cols-[minmax(12rem,2.2fr)_5.5rem_repeat(3,minmax(5.5rem,0.
 function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run; catalog: Catalog }) {
   const [text, setText] = useState("");
   const [product, setProduct] = useState("");
-  const [unit, setUnit] = useState<UnitCode>("BOX");
+  const kgDocs = docsInKg(s.declared);
+  const [unit, setUnit] = useState<UnitCode>(() => defaultUnit(kgDocs));
   const [accepted, setAccepted] = useState("");
   const [damaged, setDamaged] = useState("");
   const [rejected, setRejected] = useState("");
@@ -688,7 +691,8 @@ function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; 
   const places = unitPlaces(unit);
   const total = countTotal(accepted, damaged, rejected);
   const totals = useMemo(() => saleableSummary(s.counted.map((c) => ({ accepted_qty: c.accepted_qty, unit_code: c.unit_code }))), [s.counted]);
-  const units = product ? catalog.units(product) : (["BOX", "PIECE", "LB", "KG"] as UnitCode[]);
+  const stock = catalog.stock(product);
+  const units = receiveUnits(stock);
   const u = unit.toLowerCase();
   const picked = catalog.products.find((p) => p.id === product);
 
@@ -698,10 +702,10 @@ function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; 
     setProduct(p?.id ?? "");
     if (p) {
       setHint(null);
+      // lb / kg stay as chosen; box / piece only if this product has them
       void catalog.load(p.id).then((full) => {
         const us = full ? stockUnits(full) : [];
-        const first = full && us.includes(full.stock_unit) ? full.stock_unit : us[0];
-        if (first) setUnit(first);
+        setUnit((u) => (us.includes(u) || u === "LB" || u === "KG" ? u : defaultUnit(kgDocs)));
       });
     }
   }
@@ -805,7 +809,7 @@ function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; 
           <div className="min-w-0">
             <label className="label md:sr-only" htmlFor="cl-u">Unit</label>
             <select id="cl-u" className="input py-2" value={unit} onChange={(e) => setUnit(e.target.value as UnitCode)}>
-              {units.map((x) => <option key={x} value={x}>{x.toLowerCase()}</option>)}
+              {units.map((x) => <option key={x.value} value={x.value} disabled={x.disabled}>{x.label}</option>)}
             </select>
           </div>
           <QtyCell id="cl-a" label="Good" unit={u} value={accepted} onChange={setAccepted} places={places} />
@@ -827,7 +831,8 @@ function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; 
           {hint && <p role="alert" className="col-span-2 text-sm text-danger md:col-span-9">{hint}</p>}
           <p className="col-span-2 text-xs text-ink-muted md:col-span-9" aria-live="polite">
             {picked && <><span className="font-medium text-ink">{picked.name}</span> ({picked.sku}) · </>}
-            Total on this row: <span className="num font-semibold text-ink">{qtyText(total, unit)}</span> · Enter saves the row.
+            Total on this row: <span className="num font-semibold text-ink">{qtyText(total, unit)}</span>
+            {kgSavedAsLb(unit, stock) ? " · kg is changed to lb when saved (stock is kept in lb)" : ""} · Enter saves the row.
           </p>
         </form>
       )}
@@ -905,7 +910,7 @@ function DeclaredLines({ s, live, gone, editable, busy, run, catalog, docName, o
   const [docId, setDocId] = useState("");
   const [label, setLabel] = useState("");
   const [product, setProduct] = useState("");
-  const [unit, setUnit] = useState<UnitCode>("BOX");
+  const [unit, setUnit] = useState<UnitCode>(() => defaultUnit(docsInKg(s.declared)));
   const [q, setQ] = useState("");
   const [cost, setCost] = useState("");
   const [remember, setRemember] = useState(true);
@@ -978,7 +983,17 @@ function DeclaredLines({ s, live, gone, editable, busy, run, catalog, docName, o
           </div>
           <div className="md:col-span-2">
             <label className="label" htmlFor="dl-label">Description as printed</label>
-            <input id="dl-label" className="input" value={label} maxLength={200} required onChange={(e) => setLabel(e.target.value)} />
+            <input
+              id="dl-label"
+              className="input"
+              value={label}
+              maxLength={200}
+              required
+              onChange={(e) => {
+                setLabel(e.target.value);
+                if (mentionsKg(e.target.value) && unit === "LB") setUnit("KG"); // "105 KG" on the paper
+              }}
+            />
           </div>
           <ProductUnit idp="dl" optional catalog={catalog} product={product} unit={unit} onProduct={setProduct} onUnit={setUnit} />
           <NumericInput label="Quantity on document" value={q} onChange={setQ} places={unitPlaces(unit)} invalidHint={unitPlaces(unit) === 0 ? "Whole numbers only" : undefined} />
@@ -1000,7 +1015,7 @@ function DeclaredLines({ s, live, gone, editable, busy, run, catalog, docName, o
 }
 
 function ProductUnit({ catalog, product, unit, onProduct, onUnit, idp, optional }: { catalog: Catalog; product: string; unit: string; onProduct: (id: string) => void; onUnit: (u: UnitCode) => void; idp: string; optional?: boolean }) {
-  const units = catalog.units(product);
+  const units = receiveUnits(catalog.stock(product));
   return (
     <>
       <div>
@@ -1014,8 +1029,7 @@ function ProductUnit({ catalog, product, unit, onProduct, onUnit, idp, optional 
             onProduct(id);
             void catalog.load(id).then((p) => {
               const us = p ? stockUnits(p) : [];
-              const first = p && us.includes(p.stock_unit) ? p.stock_unit : us[0];
-              if (first) onUnit(first);
+              if (!(us.includes(unit as UnitCode) || unit === "LB" || unit === "KG")) onUnit("LB");
             });
           }}
         >
@@ -1026,7 +1040,7 @@ function ProductUnit({ catalog, product, unit, onProduct, onUnit, idp, optional 
       <div>
         <label className="label" htmlFor={`${idp}-u`}>Unit</label>
         <select id={`${idp}-u`} className="input" value={unit} onChange={(e) => onUnit(e.target.value as UnitCode)}>
-          {product === "" ? (["BOX", "PIECE", "LB", "KG"] as UnitCode[]).map((u) => <option key={u} value={u}>{u}</option>) : units.length === 0 ? <option value="">—</option> : units.map((u) => <option key={u} value={u}>{u}</option>)}
+          {units.map((x) => <option key={x.value} value={x.value} disabled={x.disabled}>{x.label}</option>)}
         </select>
       </div>
     </>

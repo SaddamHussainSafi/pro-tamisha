@@ -309,8 +309,9 @@ def test_validation_rules(owner, world, setup):
     assert code(count(owner, s, milk, "5", unit="PIECE")) == "EXPIRY_REQUIRED"
     r = count(owner, s, cas, "1.5")
     assert r.status_code == 422  # BOX is a whole unit
-    r = count(owner, s, cas, "2.0", unit="KG")
-    assert r.status_code == 422
+    r = count(owner, s, cas, "2.0", unit="KG")  # kept in lb: saved as lb (owner, 2026-11-12)
+    assert r.status_code == 201 and r.json()["counted"][0]["unit_code"] == "LB"
+    s = act(owner, r.json(), f"count/{r.json()['counted'][0]['id']}/remove", {}).json()
     r = count(owner, s, milk, "5", unit="PIECE", expires_at="2027-01-31", batch_ref="B-9")
     assert r.status_code == 201, r.text
     assert r.json()["comparison"][0]["status"] == "NOT_DECLARED"
@@ -570,3 +571,25 @@ def test_counting_by_hand_needs_no_document(owner, world, setup):
     assert r.status_code == 200, r.text
     n, total = movements(world.company_id)
     assert n == 1 and total == 4
+
+
+def test_kg_for_a_product_kept_in_lb_is_saved_in_lb(owner, world, setup):
+    """A kg document / kg count for a product stocked in lb is converted exactly
+    (1 lb = 0.45359237 kg, 4 places) so its stock stays in one measure."""
+    yam = setup["p"]["YAM"]
+    s = new_shipment(owner, world, setup)
+    r = declare(owner, s, None, yam, "105", unit="KG", label="YAM 105 KG", unit_cost="2.2046")
+    assert r.status_code == 201, r.text
+    s = r.json()
+    d = s["declared"][0]
+    assert (d["unit_code"], d["declared_qty"], d["unit_cost"]) == ("LB", "231.4854", "1.0000")
+    r = count(owner, s, yam, "105", damaged="2", unit="KG", note="wet bag")
+    assert r.status_code == 201, r.text
+    c = r.json()["counted"][0]
+    assert (c["unit_code"], c["accepted_qty"], c["damaged_qty"]) == ("LB", "231.4854", "4.4092")
+    assert c["note"] == "wet bag · Counted in kg: 105 kg good, 2 kg damaged"
+    row = r.json()["comparison"][0]
+    assert row["unit_code"] == "LB" and row["declared_qty"] == "231.4854"
+    # a box is still only allowed for products with a case size
+    r = count(owner, r.json(), yam, "3", unit="BOX")
+    assert r.status_code == 422 and code(r) == "INVALID_UNIT"

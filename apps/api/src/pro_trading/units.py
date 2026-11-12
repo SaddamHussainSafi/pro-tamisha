@@ -56,6 +56,11 @@ def lb_to_kg(lb: Decimal) -> Decimal:
     return q4(lb * LB_TO_KG)
 
 
+def kg_to_lb(kg: Decimal) -> Decimal:
+    """Exact definition (1 lb = 0.45359237 kg), rounded to the 4 places stock is kept in."""
+    return q4(kg / LB_TO_KG)
+
+
 def group_weight(
     profile: ProfileLike, count: Decimal, entered_lb_per_unit: Decimal | None = None
 ) -> GroupResult:
