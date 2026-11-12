@@ -218,6 +218,7 @@ def test_andy_reads_his_mail_safely(lark, make_api, world) -> None:
     assert cafe["from_name"] == "José" and not cafe["unread"]
     order = page["items"][2]
     assert order["thread_count"] == 2 and order["attachment_count"] == 1 and order["unread"]
+    assert [a["filename"] for a in order["attachments"]] == ["PO-5521.pdf"]
     m = andy.get(f"/api/v1/mail/messages/{order['id']}").json()
     assert "<script" not in m["body_html"] and "alert" not in m["body_html"]
     assert "onerror" not in m["body_html"] and "javascript:" not in m["body_html"]

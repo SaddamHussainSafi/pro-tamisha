@@ -156,6 +156,10 @@ def send_one(sm, outgoing_id: uuid.UUID) -> int:  # type: ignore[no-untyped-def]
         if acc is not None:
             if status == "SENT":
                 acc.smtp_ok_at, acc.smtp_error = now(), None
+                # Lark files its own copy in Sent: fetch it on the next beat (~20 s), not
+                # after the mailbox's normal interval.
+                if acc.sync_enabled and acc.status in ("CONNECTED", "ERROR"):
+                    acc.next_sync_at = now()
             elif err:
                 acc.smtp_error = err
         db.commit()

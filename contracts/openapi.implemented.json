@@ -8155,6 +8155,14 @@
             "title": "Attachment Count",
             "type": "integer"
           },
+          "attachments": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
           "folder_id": {
             "format": "uuid",
             "title": "Folder Id",

@@ -120,6 +120,8 @@ class MessageRow(BaseModel):
     attachment_count: int
     removed_in_lark: bool
     highlight: str | None = None
+    # Up to three files for the chips under the subject (inline pictures left out).
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MessagePage(BaseModel):
@@ -306,6 +308,17 @@ def _rows(db: Session, p: Principal, msgs: list[MailMessage]) -> list[MessageRow
             .group_by(MailMessage.account_id, MailMessage.thread_key)
         ):
             counts[(acc_id, tk)] = int(n)
+    chips: dict[uuid.UUID, list[dict[str, Any]]] = {}
+    with_files = [m.id for m in msgs if m.attachment_count]
+    if with_files:
+        for a in db.scalars(
+            select(MailAttachment)
+            .where(MailAttachment.message_id.in_(with_files), MailAttachment.inline.is_(False))
+            .order_by(MailAttachment.message_id, MailAttachment.part_id)
+        ):
+            lst = chips.setdefault(a.message_id, [])
+            if len(lst) < 3:
+                lst.append(_att_out(a).model_dump(mode="json"))
     out = []
     for m in msgs:
         s = st.get(m.id)
@@ -325,6 +338,7 @@ def _rows(db: Session, p: Principal, msgs: list[MailMessage]) -> list[MessageRow
                 starred=s.starred if s is not None else m.flagged,
                 attachment_count=m.attachment_count,
                 removed_in_lark=m.server_removed_at is not None,
+                attachments=chips.get(m.id, []),
             )  # fmt: skip
         )
     return out
