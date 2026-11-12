@@ -211,7 +211,8 @@ test("Create invoice keeps its two ways and gains Pick from Gmail", async ({ pag
 
   const use = page.getByRole("dialog", { name: "Use for OCR" });
   await expect(use.getByLabel("Document type")).toHaveValue("PICK_SHEET");
-  await expect(use.getByLabel("Warehouse")).toContainText("Main Warehouse");
+  // single main warehouse: never chosen (owner, 2026-11-12)
+  await expect(use.getByLabel("Warehouse")).toHaveCount(0);
   await expect(use.getByText("Nothing is invoiced and no stock moves.")).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/use-for-ocr-1440.png`, animations: "disabled" });
   await use.getByRole("button", { name: "Read with OCR" }).click();

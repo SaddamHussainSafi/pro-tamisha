@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorText } from "../lib/errors";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ApiError, api, has, hasCompanyWide, type Warehouse } from "../api";
+import { ApiError, api, has, hasCompanyWide } from "../api";
 import { useAuth } from "../auth";
 import { useTrashChanges } from "../lib/trash";
 import { useOcLive } from "../lib/useOcLive";
@@ -496,7 +496,6 @@ function Row({ label, value }: { label: string; value: string }) {
 
 function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => void }) {
   const a = useAccess();
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [wh, setWh] = useState(d.default_warehouse_id ?? "");
   const [matches, setMatches] = useState<CustomerMatch[] | null>(null);
   const [choice, setChoice] = useState<string>("");
@@ -513,8 +512,7 @@ function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => v
   useEffect(() => {
     api.warehouses().then((w) => {
       const act = w.filter((x) => x.active);
-      setWarehouses(act);
-      setWh((cur) => cur || (act.length === 1 ? (act[0]?.id ?? "") : ""));
+      setWh((cur) => (act.some((x) => x.id === cur) ? cur : (act[0]?.id ?? ""))); // single main warehouse, never chosen
     }, () => undefined);
     oc.matches(d.id).then((m) => { setMatches(m); setChoice(m[0] && m[0].score >= 3 ? m[0].id : a.customers ? "new" : ""); }, () => setMatches([]));
   }, [d.id, a.customers]);
@@ -527,7 +525,7 @@ function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => v
     e.preventDefault();
     setErr("");
     const keep = lines.filter((l) => l.keep);
-    if (!wh) return setErr("Choose the warehouse the order ships from.");
+    if (!wh) return setErr("No warehouse is set up yet. Ask an administrator.");
     if (!choice) return setErr("Choose a customer.");
     if (choice === "new" && !newName.trim()) return setErr("Give the new customer a name.");
     if (!keep.length) return setErr("Keep at least one product line.");
@@ -604,13 +602,6 @@ function ConvertPanel({ d, onDone }: { d: SubDetail; onDone: (d: SubDetail) => v
           </>
         )}
       </fieldset>
-      <div>
-        <label htmlFor="oc-wh" className="label">Ships from</label>
-        <select id="oc-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)}>
-          <option value="">Choose a warehouse</option>
-          {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
-        </select>
-      </div>
       <fieldset>
         <legend className="label">Lines</legend>
         <ul className="space-y-2">

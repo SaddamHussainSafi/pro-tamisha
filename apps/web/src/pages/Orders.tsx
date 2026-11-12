@@ -12,7 +12,6 @@ import {
   type OrderSummary,
   type InvoiceSummary,
   type UnitCode,
-  type Warehouse,
 } from "../api";
 import { useAuth } from "../auth";
 import { qtyText, wholeOnly } from "../lib/inventory";
@@ -190,7 +189,6 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
   const nav = useNavigate();
   const { products } = useGridProducts();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [customer, setCustomer] = useState(draft?.customer_id ?? "");
   const [wh, setWh] = useState(draft?.warehouse_id ?? "");
   const [wanted, setWanted] = useState(day(draft?.requested_for ?? null));
@@ -209,7 +207,6 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
     api.customers({ limit: 200 }).then((c) => setCustomers(c.filter((x) => x.active || x.id === draft?.customer_id)), () => setCustomers([]));
     api.warehouses().then((w) => {
       const ok = w.filter((x) => x.active && session && canInWarehouse(session, "sales_order.manage", x.id));
-      setWarehouses(ok);
       setWh((cur) => (ok.some((x) => x.id === cur) ? cur : (ok[0]?.id ?? "")));
     }, () => setWh(""));
   }, [session, draft?.customer_id]);
@@ -321,24 +318,11 @@ function OrderForm({ draft, onChanged }: { draft?: Order; onChanged?: () => Prom
           </label>
           <input id="so-wanted" type="date" className="input" value={wanted} onChange={(e) => setWanted(e.target.value)} onKeyDown={toGrid} />
         </div>
-        <div className="md:col-span-4">
-          <label className="label" htmlFor="so-wh">
-            Warehouse
-          </label>
-          <select id="so-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)} onKeyDown={toGrid}>
-            {!warehouses.length && <option value="">None you can take orders in</option>}
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="md:col-span-3">
           <span className="label">Payment terms</span>
           <p className="input bg-subtle text-ink-muted">{cust?.payment_terms_days ? `${cust.payment_terms_days} days` : "—"}</p>
         </div>
-        <div className="md:col-span-5">
+        <div className="md:col-span-9">
           <label className="label" htmlFor="so-note">
             Note (optional)
           </label>

@@ -1096,3 +1096,13 @@ No application code has been generated or executed by this planning pack. This l
     - A reopened draft lists its files by count only.
     - "Create draft order" only links to the customer (no prefill route).
     - The ⌘K screen list shows Email to people without access.
+
+## 2026-11-12 — Owner UI pass: no warehouse choosers, Scan Center without the scanner bridge, auto-hide sidebar
+
+- **Warehouse choosers removed** from Scan Box "Use for OCR", New sales order, New invoice (direct) and Order Connect "Ships from". The first warehouse the person may act in is sent automatically (D-47). No API change.
+- **OCR review grid:** the confirm check now sits in the action cell with fixed slots (check · Correct · remove), 28 px controls, vertically centred, action column widened to 11rem so nothing spills into Status.
+- **Scan Center:** "Scanner / device" and "Scan now" removed; heading is "New scan". Buttons: Upload files + **Import from Scan Box** (the Gmail picker in a dialog; the chosen file is read through `POST /gmail/attachments/{id}/process` and the result opens like an upload). Scanners tab and the header "Scanner: …" pill removed from the UI; scanner tables, endpoints and paired devices are untouched.
+- **Notifications panel:** fixed height `min(45rem, 80dvh, 100dvh − 6.5rem)` on desktop, list scrolls inside.
+- **Sidebar:** the collapse button is now "Auto-hide sidebar": the icon rail stays (88 px) and widens to the full sidebar over the page on hover/focus; "Keep sidebar open" pins it again. Remembered per browser (`pt.sidebar.collapsed`).
+- **Results:** `tsc -b` clean; `vitest` 299 passed; eslint clean on touched files. Playwright: scans (rewritten for upload/import; bridge tests dropped), navigation (+ auto-hide test), notifications (+ height check), gmail, ocr-review-grid, smoke, orders, order-connect passed. scan-uploads passed run alone. `ocr.spec` and `scan-processing.spec` failed on this dev stack because its worker reads with real Gemini while those specs expect the fake engine (exact readings and step timing); this change only alters layout there.
+- Screens checked in the browser at 1440 and 390 px.

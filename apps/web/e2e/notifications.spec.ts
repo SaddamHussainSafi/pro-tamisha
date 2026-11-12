@@ -112,6 +112,9 @@ test("bell shows the unread count; the panel groups real events and is keyboard 
   await expect(panel.getByText("Critical ·")).toBeVisible(); // never colour alone
   // Focus starts inside the panel; Escape closes it and gives focus back to the bell.
   await expect(panel.getByRole("button", { name: "Unread" })).toBeFocused();
+  // Tall panel (owner, 2026-11-12): most of the window, even with few notifications.
+  const vh = page.viewportSize()?.height ?? 0;
+  expect((await panel.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(Math.min(720, vh * 0.8, vh - 104) - 2);
   await axe(page, "[role=dialog]");
   await page.screenshot({ path: "screenshots/notifications-panel-1440.png" });
   await page.keyboard.press("Escape");

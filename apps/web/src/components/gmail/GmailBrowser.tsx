@@ -425,8 +425,9 @@ function AttachmentRow({ a, status, picker, picked, onPick, onPreview, onUse }: 
 function ProcessDialog({ attachment, status, defaultCategory, onClose, onDone }: { attachment: GmailAttachment; status: GmailStatus; defaultCategory: GmailCategory; onClose: () => void; onDone: (out: ProcessOut) => void }) {
   const { session } = useAuth();
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [wh, setWh] = useState("");
+  // Single main warehouse: the first one this person may scan for is used, never chosen.
+  const [warehouses, setWarehouses] = useState<Warehouse[] | null>(null);
+  const wh = warehouses?.[0]?.id ?? "";
   const [category, setCategory] = useState<GmailCategory>(defaultCategory);
   const [again, setAgain] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -444,7 +445,6 @@ function ProcessDialog({ attachment, status, defaultCategory, onClose, onDone }:
       (w) => {
         const ok = w.filter((x) => x.active && session && canInWarehouse(session, "scan.create", x.id));
         setWarehouses(ok);
-        setWh((cur) => cur || (ok[0]?.id ?? ""));
       },
       () => setWarehouses([]),
     );
@@ -535,34 +535,20 @@ function ProcessDialog({ attachment, status, defaultCategory, onClose, onDone }:
               </div>
             )}
             {(!repeat || status.can_reprocess) && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label" htmlFor="gm-cat">
-                    Document type
-                  </label>
-                  <select id="gm-cat" className="input" value={category} onChange={(e) => setCategory(e.target.value as GmailCategory)}>
-                    {CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label" htmlFor="gm-wh">
-                    Warehouse
-                  </label>
-                  <select id="gm-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)}>
-                    {!warehouses.length && <option value="">None you can scan for</option>}
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="label" htmlFor="gm-cat">
+                  Document type
+                </label>
+                <select id="gm-cat" className="input" value={category} onChange={(e) => setCategory(e.target.value as GmailCategory)}>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
+            {warehouses !== null && !wh && <p className="alert-danger">You do not have permission to scan documents. Ask an administrator.</p>}
             {!repeat && <p className="text-ink-muted">The file is fetched from Gmail and read. You then check every line; accepting the reading creates a draft sales order. Nothing is invoiced and no stock moves.</p>}
           </>
         )}

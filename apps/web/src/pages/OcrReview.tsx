@@ -518,14 +518,14 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
               <p className="text-sm text-ink-muted">No lines were read.</p>
             ) : (
               <div className="overflow-x-auto rounded-[var(--radius-ctl)] border border-line 2xl:overflow-visible">
-                <table className="w-full min-w-[36rem] table-fixed border-collapse text-sm" aria-label="Recognized lines">
+                <table className="w-full min-w-[40rem] table-fixed border-collapse text-sm" aria-label="Recognized lines">
                   <colgroup>
                     {reviewing && <col style={{ width: "2.25rem" }} />}
                     <col style={{ width: "2.5rem" }} />
                     <col />
                     <col style={{ width: "5.25rem" }} />
                     <col style={{ width: "8.5rem" }} />
-                    {reviewing && <col style={{ width: "8rem" }} />}
+                    {reviewing && <col style={{ width: "11rem" }} />}
                   </colgroup>
                   <thead>
                     <tr>
@@ -825,21 +825,26 @@ function FieldRow({
           )}
         </td>
         {reviewing && (
-          <td className={td}>
+          <td className={`${td} align-middle`}>
             {!editor && (
-              <span className="flex items-center justify-end gap-0.5">
-                {open && canConfirm(f) && (
-                  <button className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover disabled:opacity-50" disabled={busy} onClick={onConfirm} aria-label={`Confirm line ${f.seq}`} title="Confirm as read">
-                    <Icon name="check" size={15} />
+              // Fixed slots (confirm · correct · remove) so the buttons line up row after row and never spill into Status.
+              <span className="flex flex-nowrap items-center justify-end gap-1.5">
+                {open && canConfirm(f) ? (
+                  <button className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:opacity-50" disabled={busy} onClick={onConfirm} aria-label={`Confirm line ${f.seq}`} title="Confirm as read">
+                    <Icon name="check" size={14} />
                   </button>
+                ) : (
+                  <span className="size-7 shrink-0" aria-hidden="true" />
                 )}
-                <button className={`${small} shrink-0 border border-line bg-card text-ink hover:bg-subtle`} disabled={busy} onClick={onCorrect} aria-label={`${open && !canConfirm(f) ? "Enter" : "Correct"} line ${f.seq}`}>
+                <button className={`${small} h-7 shrink-0 border border-line bg-card py-0 text-ink hover:bg-subtle`} disabled={busy} onClick={onCorrect} aria-label={`${open && !canConfirm(f) ? "Enter" : "Correct"} line ${f.seq}`}>
                   {open && !canConfirm(f) ? "Enter" : "Correct"}
                 </button>
-                {f.resolution !== "REMOVED" && (
+                {f.resolution !== "REMOVED" ? (
                   <button className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-ink-muted hover:bg-line hover:text-ink disabled:opacity-50" disabled={busy} onClick={onRemove} aria-label={`Remove line ${f.seq}`} title="Remove this line">
                     <Icon name="trash" size={15} />
                   </button>
+                ) : (
+                  <span className="size-7 shrink-0" aria-hidden="true" />
                 )}
               </span>
             )}

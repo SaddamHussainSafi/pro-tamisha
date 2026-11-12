@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { api, has, type Warehouse } from "../api";
+import { has } from "../api";
 import { useAuth } from "../auth";
 import { roleLabel } from "../lib/staff";
 import { NAV_GROUPS, SETTINGS, TRASH, type NavItem } from "../nav";
@@ -18,6 +18,7 @@ import { NotificationProvider } from "./notifications/NotificationProvider";
 import { QuickJump, SearchButton } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
 
+/** "1" = the sidebar hides itself and slides in when the pointer reaches the left edge. */
 const COLLAPSE_KEY = "pt.sidebar.collapsed";
 
 function remember(value: boolean) {
@@ -131,7 +132,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 
 /* ------------------------------- panel ------------------------------- */
 
-function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; onToggle?: () => void; onClose?: () => void }) {
+function SidebarPanel({ collapsed, autoHide = false, onToggle, onClose }: { collapsed: boolean; autoHide?: boolean; onToggle?: () => void; onClose?: () => void }) {
   const { session, logout } = useAuth();
   const name = session?.employee.display_name;
   const role = session?.roles?.length ? session.roles.map(roleLabel).join(", ") : session?.employee.email;
@@ -146,10 +147,11 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
             type="button"
             className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl bg-subtle text-ink transition-colors duration-150 hover:bg-line"
             onClick={onToggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!collapsed}
+            aria-label={autoHide ? "Keep sidebar open" : "Auto-hide sidebar"}
+            title={autoHide ? "Keep the sidebar open" : "Hide the sidebar; it slides in when you point at the left edge"}
+            aria-pressed={autoHide}
           >
-            <Icon name={collapsed ? "chevron" : "chevronLeft"} size={18} />
+            <Icon name={autoHide ? "chevron" : "chevronLeft"} size={18} />
           </button>
         )}
         {onClose && (
@@ -194,19 +196,27 @@ export function Shell() {
   const { session } = useAuth();
   const loc = useLocation();
   const [drawer, setDrawer] = useState(false);
-  const [collapsed, setCollapsed] = useState(recall);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [autoHide, setAutoHide] = useState(recall);
+  const [peek, setPeek] = useState(false);
+  const hideTimer = useRef<number | undefined>(undefined);
+  const show = () => {
+    window.clearTimeout(hideTimer.current);
+    setPeek(true);
+  };
+  const hideSoon = () => {
+    window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => setPeek(false), 250);
+  };
+  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
   const jump = useRef<HTMLInputElement>(null);
   const main = useRef<HTMLElement>(null);
   const menuBtn = useRef<HTMLButtonElement>(null);
   const drawerEl = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    api.warehouses().then(setWarehouses).catch(() => setWarehouses([]));
-  }, []);
   // A new screen starts at the top (the page scrolls inside <main>, which the router doesn't reset).
   useEffect(() => {
     setDrawer(false);
+    setPeek(false);
     main.current?.scrollTo({ top: 0 });
   }, [loc.pathname]);
   // Drawer: focus moves into it when it opens and back to the menu button when it closes.
@@ -238,8 +248,6 @@ export function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // No warehouse picker: the scanner hint follows the first warehouse the user can see.
-  const active = warehouses[0];
   const name = session?.employee.display_name;
 
   return (
@@ -250,11 +258,32 @@ export function Shell() {
     <div className="relative flex h-full overflow-clip">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2">Skip to content</a>
 
-      <aside aria-label="Sections" className={`hidden shrink-0 transition-[width] duration-200 ease-out lg:flex ${collapsed ? "w-[88px]" : "w-[276px]"}`}>
-        <div className="w-full">
-          <SidebarPanel collapsed={collapsed} onToggle={() => setCollapsed((c) => { remember(!c); return !c; })} />
-        </div>
-      </aside>
+      {autoHide ? (
+        // Auto-hide: the icon rail stays; pointing at it (or tabbing into it) widens it over the page.
+        <aside
+          aria-label="Sections"
+          className="relative hidden w-[88px] shrink-0 lg:block"
+          onMouseEnter={show}
+          onMouseLeave={hideSoon}
+          onFocus={show}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) hideSoon();
+          }}
+          onKeyDown={(e) => e.key === "Escape" && setPeek(false)}
+        >
+          <div className={`absolute inset-y-0 left-0 z-40 overflow-hidden transition-[width,box-shadow] duration-200 ease-out ${peek ? "w-[276px] shadow-2xl" : "w-[88px]"}`}>
+            <div className={peek ? "h-full w-[276px]" : "h-full w-[88px]"}>
+              <SidebarPanel collapsed={!peek} autoHide onToggle={() => { remember(false); setAutoHide(false); setPeek(false); }} />
+            </div>
+          </div>
+        </aside>
+      ) : (
+        <aside aria-label="Sections" className="hidden w-[276px] shrink-0 lg:flex">
+          <div className="w-full">
+            <SidebarPanel collapsed={false} onToggle={() => { remember(true); setAutoHide(true); setPeek(false); }} />
+          </div>
+        </aside>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center gap-2 px-3 pt-3 sm:gap-3 sm:px-6 sm:pt-4">
@@ -263,7 +292,6 @@ export function Shell() {
           </button>
           <div className="shrink-0 rounded-full bg-card p-1.5 pr-5 lg:hidden"><Wordmark /></div>
           <div className="ml-auto flex min-w-0 items-center gap-3">
-            <ScannerIndicator warehouseId={active?.id} />
             <div className="hidden md:block"><QuickJump ref={jump} /></div>
             <div className="md:hidden"><SearchButton /></div>
             <NotificationBell />
@@ -295,38 +323,5 @@ export function Shell() {
       <SessionExpiredDialog />
     </div>
     </NotificationProvider>
-  );
-}
-
-/** Header hint from the API's device heartbeats (no localhost probing from every page). */
-function ScannerIndicator({ warehouseId }: { warehouseId: string | undefined }) {
-  const { session } = useAuth();
-  const allowed = !!session && (has(session, "scan.create") || has(session, "scan.device.manage"));
-  const [state, setState] = useState<"none" | "online" | "offline" | null>(null);
-  useEffect(() => {
-    if (!allowed || !warehouseId) return;
-    let live = true;
-    const load = () =>
-      api.scanDevices({ warehouse_id: warehouseId }).then(
-        (d) => {
-          const active = d.filter((x) => x.status === "ACTIVE");
-          if (live) setState(active.length === 0 ? "none" : active.some((x) => x.online && x.scanner_state === "READY") ? "online" : "offline");
-        },
-        () => live && setState(null),
-      );
-    void load();
-    const t = setInterval(() => void load(), 60000);
-    return () => {
-      live = false;
-      clearInterval(t);
-    };
-  }, [allowed, warehouseId]);
-  if (!allowed || state === null) return null;
-  const text = state === "online" ? "Scanner: ready" : state === "offline" ? "Scanner: offline" : "Scanner: not set up";
-  return (
-    <NavLink to="/scan" className="hidden items-center gap-2 rounded-full px-3 py-2.5 text-sm text-ink-muted transition-colors duration-150 hover:bg-card hover:text-ink xl:flex">
-      <span className={`size-2 rounded-full ${state === "online" ? "bg-success" : "bg-brand-gray"}`} aria-hidden />
-      {text}
-    </NavLink>
   );
 }

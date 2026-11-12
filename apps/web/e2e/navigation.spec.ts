@@ -67,3 +67,32 @@ test("signing in returns to the page that was opened", async ({ page }) => {
   await expect(page).toHaveURL(/\/inventory\?tab=movements$/);
   await expect(page.getByRole("heading", { name: "Inventory" })).toBeVisible();
 });
+
+test("sidebar auto-hides to an icon rail and widens when the pointer is on it", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  const nav = page.getByRole("complementary", { name: "Sections" });
+  const width = async () => Math.round((await nav.locator("> div").first().boundingBox())?.width ?? 0);
+  await expect(nav.getByText("Packing", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Auto-hide sidebar" }).click();
+  await page.mouse.move(800, 400);
+  // not fully hidden: the icons stay
+  await expect.poll(width).toBe(88);
+  await expect(nav.getByRole("link", { name: /Packing/ })).toBeVisible();
+  await page.screenshot({ path: "screenshots/sidebar-rail-1440.png" });
+  await page.mouse.move(40, 450);
+  await expect.poll(width).toBe(276);
+  await expect(nav.getByText("Packing", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "screenshots/sidebar-peek-1440.png" });
+  await nav.getByRole("link", { name: /Packing/ }).click();
+  await expect(page).toHaveURL(/\/packing$/);
+  await page.mouse.move(900, 400);
+  await expect.poll(width).toBe(88);
+  // remembered after a reload, and can be pinned open again
+  await page.reload();
+  await expect.poll(width).toBe(88);
+  await page.mouse.move(40, 300);
+  await nav.getByRole("button", { name: "Keep sidebar open" }).click();
+  await page.mouse.move(900, 400);
+  await expect(page.getByRole("button", { name: "Auto-hide sidebar" })).toBeVisible();
+});

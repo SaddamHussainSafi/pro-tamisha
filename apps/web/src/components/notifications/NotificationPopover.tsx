@@ -84,7 +84,7 @@ export function NotificationPopover({ id, onClose, anchor }: { id: string; onClo
         const to = e.relatedTarget as Node | null;
         if (to && !panel.current?.contains(to) && !anchor.current?.contains(to)) close(false);
       }}
-      className={`fixed inset-x-2 top-[4.25rem] bottom-2 z-40 flex flex-col overflow-hidden rounded-card border border-line bg-canvas text-ink shadow-[0_8px_24px_rgb(24_24_27/0.12)] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-[5rem] sm:max-h-[min(42rem,calc(100dvh-6.5rem))] sm:w-[25rem] ${closing ? "pt-pop-out" : "animate-pop"}`}
+      className={`fixed inset-x-2 top-[4.25rem] bottom-2 z-40 flex flex-col overflow-hidden rounded-card border border-line bg-canvas text-ink shadow-[0_8px_24px_rgb(24_24_27/0.12)] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-[5rem] sm:h-[min(45rem,80dvh,calc(100dvh-6.5rem))] sm:w-[25rem] ${closing ? "pt-pop-out" : "animate-pop"}`}
       style={{ transformOrigin: "top right" }}
     >
       <div className="flex items-center gap-2 border-b border-line bg-card px-5 pb-3 pt-4">

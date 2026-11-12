@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, canInWarehouse, has, scanDocumentUrl, type OcrExtraction, type ScanDevice, type ScanJob, type ScanJobType, type Warehouse } from "../api";
+import { api, canInWarehouse, has, scanDocumentUrl, type OcrExtraction, type ScanJob, type ScanJobType, type Warehouse } from "../api";
 import { useAuth } from "../auth";
 import { UploadQueue } from "./ScanProgress";
 import { IsoScanner } from "../components/scanner/IsoScanner";
 import { ScanProcessing } from "../components/scanner/ScanProcessing";
-import { ACCEPT, AUTO_READ, bridgeScan, checkFile, failHint, fileSize, isOpen, JOB_STATUS, JOB_TYPE, SCANNER_STATE, scanMessage } from "../lib/scans";
+import { ACCEPT, AUTO_READ, checkFile, failHint, fileSize, isOpen, JOB_STATUS, JOB_TYPE, scanMessage } from "../lib/scans";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { OcrReviewPage, ReviewQueue, ScanReading } from "./OcrReview";
 import { OCR_STATUS } from "../lib/ocr";
+import { gmail, gmailMessage, previousOf, type GmailAttachment, type GmailStatus } from "../lib/gmail";
+import { GmailBrowser } from "../components/gmail/GmailBrowser";
+import { Modal } from "../components/gmail/PagePreview";
 import { useTrashChanges } from "../lib/trash";
 import { DeleteAction } from "../ui/DeleteAction";
 import { Icon, type IconName } from "../ui/Icon";
@@ -31,15 +34,15 @@ function Notice({ tone, children }: { tone: "error" | "ok"; children: React.Reac
 
 /* ================================ Scan Center ================================ */
 
-type Tab = "scans" | "review" | "scanners";
-const TAB_LABEL: Record<Tab, string> = { scans: "New scan", review: "To review", scanners: "Scanners" };
+// The network-scanner bridge is not used: no Scanners tab (paired devices stay on the server).
+type Tab = "scans" | "review";
+const TAB_LABEL: Record<Tab, string> = { scans: "New scan", review: "To review" };
 
 export function ScansPage() {
   const { session } = useAuth();
   const [params, setParams] = useSearchParams();
-  const canManage = !!session && has(session, "scan.device.manage");
   const canReview = !!session && has(session, "scan.review");
-  const tabs: Tab[] = ["scans", ...(canReview ? (["review"] as const) : []), ...(canManage ? (["scanners"] as const) : [])];
+  const tabs: Tab[] = ["scans", ...(canReview ? (["review"] as const) : [])];
   const want = params.get("tab") as Tab | null;
   const tab: Tab = want && tabs.includes(want) ? want : "scans";
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -65,7 +68,7 @@ export function ScansPage() {
           ))}
         </div>
       )}
-      {tab === "scans" ? <ScansTab warehouses={warehouses} /> : tab === "review" ? <ReviewQueue warehouses={warehouses} /> : <ScannersTab warehouses={warehouses} />}
+      {tab === "scans" ? <ScansTab warehouses={warehouses} /> : <ReviewQueue warehouses={warehouses} />}
     </div>
   );
 }
@@ -178,7 +181,7 @@ function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
  * server's scan (bridge: waiting → scanning); nothing is estimated. */
 type Phase =
   | { kind: "idle" }
-  | { kind: "working"; mode: "scan" | "upload"; label: string; jobId: string | null }
+  | { kind: "working"; mode: "upload" | "import"; label: string; jobId: string | null }
   | { kind: "done"; job: ScanJob; duplicate: boolean };
 
 /** The studio's picture: the same isometric scanner that follows each scan, at rest. */
@@ -220,53 +223,34 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
   const wh = warehouses[0]?.id ?? "";
   const [type, setType] = useState<ScanJobType>("SALES_ORDER");
   const [note, setNote] = useState("");
-  const [devices, setDevices] = useState<ScanDevice[]>([]);
-  const [device, setDevice] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string; jobId?: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [upPct, setUpPct] = useState<number | null>(null);
   const [queue, setQueue] = useState<File[] | null>(null);
 
-  useEffect(() => {
-    if (!wh) return;
-    api.scanDevices({ warehouse_id: wh }).then(
-      (d) => {
-        const active = d.filter((x) => x.status === "ACTIVE");
-        setDevices(active);
-        setDevice((cur) => (active.some((x) => x.id === cur) ? cur : active[0]?.id ?? ""));
-      },
-      () => setDevices([]),
-    );
-  }, [wh]);
-  const dev = devices.find((d) => d.id === device);
+  const [importing, setImporting] = useState(false);
 
-  async function scan() {
-    if (!device) return;
-    setPhase({ kind: "working", mode: "scan", label: dev?.name ?? "Scanner", jobId: null });
+  /** Scan Box › Import: the server fetches the emailed file and reads it, exactly like an upload. */
+  async function importFrom(a: GmailAttachment) {
+    setImporting(false);
+    if (type === "OTHER") return;
+    setPhase({ kind: "working", mode: "import", label: a.filename, jobId: null });
     setMsg(null);
     try {
-      const job = await api.requestScan({ warehouse_id: wh, job_type: type, device_id: device, note: note.trim() || undefined });
-      onChanged();
-      setPhase((p) => (p.kind === "working" ? { ...p, jobId: job.id } : p));
-      try {
-        const done = await bridgeScan(job);
-        if (done.status === "UPLOADED") {
-          setMsg({ tone: "ok", text: `${done.job_no} received.`, jobId: done.id });
-          setPhase({ kind: "done", job: done, duplicate: false });
-        } else {
-          setMsg({ tone: "error", text: `${job.job_no}: ${failHint(done.error_code)}`, jobId: job.id });
-          setPhase({ kind: "idle" });
-        }
-      } catch (e) {
-        // The job stays REQUESTED and expires on its own; cancel it so nobody waits on it.
-        await api.cancelScan(job.id, job.version).catch(() => undefined);
-        setMsg({ tone: "error", text: scanMessage(e) });
-        setPhase({ kind: "idle" });
-      }
+      const out = await gmail.process(a.id, { warehouse_id: wh, category: type });
+      const job = await api.scanJob(out.scan_job_id);
+      setMsg({ tone: "ok", text: `${job.job_no} imported from the Scan Box.`, jobId: job.id });
+      setPhase({ kind: "done", job, duplicate: false });
       setNote("");
     } catch (e) {
-      setMsg({ tone: "error", text: scanMessage(e) });
+      const prev = previousOf(e);
+      const p = prev[0];
+      setMsg(
+        p
+          ? { tone: "error", text: `This file was already read as ${p.scan_job_no}.`, jobId: p.scan_job_id }
+          : { tone: "error", text: gmailMessage(e) },
+      );
       setPhase({ kind: "idle" });
     } finally {
       onChanged();
@@ -318,7 +302,7 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
       <ScanProcessing
         jobId={phase.jobId}
         local={phase.mode === "upload" ? { kind: "uploading", fileName: phase.label, fraction: upPct } : null}
-        heading={phase.mode === "scan" ? `Scanning with ${phase.label}` : undefined}
+        heading={phase.mode === "import" ? `Reading ${phase.label} from the Scan Box` : undefined}
         hideOpenLink
       />
     );
@@ -328,10 +312,10 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
       <ScannerArt />
       <div className="flex min-w-0 flex-col gap-6 lg:border-l lg:border-line lg:pl-8">
         <div className="flex items-start gap-4">
-          <span className="grid size-16 shrink-0 place-items-center rounded-ctl bg-brand-accent/12 text-brand-primary"><Icon name="printer" size={30} /></span>
+          <span className="grid size-16 shrink-0 place-items-center rounded-ctl bg-brand-accent/12 text-brand-primary"><Icon name="upload" size={30} /></span>
           <div className="min-w-0">
-            <h2 id="new-scan" className="text-[26px] font-semibold leading-tight tracking-tight">Start a scan from a network scanner</h2>
-            <p className="mt-1 text-base text-ink-muted">Scan documents straight from the office scanner, or upload a file.</p>
+            <h2 id="new-scan" className="text-[26px] font-semibold leading-tight tracking-tight">New scan</h2>
+            <p className="mt-1 text-base text-ink-muted">Upload a file from this computer, or import one that arrived in the Scan Box.</p>
           </div>
         </div>
 
@@ -343,36 +327,21 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
                   {(Object.keys(JOB_TYPE) as ScanJobType[]).map((t) => <option key={t} value={t}>{JOB_TYPE[t]}</option>)}
                 </select>
               </label>
-              <label>
-                <span className="label">Scanner / device</span>
-                <select className="input py-3" value={device} onChange={(e) => setDevice(e.target.value)} disabled={devices.length === 0}>
-                  {devices.length === 0 && <option value="">No approved scanner here</option>}
-                  {devices.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}{d.online ? "" : " (offline)"}</option>
-                  ))}
-                </select>
-                {dev && (
-                  <span className="mt-1.5 flex items-center gap-1.5 text-sm text-ink-muted">
-                    <span aria-hidden className={`size-2.5 rounded-full ${dev.online ? "bg-brand-accent" : "bg-brand-gray"}`} />
-                    {dev.online ? "Online" : "Offline"}
-                  </span>
-                )}
-              </label>
               <label className="sm:col-span-2">
                 <span className="label">Note <span className="font-normal text-ink-muted">(optional)</span></span>
                 <input className="input py-3" value={note} maxLength={500} placeholder="e.g. Nov 2 sales orders" onChange={(e) => setNote(e.target.value)} />
               </label>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button className="btn-accent px-6 py-3 text-base" disabled={!device} onClick={() => void scan()}>
-                <Icon name="scan" />Scan now
+              <FileButton label="Upload files" disabled={!wh} inputRef={fileRef} onFile={(f) => void upload(f)} onFiles={(fs) => setQueue(fs)} primary />
+              <button type="button" className="btn-ghost px-6 py-3" disabled={!wh || type === "OTHER"} title={type === "OTHER" ? "Choose what kind of document it is first" : undefined} onClick={() => setImporting(true)}>
+                <Icon name="scanbox" />Import from Scan Box
               </button>
-              <span className="text-sm text-ink-muted">or</span>
-              <FileButton label="Upload files" disabled={false} inputRef={fileRef} onFile={(f) => void upload(f)} onFiles={(fs) => setQueue(fs)} />
-              <span className="text-sm text-ink-muted">PDF (any number of pages), PNG, JPEG or TIFF, up to 20 MB each. Pick several at once.</span>
+              <span className="basis-full text-sm text-ink-muted">PDF (any number of pages), PNG, JPEG or TIFF, up to 20 MB each. Pick several at once.</span>
             </div>
         </>
         {status}
+        {importing && <ScanBoxImport onClose={() => setImporting(false)} onPick={(a) => void importFrom(a)} />}
         {queue && (
           <UploadQueue
             key={queue.map((f) => f.name).join("|")}
@@ -387,6 +356,36 @@ function ScanStudio({ warehouses, onChanged }: { warehouses: Warehouse[]; onChan
         )}
       </div>
     </section>
+  );
+}
+
+/** The Scan Box (the scanning mailbox) as a picker: choose one emailed document to read. */
+function ScanBoxImport({ onClose, onPick }: { onClose: () => void; onPick: (a: GmailAttachment) => void }) {
+  const { session } = useAuth();
+  const allowed = !!session && has(session, "gmail.read");
+  const [status, setStatus] = useState<GmailStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (allowed) gmail.status().then(setStatus, (err: unknown) => setError(gmailMessage(err)));
+  }, [allowed]);
+  return (
+    <Modal open title="Import from Scan Box" onClose={onClose} wide>
+      <div className="p-5">
+        {!allowed ? (
+          <EmptyState icon="scanbox" title="Your account can't open the Scan Box" hint="Ask an administrator, or upload the file instead." />
+        ) : error ? (
+          <ErrorState title="Couldn't reach the Scan Box" detail={error} />
+        ) : !status ? (
+          <LoadingRows rows={4} cols={2} />
+        ) : status.message_count === 0 ? (
+          <EmptyState icon="scanbox" title="The Scan Box is empty" hint="Documents emailed from the office scanner show here." />
+        ) : !status.can_process ? (
+          <EmptyState icon="scanbox" title="Your account can't read Scan Box documents" hint="Ask an administrator, or upload the file instead." />
+        ) : (
+          <GmailBrowser status={status} mode="picker" initialShow="attachments" onProcessed={() => undefined} onSelect={onPick} selectLabel="Import and read" />
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -588,224 +587,6 @@ function ScanDone({
     </>
   );
 }
-
-/* ---------------------------- Scanners tab ---------------------------- */
-
-type Dialog = { kind: "approve" | "revoke"; d: ScanDevice } | null;
-
-function ScannersTab({ warehouses }: { warehouses: Warehouse[] }) {
-  const [rows, setRows] = useState<ScanDevice[] | null>(null);
-  const [error, setError] = useState(false);
-  const [showRevoked, setShowRevoked] = useState(false);
-  const [dialog, setDialog] = useState<Dialog>(null);
-  const [input, setInput] = useState("");
-  const [msg, setMsg] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [pairing, setPairing] = useState<{ code: string; expires_at: string; name: string } | null>(null);
-  const [finding, setFinding] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setRows(await api.scanDevices({ include_revoked: showRevoked }));
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, [showRevoked]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 15000);
-    return () => clearInterval(t);
-  }, [load]);
-
-  async function act() {
-    if (!dialog) return;
-    const { kind, d } = dialog;
-    try {
-      if (kind === "approve") await api.approveScanDevice(d.id, d.version, input.trim());
-      else await api.revokeScanDevice(d.id, d.version, input.trim());
-      setMsg({ tone: "ok", text: kind === "approve" ? `${d.name} approved.` : `${d.name} revoked. It can no longer scan.` });
-      if (kind === "approve" && pairing) setPairing(null);
-      setDialog(null);
-    } catch (e) {
-      setMsg({ tone: "error", text: scanMessage(e) });
-      setDialog(null);
-    }
-    void load();
-  }
-
-  /** Ask the bridge which scanners its PC sees; it answers on its next heartbeat (≤ ~30 s). */
-  async function find(d: ScanDevice) {
-    setMsg(null);
-    setFinding(d.id);
-    try {
-      const asked = await api.discoverScanners(d.id);
-      const since = asked.discover_requested_at ?? "";
-      for (let i = 0; i < 25; i++) {
-        await new Promise((r) => setTimeout(r, 2500));
-        const now = (await api.scanDevices({ include_revoked: showRevoked })).find((x) => x.id === d.id);
-        if (now?.detected_at && now.detected_at >= since) {
-          setRows((rs) => rs?.map((x) => (x.id === d.id ? now : x)) ?? rs);
-          const n = now.detected_scanners?.length ?? 0;
-          setMsg({ tone: n ? "ok" : "error", text: n ? `${d.name} sees ${n} scanner${n === 1 ? "" : "s"}.` : `${d.name} sees no scanner. Check the cable or Wi-Fi and that the scanner is switched on.` });
-          return;
-        }
-      }
-      setMsg({ tone: "error", text: `${d.name} didn't answer. Check the office PC is on and the bridge is running.` });
-    } catch {
-      setMsg({ tone: "error", text: "Couldn't ask the scanner PC. Try again." });
-    } finally {
-      setFinding(null);
-    }
-  }
-
-  const columns: Column<ScanDevice>[] = [
-    { key: "n", header: "Scanner", cell: (r) => <span className="font-medium">{r.name}</span>, sort: (r) => r.name },
-    {
-      key: "s",
-      header: "Status",
-      cell: (r) =>
-        r.status === "ACTIVE" ? (
-          <StatusChip tone={r.online ? "success" : "neutral"}>{r.online ? "Online" : "Offline"}</StatusChip>
-        ) : r.status === "PENDING" ? (
-          <StatusChip tone="warning">{r.paired ? "Waiting for approval" : "Waiting for bridge"}</StatusChip>
-        ) : (
-          <StatusChip tone="neutral">Revoked</StatusChip>
-        ),
-    },
-    {
-      key: "sc",
-      header: "Scanner state",
-      cell: (r) => (r.status === "ACTIVE" ? <span title={r.scanner_detail ?? undefined}><StatusChip tone={SCANNER_STATE[r.scanner_state].tone}>{SCANNER_STATE[r.scanner_state].label}</StatusChip></span> : "—"),
-    },
-    { key: "l", header: "Last seen", cell: (r) => when(r.last_seen_at), sort: (r) => r.last_seen_at ?? "" },
-    { key: "v", header: "Bridge", cell: (r) => r.bridge_version ?? "—" },
-    {
-      key: "a",
-      header: "Actions",
-      cell: (r) => (
-        <div className="flex gap-2">
-          {r.status === "PENDING" && r.paired && (
-            <button className="btn-primary py-1" onClick={() => { setInput(""); setDialog({ kind: "approve", d: r }); }}>Approve</button>
-          )}
-          {r.status === "ACTIVE" && (
-            <button className="btn-ghost py-1" disabled={finding !== null} aria-label={`Find scanners on ${r.name}`} onClick={() => void find(r)}>
-              {finding === r.id ? "Looking…" : "Find scanners"}
-            </button>
-          )}
-          {r.status !== "REVOKED" && (
-            <button className="btn-ghost py-1" onClick={() => { setInput(""); setDialog({ kind: "revoke", d: r }); }}>Revoke</button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <AddScanner warehouses={warehouses} onPaired={(p) => { setPairing(p); void load(); }} />
-      {pairing && (
-        <section aria-labelledby="pair-code" className="card space-y-2 border-brand-primary p-6">
-          <h2 id="pair-code" className="text-base font-semibold">Pair “{pairing.name}”</h2>
-          <p className="text-sm">On the scanner PC, run:</p>
-          <pre className="overflow-x-auto rounded bg-canvas p-3 text-sm" data-testid="pair-command">python -m pro_trading_bridge pair {pairing.code}</pre>
-          <p className="text-sm text-ink-muted">
-            The code works once and expires {when(pairing.expires_at)}. The bridge then prints a confirmation code — click <b>Approve</b> below and type it in.
-          </p>
-        </section>
-      )}
-      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={showRevoked} onChange={(e) => setShowRevoked(e.target.checked)} /> Show revoked scanners
-      </label>
-      <section className="card overflow-clip">
-        {error ? (
-          <ErrorState title="Couldn't load scanners" onRetry={() => void load()} />
-        ) : rows === null ? (
-          <LoadingRows cols={7} />
-        ) : (
-          <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} caption={`Scanners (${rows.length})`} empty={<EmptyState title="No scanners yet" hint="Add the office scanner PC above to scan straight into Pro Trading." />} />
-        )}
-      </section>
-      {rows?.some((r) => r.detected_scanners) && (
-        <section className="card space-y-3 p-6" aria-labelledby="found-h">
-          <h2 id="found-h" className="text-base font-semibold">Scanners found on the office PC</h2>
-          {rows
-            .filter((r) => r.detected_scanners)
-            .map((r) => (
-              <div key={r.id} className="text-sm">
-                <p className="font-medium">
-                  {r.name} <span className="font-normal text-ink-muted">· checked {when(r.detected_at)}</span>
-                </p>
-                {r.detected_scanners?.length ? (
-                  <ul className="mt-1 list-disc pl-5" data-testid={`found-${r.id}`}>
-                    {r.detected_scanners.map((s) => (
-                      <li key={`${s.driver}-${s.name}`}>
-                        {s.name} <span className="text-ink-muted">({s.driver.toUpperCase()})</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-ink-muted">No scanner found. Check the cable or Wi-Fi and that the scanner is switched on.</p>
-                )}
-              </div>
-            ))}
-        </section>
-      )}
-      <ConfirmDialog
-        open={dialog !== null}
-        title={dialog?.kind === "approve" ? `Approve ${dialog.d.name}` : `Revoke ${dialog?.d.name ?? ""}`}
-        confirmLabel={dialog?.kind === "approve" ? "Approve" : "Revoke"}
-        danger={dialog?.kind === "revoke"}
-        onClose={() => setDialog(null)}
-        onConfirm={() => {
-          if (dialog?.kind === "approve" ? input.trim().length >= 4 : input.trim().length >= 3) void act();
-        }}
-      >
-        <label className="block">
-          <span className="label">{dialog?.kind === "approve" ? "Confirmation code shown on the scanner PC" : "Reason"}</span>
-          <input className="input" value={input} onChange={(e) => setInput(e.target.value)} autoComplete="off" maxLength={dialog?.kind === "approve" ? 32 : 500} />
-        </label>
-        {dialog?.kind === "revoke" && <p className="mt-2">The bridge will stop working immediately. To use it again, pair it as a new scanner.</p>}
-      </ConfirmDialog>
-    </div>
-  );
-}
-
-function AddScanner({ warehouses, onPaired }: { warehouses: Warehouse[]; onPaired: (p: { code: string; expires_at: string; name: string }) => void }) {
-  const wh = warehouses[0]?.id ?? "";
-  const [name, setName] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      const r = await api.pairScanDevice({ warehouse_id: wh, name: name.trim() });
-      onPaired({ code: r.pairing_code, expires_at: r.expires_at, name: name.trim() });
-      setName("");
-    } catch (e) {
-      setErr(scanMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <form onSubmit={(e) => void submit(e)} aria-labelledby="add-scanner" className="card space-y-3 p-6">
-      <h2 id="add-scanner" className="text-base font-semibold">Add a scanner PC</h2>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="w-64">
-          <span className="label">Name</span>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Front office scanner" minLength={2} maxLength={80} required />
-        </label>
-        <button className="btn-primary" disabled={busy || !wh || name.trim().length < 2}>Get pairing code</button>
-      </div>
-      {err && <Notice tone="error">{err}</Notice>}
-    </form>
-  );
-}
-
-/* ================================ Detail ================================ */
 
 export function ScanJobPage() {
   const { id = "" } = useParams();

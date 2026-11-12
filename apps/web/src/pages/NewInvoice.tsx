@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, ApiError, canInWarehouse, type Customer, type DirectInvoiceIn, type DirectPreview, type PickSummary, type UnitCode, type Warehouse } from "../api";
+import { api, ApiError, canInWarehouse, type Customer, type DirectInvoiceIn, type DirectPreview, type PickSummary, type UnitCode } from "../api";
 import { termsLabel } from "../lib/customers";
 import { useAuth } from "../auth";
 import { GmailPicker } from "../components/gmail/GmailPicker";
@@ -108,7 +108,6 @@ function Direct() {
   const navigate = useNavigate();
   const { products } = useGridProducts();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [wh, setWh] = useState("");
   const [customer, setCustomer] = useState("");
   const [lines, setLines] = useState<GridLine[]>(() => ensureRows([], MAX_LINES));
@@ -140,9 +139,8 @@ function Direct() {
     );
     api.warehouses().then((w) => {
       const ok = w.filter((x) => x.active && session && (canInWarehouse(session, "invoice.issue", x.id) || canInWarehouse(session, "invoice.prepare", x.id)));
-      setWarehouses(ok);
       setWh((cur) => (ok.some((x) => x.id === cur) ? cur : (ok[0]?.id ?? "")));
-    }, () => setWarehouses([]));
+    }, () => setWh(""));
   }, [session]);
 
   // A draft saved on this computer comes back (per user). Storage may be blocked: start empty.
@@ -388,31 +386,9 @@ function Direct() {
             </label>
             <input id="ni-po" className="input" maxLength={64} value={po} onChange={(e) => setPo(e.target.value)} onKeyDown={toGrid} />
           </div>
-          <div className="md:col-span-4">
-            <label className="label" htmlFor="ni-wh">
-              Warehouse
-            </label>
-            <select
-              id="ni-wh"
-              className="input"
-              value={wh}
-              onKeyDown={toGrid}
-              onChange={(e) => {
-                setWh(e.target.value);
-                edit((ls) => ls.map((l) => ({ ...l, lot_id: "" }))); // batches belong to a warehouse
-              }}
-            >
-              {!warehouses.length && <option value="">None you can invoice in</option>}
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <ReadOnly className="md:col-span-2" id="ni-tax" label="Tax code" value="Not assessed" title="Tax rules are waiting for the accountant's sign-off (D-03); tax is 0.00 until then" />
-          <ReadOnly className="md:col-span-3" id="ni-terms" label="Payment terms" value={cust ? termsLabel(cust.payment_terms_days) : "—"} title="From the customer record" />
-          <ReadOnly className="md:col-span-3" id="ni-cur" label="Currency" value="CAD" title="Invoices are in Canadian dollars" />
+          <ReadOnly className="md:col-span-4" id="ni-tax" label="Tax code" value="Not assessed" title="Tax rules are waiting for the accountant's sign-off (D-03); tax is 0.00 until then" />
+          <ReadOnly className="md:col-span-4" id="ni-terms" label="Payment terms" value={cust ? termsLabel(cust.payment_terms_days) : "—"} title="From the customer record" />
+          <ReadOnly className="md:col-span-4" id="ni-cur" label="Currency" value="CAD" title="Invoices are in Canadian dollars" />
           <div className="md:col-span-12">
             <label className="label" htmlFor="ni-note">
               Narration / Note (optional)
