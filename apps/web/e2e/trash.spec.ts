@@ -139,7 +139,7 @@ test("Super Admin moves a customer to Trash, undoes, restores and deletes foreve
   await dialog.getByRole("button", { name: "Move to Trash" }).click();
   await expect(page).toHaveURL(/\/customers$/);
   await expect(page.getByText("moved to Trash.")).toBeVisible();
-  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByText("restored.")).toBeVisible();
   await expect(page.getByRole("link", { name: /Trash Test Market/ })).toBeVisible();
 
@@ -226,7 +226,7 @@ test("Super Admin deletes a notification and brings it back with Undo", async ({
   await axe(page);
   await dialog.getByRole("button", { name: "Move to Trash" }).click();
   await expect(card).toHaveCount(0);
-  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByText("restored.")).toBeVisible();
   await expect(card).toBeVisible();
 });

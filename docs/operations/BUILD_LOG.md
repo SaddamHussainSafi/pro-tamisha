@@ -1115,3 +1115,4 @@ No application code has been generated or executed by this planning pack. This l
 - **Phone drawer** now slides out as well as in (stays mounted, `inert` when closed). **Nav sub-menus** (Inventory, Online Orders) open and close by height instead of popping.
 - Reduced-motion users still get no animation (existing global rule).
 - Tests: vitest 299 passed; Playwright navigation, smoke, settings, notifications, scans, gmail, shell-scroll, errors passed. `trash.spec` "Undo" now also matches the Customers page's "Undo changes" button (from ffc88c9, not this change).
+- Fixed: `trash.spec` clicks the toast's exact "Undo" button (it also matched Customers' "Undo changes"); 5 passed.
