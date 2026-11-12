@@ -52,13 +52,15 @@
   --text-xl: 1.5rem;
   --text-xl--line-height: 2rem;
 
-  /* Motion: short and calm. Everything below is switched off for prefers-reduced-motion. */
-  --ease-calm: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --animate-enter: pt-enter 200ms var(--ease-calm) backwards;
-  --animate-fade: pt-fade 160ms ease-out backwards;
-  --animate-drawer: pt-drawer 220ms var(--ease-calm) backwards;
-  --animate-pop: pt-pop 180ms var(--ease-calm) backwards;
-  @keyframes pt-enter { from { opacity: 0; transform: translateY(6px); } }
+  /* Motion: short and calm, one easing everywhere (fast start, long soft landing), only
+     opacity and transform so the browser animates on the GPU. Off for prefers-reduced-motion. */
+  --ease-calm: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --animate-enter: pt-enter 280ms var(--ease-calm) backwards;
+  --animate-fade: pt-fade 200ms var(--ease-calm) backwards;
+  --animate-drawer: pt-drawer 300ms var(--ease-calm) backwards;
+  --animate-pop: pt-pop 240ms var(--ease-calm) backwards;
+  @keyframes pt-enter { from { opacity: 0; transform: translateY(8px); } }
   @keyframes pt-fade { from { opacity: 0; } }
   @keyframes pt-drawer { from { transform: translateX(-100%); } }
   @keyframes pt-pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
@@ -75,14 +77,23 @@ body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: "
 /* The page scrolls inside <main>: keep its scrollbar space so content never jumps sideways
    when a list finishes loading and the page becomes scrollable. */
 #main { scrollbar-gutter: stable; }
-dialog[open] { animation: var(--animate-pop); }
+/* Dialogs fade and lift in, and fade out again on close (display/overlay are held for the exit). */
+dialog {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition: opacity 180ms var(--ease-exit), transform 180ms var(--ease-exit), overlay 180ms allow-discrete, display 180ms allow-discrete;
+}
+dialog[open] { opacity: 1; transform: none; transition-duration: 260ms; transition-timing-function: var(--ease-calm); }
+@starting-style { dialog[open] { opacity: 0; transform: translateY(8px) scale(0.98); } }
+dialog::backdrop { opacity: 0; transition: opacity 180ms var(--ease-exit), overlay 180ms allow-discrete, display 180ms allow-discrete; }
+dialog[open]::backdrop { opacity: 1; transition-duration: 260ms; transition-timing-function: var(--ease-calm); }
+@starting-style { dialog[open]::backdrop { opacity: 0; } }
 /* Notification panel closing (opening uses animate-pop); off under reduced motion like the rest. */
 @keyframes pt-pop-out { to { opacity: 0; transform: translateY(-4px) scale(0.98); } }
-.pt-pop-out { animation: pt-pop-out 160ms ease-in forwards; }
+.pt-pop-out { animation: pt-pop-out 180ms var(--ease-exit) forwards; }
 /* A new notification sliding in from the right edge. */
 @keyframes pt-slide-in { from { opacity: 0; transform: translateX(16px); } }
-.pt-slide-in { animation: pt-slide-in 220ms var(--ease-calm) backwards; }
-dialog[open]::backdrop { animation: var(--animate-fade); }
+.pt-slide-in { animation: pt-slide-in 280ms var(--ease-calm) backwards; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after, ::backdrop { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

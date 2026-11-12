@@ -1106,3 +1106,12 @@ No application code has been generated or executed by this planning pack. This l
 - **Sidebar:** the collapse button is now "Auto-hide sidebar": the icon rail stays (88 px) and widens to the full sidebar over the page on hover/focus; "Keep sidebar open" pins it again. Remembered per browser (`pt.sidebar.collapsed`).
 - **Results:** `tsc -b` clean; `vitest` 299 passed; eslint clean on touched files. Playwright: scans (rewritten for upload/import; bridge tests dropped), navigation (+ auto-hide test), notifications (+ height check), gmail, ocr-review-grid, smoke, orders, order-connect passed. scan-uploads passed run alone. `ocr.spec` and `scan-processing.spec` failed on this dev stack because its worker reads with real Gemini while those specs expect the fake engine (exact readings and step timing); this change only alters layout there.
 - Screens checked in the browser at 1440 and 390 px.
+
+## 2026-11-12 — Smoother motion everywhere
+
+- **One easing for the whole app** (`--ease-calm: cubic-bezier(0.22, 1, 0.36, 1)`, fast start, long soft stop) and an exit curve; page fade-in 280 ms, pop-overs 240 ms, drawer 300 ms. Only opacity and transform are animated.
+- **Dialogs** (every native `<dialog>`: confirmations, Scan Box picker, document preview, session expired) now fade/lift in **and fade out on close** (CSS `@starting-style` + `allow-discrete`; older browsers just close instantly).
+- **Sidebar auto-hide:** revealed with `clip-path` instead of animating width (no re-layout per frame); the full layout is swapped in before opening and swapped back only after the close has finished, with a short cross-fade.
+- **Phone drawer** now slides out as well as in (stays mounted, `inert` when closed). **Nav sub-menus** (Inventory, Online Orders) open and close by height instead of popping.
+- Reduced-motion users still get no animation (existing global rule).
+- Tests: vitest 299 passed; Playwright navigation, smoke, settings, notifications, scans, gmail, shell-scroll, errors passed. `trash.spec` "Undo" now also matches the Customers page's "Undo changes" button (from ffc88c9, not this change).

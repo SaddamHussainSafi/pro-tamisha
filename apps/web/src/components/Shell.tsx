@@ -106,8 +106,11 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
           </button>
         )}
       </div>
-      {item.children && open && (
-        <ul className="mb-1 ml-[1.35rem] mt-0.5 animate-fade space-y-0.5 border-l-2 border-line pl-3">
+      {item.children && (
+        // Opens and closes by height (grid rows 0fr → 1fr), so the items below glide instead of jumping.
+        <div inert={!open} className={`grid transition-[grid-template-rows,opacity,visibility] duration-300 ease-[var(--ease-calm)] ${open ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}>
+        <div className="min-h-0 overflow-hidden">
+        <ul className="mb-1 ml-[1.35rem] mt-0.5 space-y-0.5 border-l-2 border-line pl-3">
           {item.children.map((c) => {
             const [path, query] = c.to.split("?");
             const want = new URLSearchParams(query ?? "").get("tab") ?? "stock";
@@ -125,6 +128,8 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
             );
           })}
         </ul>
+        </div>
+        </div>
       )}
     </>
   );
@@ -198,16 +203,34 @@ export function Shell() {
   const [drawer, setDrawer] = useState(false);
   const [autoHide, setAutoHide] = useState(recall);
   const [peek, setPeek] = useState(false);
+  // `wide`: the full layout is drawn. It switches on at once when the rail opens and only
+  // after the closing slide has finished, so nothing re-flows while it moves.
+  const [wide, setWide] = useState(false);
   const hideTimer = useRef<number | undefined>(undefined);
+  const narrowTimer = useRef<number | undefined>(undefined);
   const show = () => {
     window.clearTimeout(hideTimer.current);
+    window.clearTimeout(narrowTimer.current);
+    setWide(true);
     setPeek(true);
+  };
+  const hideNow = () => {
+    window.clearTimeout(hideTimer.current);
+    window.clearTimeout(narrowTimer.current);
+    setPeek(false);
+    narrowTimer.current = window.setTimeout(() => setWide(false), 320);
   };
   const hideSoon = () => {
     window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => setPeek(false), 250);
+    hideTimer.current = window.setTimeout(hideNow, 250);
   };
-  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(hideTimer.current);
+      window.clearTimeout(narrowTimer.current);
+    },
+    [],
+  );
   const jump = useRef<HTMLInputElement>(null);
   const main = useRef<HTMLElement>(null);
   const menuBtn = useRef<HTMLButtonElement>(null);
@@ -217,6 +240,7 @@ export function Shell() {
   useEffect(() => {
     setDrawer(false);
     setPeek(false);
+    setWide(false);
     main.current?.scrollTo({ top: 0 });
   }, [loc.pathname]);
   // Drawer: focus moves into it when it opens and back to the menu button when it closes.
@@ -269,18 +293,22 @@ export function Shell() {
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) hideSoon();
           }}
-          onKeyDown={(e) => e.key === "Escape" && setPeek(false)}
+          onKeyDown={(e) => e.key === "Escape" && hideNow()}
         >
-          <div className={`absolute inset-y-0 left-0 z-40 overflow-hidden transition-[width,box-shadow] duration-200 ease-out ${peek ? "w-[276px] shadow-2xl" : "w-[88px]"}`}>
-            <div className={peek ? "h-full w-[276px]" : "h-full w-[88px]"}>
-              <SidebarPanel collapsed={!peek} autoHide onToggle={() => { remember(false); setAutoHide(false); setPeek(false); }} />
+          {/* Revealed with clip-path (no re-layout while it moves); the clip also limits where it can be pointed at. */}
+          <div
+            className="absolute inset-y-0 left-0 z-40 w-[276px] shadow-2xl transition-[clip-path] duration-300 ease-[var(--ease-calm)]"
+            style={{ clipPath: peek ? "inset(0 -48px 0 0)" : "inset(0 188px 0 0)" }}
+          >
+            <div key={wide ? "wide" : "rail"} className={`h-full animate-fade ${wide ? "w-[276px]" : "w-[88px]"}`}>
+              <SidebarPanel collapsed={!wide} autoHide onToggle={() => { remember(false); setAutoHide(false); hideNow(); }} />
             </div>
           </div>
         </aside>
       ) : (
         <aside aria-label="Sections" className="hidden w-[276px] shrink-0 lg:flex">
           <div className="w-full">
-            <SidebarPanel collapsed={false} onToggle={() => { remember(true); setAutoHide(true); setPeek(false); }} />
+            <SidebarPanel collapsed={false} onToggle={() => { remember(true); setAutoHide(true); hideNow(); }} />
           </div>
         </aside>
       )}
@@ -311,14 +339,16 @@ export function Shell() {
         </main>
       </div>
 
-      {drawer && (
-        <>
-          <div className="fixed inset-0 z-30 animate-fade bg-ink/40 lg:hidden" onClick={() => setDrawer(false)} aria-hidden />
-          <aside ref={drawerEl} aria-label="Navigation" className="fixed inset-y-0 left-0 z-40 w-[276px] max-w-[88vw] animate-drawer lg:hidden">
-            <SidebarPanel collapsed={false} onClose={() => setDrawer(false)} />
-          </aside>
-        </>
-      )}
+      {/* Phone drawer: always mounted so it slides out as smoothly as it slides in. */}
+      <div className={`fixed inset-0 z-30 bg-ink/40 transition-opacity duration-300 ease-[var(--ease-calm)] lg:hidden ${drawer ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={() => setDrawer(false)} aria-hidden />
+      <aside
+        ref={drawerEl}
+        aria-label="Navigation"
+        inert={!drawer}
+        className={`fixed inset-y-0 left-0 z-40 w-[276px] max-w-[88vw] transition-[transform,visibility] duration-300 ease-[var(--ease-calm)] lg:hidden ${drawer ? "visible translate-x-0" : "invisible -translate-x-full"}`}
+      >
+        <SidebarPanel collapsed={false} onClose={() => setDrawer(false)} />
+      </aside>
       <TrashToastHost />
       <SessionExpiredDialog />
     </div>
