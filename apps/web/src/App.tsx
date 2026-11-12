@@ -30,6 +30,7 @@ const chunks = {
   receiving: () => import("./pages/Receiving"),
   reports: () => import("./pages/Reports"),
   scans: () => import("./pages/Scans"),
+  search: () => import("./pages/Search"),
   settings: () => import("./pages/Settings"),
   suppliers: () => import("./pages/Suppliers"),
   trash: () => import("./pages/Trash"),
@@ -79,6 +80,7 @@ const ShipmentPage = page(chunks.receiving, (m) => m.ShipmentPage);
 const SuppliersPage = page(chunks.receiving, (m) => m.SuppliersPage);
 const ReportsPage = page(chunks.reports, (m) => m.ReportsPage);
 const ScansPage = page(chunks.scans, (m) => m.ScansPage);
+const SearchPage = page(chunks.search, (m) => m.SearchPage);
 const ScanJobPage = page(chunks.scans, (m) => m.ScanJobPage);
 const SettingsPage = page(chunks.settings, (m) => m.SettingsPage);
 const SupplierDetailPage = page(chunks.suppliers, (m) => m.SupplierDetailPage);
@@ -189,6 +191,7 @@ export function App() {
           <Route path="settings/ocr" element={<SettingsPage />} />
           <Route path="settings/notifications" element={<SettingsPage />} />
           <Route path="activity" element={<ActivityPage />} />
+          <Route path="search" element={<SearchPage />} />
           <Route path="notifications" element={<Navigate to="/activity?view=notifications" replace />} />
           <Route path="trash" element={<TrashPage />} />
           <Route path="settings/*" element={<Navigate to="/settings" replace />} />

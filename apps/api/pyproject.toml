@@ -48,6 +48,10 @@ ignore = ["S101", "B008"]
 "tests/*" = ["S105", "S106"]
 "tests/test_invoicing.py" = ["S105", "S106", "F811"]  # pytest fixtures re-used from test_orders
 "migrations/*" = ["E501"]
+# Search SQL is assembled from constant fragments (tiers, filters); every value is a bound
+# parameter (tests/test_search.py::test_injection_strings_are_plain_text). Long SQL literals.
+"src/pro_trading/search/engine.py" = ["S608", "E501"]
+"scripts/search_benchmark.py" = ["S608", "E501", "S311"]
 
 [tool.mypy]
 strict = true

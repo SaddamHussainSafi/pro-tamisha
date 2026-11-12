@@ -40,6 +40,7 @@ from .routes import (
     reports,
     scan_progress,
     scans,
+    search,
     security,
     suppliers,
     trash,
@@ -204,6 +205,7 @@ def create_app() -> FastAPI:
         public_orders.router,
         trash.router,
         gmail.router,
+        search.router,
         client_errors.router,
     ):
         app.include_router(r, prefix="/api/v1")

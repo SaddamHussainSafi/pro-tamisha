@@ -5255,6 +5255,36 @@
         "title": "HistoryEntry",
         "type": "object"
       },
+      "IndexStatusOut": {
+        "properties": {
+          "behind_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Behind Seconds"
+          },
+          "degraded": {
+            "title": "Degraded",
+            "type": "boolean"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "degraded",
+          "pending",
+          "behind_seconds"
+        ],
+        "title": "IndexStatusOut",
+        "type": "object"
+      },
       "InsteadIn": {
         "properties": {
           "item_id": {
@@ -11858,107 +11888,6 @@
         "title": "PrefsOut",
         "type": "object"
       },
-      "PreviewOut": {
-        "properties": {
-          "blocked": {
-            "items": {
-              "$ref": "#/components/schemas/RefOut"
-            },
-            "title": "Blocked",
-            "type": "array"
-          },
-          "deletable": {
-            "title": "Deletable",
-            "type": "boolean"
-          },
-          "goes_with": {
-            "items": {
-              "$ref": "#/components/schemas/RefOut"
-            },
-            "title": "Goes With",
-            "type": "array"
-          },
-          "hint": {
-            "default": "",
-            "title": "Hint",
-            "type": "string"
-          },
-          "instead": {
-            "anyOf": [
-              {
-                "enum": [
-                  "deactivate",
-                  "suspend"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instead"
-          },
-          "item_id": {
-            "format": "uuid",
-            "title": "Item Id",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "product",
-              "case_size",
-              "customer",
-              "customer_group",
-              "supplier",
-              "price_draft",
-              "sales_order",
-              "picking_sheet",
-              "scan",
-              "document",
-              "user",
-              "notification",
-              "website_entry"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message"
-          },
-          "unlinked": {
-            "items": {
-              "$ref": "#/components/schemas/RefOut"
-            },
-            "title": "Unlinked",
-            "type": "array"
-          }
-        },
-        "required": [
-          "kind",
-          "item_id",
-          "label",
-          "deletable",
-          "message",
-          "goes_with",
-          "unlinked",
-          "blocked",
-          "instead"
-        ],
-        "title": "PreviewOut",
-        "type": "object"
-      },
       "PriceDiffOut": {
         "properties": {
           "added": {
@@ -13715,6 +13644,58 @@
         "title": "ReceivingReportOut",
         "type": "object"
       },
+      "RecentIn": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "RecentIn",
+        "type": "object"
+      },
+      "RecentOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "subtitle": {
+            "title": "Subtitle",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "subtitle",
+          "url"
+        ],
+        "title": "RecentOut",
+        "type": "object"
+      },
       "ReconciliationOut": {
         "properties": {
           "checked": {
@@ -15253,6 +15234,229 @@
         "title": "ScanProgressOut",
         "type": "object"
       },
+      "SearchGroupOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "count",
+          "items"
+        ],
+        "title": "SearchGroupOut",
+        "type": "object"
+      },
+      "SearchHitOut": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "match": {
+            "title": "Match",
+            "type": "string"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "subtitle": {
+            "title": "Subtitle",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "subtitle",
+          "url",
+          "match"
+        ],
+        "title": "SearchHitOut",
+        "type": "object"
+      },
+      "SearchOut": {
+        "properties": {
+          "filters": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Filters",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SearchGroupOut"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "index": {
+            "$ref": "#/components/schemas/IndexStatusOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "q": {
+            "title": "Q",
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Terms",
+            "type": "array"
+          },
+          "took_ms": {
+            "title": "Took Ms",
+            "type": "number"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_capped": {
+            "title": "Total Capped",
+            "type": "boolean"
+          },
+          "types": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "q",
+          "terms",
+          "filters",
+          "types",
+          "groups",
+          "items",
+          "total",
+          "total_capped",
+          "next_cursor",
+          "index",
+          "notes",
+          "took_ms"
+        ],
+        "title": "SearchOut",
+        "type": "object"
+      },
       "SecurityEventOut": {
         "properties": {
           "action": {
@@ -16680,6 +16884,37 @@
           "status"
         ],
         "title": "StatusIn",
+        "type": "object"
+      },
+      "StatusOut": {
+        "properties": {
+          "index": {
+            "$ref": "#/components/schemas/IndexStatusOut"
+          },
+          "missing_modules": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Missing Modules",
+            "type": "object"
+          },
+          "types": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "types",
+          "missing_modules",
+          "index"
+        ],
+        "title": "StatusOut",
         "type": "object"
       },
       "StockCheckOut": {
@@ -18232,6 +18467,171 @@
           "unread"
         ],
         "title": "CountOut",
+        "type": "object"
+      },
+      "pro_trading__routes__search__PreviewOut": {
+        "properties": {
+          "actions": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "related": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Related",
+            "type": "array"
+          },
+          "subtitle": {
+            "title": "Subtitle",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "subtitle",
+          "url",
+          "fields",
+          "related",
+          "actions"
+        ],
+        "title": "PreviewOut",
+        "type": "object"
+      },
+      "pro_trading__routes__trash__PreviewOut": {
+        "properties": {
+          "blocked": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "title": "Blocked",
+            "type": "array"
+          },
+          "deletable": {
+            "title": "Deletable",
+            "type": "boolean"
+          },
+          "goes_with": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "title": "Goes With",
+            "type": "array"
+          },
+          "hint": {
+            "default": "",
+            "title": "Hint",
+            "type": "string"
+          },
+          "instead": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deactivate",
+                  "suspend"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instead"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "product",
+              "case_size",
+              "customer",
+              "customer_group",
+              "supplier",
+              "price_draft",
+              "sales_order",
+              "picking_sheet",
+              "scan",
+              "document",
+              "user",
+              "notification",
+              "website_entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "unlinked": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "title": "Unlinked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "item_id",
+          "label",
+          "deletable",
+          "message",
+          "goes_with",
+          "unlinked",
+          "blocked",
+          "instead"
+        ],
+        "title": "PreviewOut",
         "type": "object"
       },
       "pro_trading__schemas__CountOut": {
@@ -31915,6 +32315,266 @@
         ]
       }
     },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "search_api_v1_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "comma-separated types",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "comma-separated types",
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "items per group (palette)",
+            "in": "query",
+            "name": "per_group",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "items per group (palette)",
+              "maximum": 10,
+              "minimum": 0,
+              "title": "Per Group",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "relevance",
+              "pattern": "^(relevance|newest|oldest)$",
+              "title": "Sort",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/v1/search/preview/{doc_type}/{rid}": {
+      "get": {
+        "operationId": "preview_api_v1_search_preview__doc_type___rid__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_type",
+            "required": true,
+            "schema": {
+              "title": "Doc Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pro_trading__routes__search__PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/v1/search/recent": {
+      "delete": {
+        "operationId": "clear_recent_api_v1_search_recent_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear Recent",
+        "tags": [
+          "search"
+        ]
+      },
+      "get": {
+        "description": "The employee's own recently opened records that still exist and that they may still see.",
+        "operationId": "recent_api_v1_search_recent_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecentOut"
+                  },
+                  "title": "Response Recent Api V1 Search Recent Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Recent",
+        "tags": [
+          "search"
+        ]
+      },
+      "post": {
+        "operationId": "add_recent_api_v1_search_recent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Recent",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/v1/search/status": {
+      "get": {
+        "operationId": "status_api_v1_search_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "search"
+        ]
+      }
+    },
     "/api/v1/security/events": {
       "get": {
         "description": "Sign-ins (and failures), lockouts, two-step changes, password resets, invitations,\nrole and status changes, session revocations and permission denials, newest first.\nPage with `before` = the last row's created_at.",
@@ -33825,7 +34485,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PreviewOut"
+                  "$ref": "#/components/schemas/pro_trading__routes__trash__PreviewOut"
                 }
               }
             },

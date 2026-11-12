@@ -22,6 +22,7 @@ from .order_connect.intake import handle_received as handle_oc_received
 from .order_connect.review import purge_expired as purge_order_connect
 from .outbox import Handler, dispatch_pending
 from .payments import REMINDER_EVENT, handle_reminder, schedule_reminders
+from .search.indexer import drain as drain_search_queue
 from .trash import purge_expired as purge_trash_items
 
 app = Celery("pro_trading", broker=get_settings().redis_url)
@@ -30,6 +31,8 @@ app.conf.beat_schedule = {
     "payment-reminders": {"task": "pro_trading.schedule_reminders", "schedule": 3600.0},
     "order-connect-retention": {"task": "pro_trading.order_connect_retention", "schedule": 86400.0},
     "purge-trash": {"task": "pro_trading.purge_trash", "schedule": 3600.0},
+    # Universal search: rebuild documents for records changed since the last run.
+    "search-index": {"task": "pro_trading.search_index", "schedule": 3.0},
     # Gmail Inbox: looks for new mail on a timer (the fallback when no Pub/Sub push arrives,
     # and the catch-up for a push Google dropped); also renews the mailbox watch once a day.
     "gmail-poll": {
@@ -80,3 +83,10 @@ def purge_trash(*_: Any) -> int:
 def gmail_poll(*_: Any) -> int:
     """Sync every connected Gmail mailbox (nothing to do, and no Google call, when none is)."""
     return int(poll_gmail()["new"])
+
+
+@app.task(name="pro_trading.search_index")  # type: ignore[untyped-decorator]
+def search_index(*_: Any) -> int:
+    """Drain the search change queue (search/indexer.py). Never touches the ERP tables."""
+    with get_sessionmaker()() as db:
+        return drain_search_queue(db).documents

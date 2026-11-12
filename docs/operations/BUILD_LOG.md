@@ -836,3 +836,190 @@ No application code has been generated or executed by this planning pack. This l
     - `documents.spec` waited for the Drive copy job; on rerun that passed and it stops at the same axe issue.
     - `ocr.spec`: the dev Celery worker (started the day before, concurrency 1) did not read the upload within 30 s. The worker code is not touched here.
 - **Open:** other edit forms (products, price books, receiving, orders, Online Orders) still reload and ask to redo the change after a version conflict; each needs the same small `keepEdits` change.
+
+## 2026-11-12 — Universal search (⌘K / Ctrl K): every module, exact numbers first, server-side permissions
+
+- **What the owner gets:**
+  - The header's "Go to…" box is now "Search or go to…". ⌘K / Ctrl K, a click, or "/" (on screens without their own search) opens one search over every module. The old screen list is kept as the "Screens" group.
+  - Phones get a search button in the header that opens it full screen.
+  - Results are grouped by kind with a few per group, a "See all" link and highlighted matches. Category chips show only what the person may open. Wide screens get a lazy preview with key fields, related records and actions (open, print / download the invoice PDF or packing sheet).
+  - An empty box shows the person's own recent records (clearable) and quick actions they may use.
+  - `/search?q=…` shows all results with category chips, sorting and "Show more". It is not in the sidebar.
+  - Sidebar and theme unchanged. Search never changes money or stock data.
+- **Engine: PostgreSQL full-text search + `pg_trgm`, no new service.** Measured below at realistic volume: the worst p95 is 90 ms against the 150 ms target, so nothing heavier is justified.
+- **Files:**
+  - API:
+    - `migrations/versions/0029_universal_search.py`
+    - `src/pro_trading/search/` (`registry.py` permissions and text, `indexer.py`, `parser.py`, `engine.py`, `preview.py`, `models.py`)
+    - `routes/search.py`, `main.py` (router), `worker.py` (task `pro_trading.search_index` every 3 s)
+    - `scripts/search_reindex.py`, `scripts/search_benchmark.py`
+    - `tests/test_search.py`
+    - `pyproject.toml`: per-file ruff ignores for the search SQL
+  - Web:
+    - `components/QuickJump.tsx` (trigger and phone button)
+    - `components/search/{CommandPalette,SearchPreview,Highlight}.tsx`
+    - `lib/search.ts` + `lib/search.test.ts`
+    - `pages/Search.tsx` and its route in `App.tsx`
+    - `e2e/search.spec.ts`
+    - `e2e/navigation.spec.ts`, updated for the new box
+  - Shell: the phone search button line in `components/Shell.tsx` went in with ffc88c9 (error-handling session).
+  - `contracts/openapi.implemented.json` re-exported.
+- **Schema (migration 0029, additive, with downgrade; tested up → down to 0028 → up):**
+  - `search_documents`, one row per record, keyed by (type, id):
+    - `company_id`, `warehouse_id`
+    - title / subtitle
+    - `identifiers text[]`: upper-cased, as written and compact without spaces or dashes
+    - `ident_text`, `title_norm` (accents folded)
+    - `names`, `body` (linked records' text), `ocr_text`
+    - generated `tsv` (weights A title / B names / C body) and `ocr_tsv`
+    - `status`, `doc_date`, `amount`, `currency`
+    - `customer_id`, `vendor_id`, `product_ids[]`
+    - `attrs`, `url`, `source_updated_at`, `indexed_at`
+    - GIN indexes on identifiers, trigram (ident_text, title_norm), both tsvectors and product_ids
+  - `search_index_queue`: append-only change list; a FAILED status after 8 tries.
+  - `search_recent`: per-employee recent records, newest 20 kept. No foreign keys, so the Trash is unaffected.
+  - 25 AFTER triggers on the source tables. Each is one plain INSERT into the queue: no upsert, so two transactions on the same customer never wait on each other.
+  - 20 `upper(column)` indexes for the live exact lookups.
+  - `pg_trgm` is created if missing and left installed on downgrade.
+- **Sync:**
+  - Why not `outbox_events`: the triggers write to a separate queue. The search queue gets one row per changed row (about 500k on a bulk load). In the business outbox these rows would:
+    - push back invoice emails and Drive copies
+    - make existing tests that count pending outbox rows or dispatch with only their own handler fail
+    - trigger "job failed" alerts
+  - Same pattern, separate table: written in the business transaction, drained by the existing Celery worker, idempotent rebuild from the source rows, retried with backoff (10 s, 20 s, 40 s…), then FAILED.
+  - The drain claims rows with SKIP LOCKED and folds repeated changes to one record into one rebuild. A deleted record (including one moved to the Trash) loses its document; a restored one is indexed again.
+  - A renamed customer, supplier or product re-indexes its orders / invoices / payments, shipments / supplier payments, or batches.
+  - The worker never touches ERP tables. Cost to writers: +0.03 ms per changed row (5,000-row update: 260 ms with the triggers, 111 ms without).
+- **Indexed modules and fields (real tables only):**
+  - **Products:** name, SKU, aliases, active unit-profile codes, category, packaged twin (SKU+P).
+  - **Customers / stores:** name, code (`external_ref`), vendor #, ship-to name (the "store"), email, phone, addresses, group.
+  - **Suppliers:** name, code, email.
+  - **Batches (`inventory_lots`):** lot code, batch ref, product, warehouse, the supplier / shipment / GRN that received it.
+  - **Stock counts:** count no.
+  - **Sales orders:** order no, customer, product SKUs / names. The order's captured `source_text` is searched as scanned text.
+  - **Packing sheets:** pick code, order no.
+  - **Invoices:** invoice no, customer, order no, line SKUs / descriptions, total, date, state.
+  - **Receiving shipments:**
+    - shipment no, GRN, airway bill, supplier invoice no
+    - document refs and count-line batch refs
+    - supplier, declared line labels, products, landed-cost kinds (amounts not indexed)
+  - **Customer payments:** payment no, customer's reference, bank reference, customer, invoice numbers.
+  - **Supplier payments:** payment no, reference, supplier, shipment.
+  - **Scans:**
+    - job no, file name, note, customer / supplier
+    - stored OCR text: text blocks, header values, line labels and raw text of the live reading
+    - Gemini is never called at search time
+  - **Documents archive:** file name, folder, note.
+  - **Gmail:** subject, sender, Gmail's preview, attachment names. The body is not indexed: it needs `gmail.body.read`.
+  - **Activity log:** not copied; looked up live in `audit_events` by exact target id or action prefix.
+  - **Missing, with an adapter hook** (`registry.MISSING_MODULES`; a new type needs a builder, a `DocType` and a trigger):
+    - returns and adjustments (only stock-movement types exist, no document table)
+    - a separate store table (stores are customers' ship-to names)
+    - Stock movements themselves are not separate results: the batch preview counts them and links the sales that used the batch.
+  - Online Orders requests (OC-) are not indexed yet.
+- **API:**
+  - `GET /api/v1/search?q=&type=&limit=&per_group=&cursor=&sort=relevance|newest|oldest`
+  - `GET /api/v1/search/preview/{type}/{id}`
+  - `GET/POST/DELETE /api/v1/search/recent`
+  - `GET /api/v1/search/status`
+  - Rate limit: 240 searches per minute per employee via `ratelimit` (fails open if Redis is down).
+  - **Query syntax** (`search/parser.py`): `invoice:` `order:` `batch:`/`lot:` `shipment:` `grn:` `awb:` `scan:` `payment:` `sku:` `customer:` `store:` `supplier:` `status:a,b` `date:2026` / `2026-11` / `2026-11-12` / `a..b` / `>x` `amount:>1000` / `500..2000` `type:invoices,orders`, plus quoted values and any combination.
+    - Invalid values give 422 `BAD_QUERY` with how to write it.
+    - Control characters are stripped.
+    - Unknown `key:` stays text.
+    - Only parameterized SQL is used; tsquery words are reduced to letters and digits.
+- **Ranking (tiers never overlap):**
+  - 1000 exact number / code (live in the ERP tables and in the index)
+  - 900 exact name
+  - 800 number starts with / 780 name starts with
+  - 650 number contains
+  - 600 every word in title or names (prefix)
+  - 500 filters only
+  - 400 words found in linked records
+  - 300 activity
+  - 200–299 similar spelling (trigram, names only — never for anything containing a digit, so a mistyped invoice number does not bring up its neighbours)
+  - 100–199 scanned text
+  - Within a tier: invoice > batch > order > shipment > customer > product > … then newest.
+  - **Index behind or down:** exact numbers and exact names come from the ERP tables directly, so a record created a second ago is found before the worker indexes it. If the search table fails (3 s statement timeout, savepoint), the answer is marked `degraded` and the palette says "exact numbers and names still work". The palette notes when the queue is more than a minute behind.
+- **Permissions (server side, in every SQL branch, counts included):**
+  - Each type mirrors its module's read endpoint (`registry.DOC_TYPES`):
+    - Invoices: `invoice.read` in the invoice's warehouse.
+    - Batches and stock counts: `inventory.read` per warehouse.
+    - Orders and packing sheets: `sales_order.read` per warehouse.
+    - Receiving: `grn.record` / `grn.approve` per warehouse.
+    - Scans: `scan.create` / `scan.review` per warehouse.
+    - Documents: `document.read` per warehouse.
+    - Customers: `catalog.read` or `price.read`, any scope.
+    - Products: `catalog.read`, any scope.
+    - Suppliers: `catalog.read` or `grn.*`, any scope.
+    - Payments: `payment.record` / `payment.verify`, any scope.
+    - Supplier payments: company-wide `supplier.ledger.read`.
+    - Gmail: company-wide `gmail.read`.
+    - Activity: company-wide `audit.read` (D-39).
+  - Previews and related records apply the same rule per related record. Anything not visible, or in another company, is a 404, so nothing is revealed.
+  - Amounts are shown and the `amount:` filter applies only on types whose money permission the person holds. Warehouse staff get no invoice or payment links and no prices.
+  - Someone with no readable type gets 403 on every search endpoint (`test_security_routes`).
+- **Benchmark** (`scripts/search_benchmark.py`, synthetic data in `tami_bench_search`, in-process engine, 40 runs per kind after warm-up, MacBook dev machine):
+  - Data: 10,000 products; 5,000 customers; 1,000 suppliers; 50,000 orders / packing sheets / invoices with 100,000 invoice lines; 20,000 batches; 2,000 shipments; 50,000 scans with OCR text.
+  - Index: 238,000 documents, 292 MB, full backfill in 312 s.
+  - p95 in ms, owner / warehouse-scoped user:
+
+    | Query | Owner | Warehouse |
+    |---|---|---|
+    | exact invoice no | 39.9 | 43.7 |
+    | exact batch | 30.9 | 35.0 |
+    | airway bill typed with spaces | 29.5 | 36.4 |
+    | invoice-number prefix | 68.4 | 71.2 |
+    | customer name, 2 words | 63.8 | 87.3 |
+    | product word prefixes | 62.7 | 58.4 |
+    | one common word | 90.4 | 66.7 |
+    | typo | 25.7 | 27.0 |
+    | OCR words | 48.6 | 26.4 |
+    | `customer:` + `status:` | 29.3 | 11.9 |
+    | `date:` + `amount:` | 14.9 | — |
+    | `invoice:` + word | 64.6 | — |
+
+    "—": warehouse staff may not see invoices, so the query returns nothing at once.
+  - Preview p95: 5.7 ms.
+  - Worst p95: **90.4 ms**; target 150 ms.
+  - Reconcile OK after backfill.
+- **Tests:**
+  - `cd apps/api && DATABASE_URL=…/tami_test_search PYTHONPATH=src uv run --no-sync pytest -o addopts="" -q tests`: **648 passed, 1 skipped, 1 failed**.
+    - The failure was `test_security_routes`: a no-role employee could call search (empty answers). Fixed (now 403).
+    - After the fix, `test_security_routes`, `test_search`, `test_rbac` and `test_contract` were re-run: all passed.
+  - `tests/test_search.py`, 30 tests:
+    - parser keys, dates, amounts, errors, tsquery safety
+    - exact numbers first (invoice, batch → lot then shipment, airway bill with spaces / without dash, supplier invoice, payment and bank refs, customer / supplier codes, SKU, order, packing sheet)
+    - fuzzy never outranks or blurs exact numbers; tiers never interleave
+    - prefix, contains, multi-word, alias, highlight terms, groups and counts
+    - filters
+    - injection strings
+    - warehouse vs sales vs finance vs owner vs warehouse-scoped admin
+    - money hidden
+    - cross-company isolation (same invoice numbers in two companies)
+    - previews follow real links
+    - recents private and clearable
+    - queue sync, rename fan-out, idempotency and coalescing, retry / backoff / FAILED / reconcile / re-arm, deletes, Trash and restore, backfill of missing and orphaned documents
+    - exact numbers while the index is behind and when it is down
+    - search writes nothing to ERP tables
+  - Web:
+    - `npx vitest run`: **293 passed** (new `lib/search.test.ts`: highlight, money, query strings, app paths only, latest-request-wins, permitted quick actions)
+    - `tsc -b` clean; eslint clean on the touched files
+  - Playwright:
+    - `e2e/search.spec.ts` + `e2e/navigation.spec.ts`: **8 passed**. They cover ⌘K / Ctrl K, ↑ / ↓ / Enter / Esc, the focus trap, the right route opening, Screens, Ctrl+Enter → `/search`, category chips per role, axe on the open palette, and 390 px full screen with no sideways scroll.
+    - reports / settings / suppliers specs re-run after removing `aria-expanded` from the read-only header box (axe `aria-allowed-attr`, reported by the error-handling session): **10 passed**.
+- **Setup / backfill / rollback:**
+  - Setup: `alembic upgrade head`, then `PYTHONPATH=src uv run python -m scripts.search_reindex backfill`. Dev DB: 28k documents in 31 s.
+  - Restart the Celery worker so the `search-index` beat entry runs.
+  - Maintenance commands:
+    - Check: `… search_reindex reconcile` (exit 1 when out of step).
+    - Process now: `… drain`.
+    - Re-arm failures: `… retry-failed`.
+    - One type or company: `--type`, `--company`.
+  - Rollback: `alembic downgrade 0028` drops the triggers, queue, recents, documents and lookup indexes; ERP tables are untouched.
+- **Limitations / open:**
+  - D-39: who may search the activity log.
+  - Backfill rebuilds one record at a time (~1.3 ms each). Fine for these volumes; a bulk builder would be needed for millions.
+  - The dev worker runs at concurrency 1, so a long Gmail poll briefly delays indexing. Exact numbers are unaffected.
+  - Online Orders requests, returns / adjustments documents and stock movements as separate results are not searchable (see above).
+  - Recent records keep the newest 20 per employee.

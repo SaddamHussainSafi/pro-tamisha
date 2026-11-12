@@ -21,13 +21,13 @@ async function signIn(page: Page) {
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 }
 
-test("Ctrl K opens Go to, and / jumps to the screen's own search", async ({ page }) => {
+test("Ctrl K opens search (screens included), and / jumps to the screen's own search", async ({ page }) => {
   await signIn(page);
   await page.keyboard.press("ControlOrMeta+k");
-  const go = page.getByRole("combobox", { name: "Go to a screen" });
+  const go = page.getByRole("dialog", { name: "Search" }).getByRole("combobox");
   await expect(go).toBeFocused();
   await go.fill("pack");
-  await expect(page.getByRole("option", { name: /Packing/ })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Screens" }).getByRole("option", { name: /Packing/ })).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/packing$/);
   await expect(page.getByRole("heading", { name: "Packing" })).toBeVisible();
