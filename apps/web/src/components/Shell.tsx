@@ -13,6 +13,7 @@ import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
 import { NotificationBell } from "./notifications/NotificationBell";
 import { OrderConnectBadge } from "./OrderConnectLive";
+import { MailBadge } from "./mail/MailBadge";
 import { NotificationProvider } from "./notifications/NotificationProvider";
 import { QuickJump, SearchButton } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
@@ -77,7 +78,8 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       <NavLink to={item.to} end={item.to === "/"} title={item.label} className={({ isActive }) => `${SQUARE} ${isActive ? ON : OFF}`}>
         <Icon name={item.icon} size={22} />
         <span className="sr-only">{item.label}</span>
-        {item.badge && <OrderConnectBadge collapsed />}
+        {item.badge === "order_connect" && <OrderConnectBadge collapsed />}
+        {item.badge === "mail" && <MailBadge collapsed />}
       </NavLink>
     );
 
@@ -88,7 +90,8 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         <NavLink to={item.to} end={item.to === "/"} className={({ isActive }) => `${ROW} relative min-w-0 flex-1 ${isActive ? ON : OFF}`}>
           <Icon name={item.icon} size={22} />
           <span className="truncate">{item.label}</span>
-          {item.badge && <OrderConnectBadge collapsed={false} />}
+          {item.badge === "order_connect" && <OrderConnectBadge collapsed={false} />}
+          {item.badge === "mail" && <MailBadge collapsed={false} />}
         </NavLink>
         {item.children && (
           <button
@@ -161,7 +164,7 @@ function SidebarPanel({ collapsed, onToggle, onClose }: { collapsed: boolean; on
           <div key={g.title ?? "top"} className={gi > 0 ? "mt-2 border-t border-line pt-2" : ""}>
             {g.title && !collapsed && <div className="px-3 pb-1 pt-2 text-xs font-medium text-ink-muted">{g.title}</div>}
             <ul className={`space-y-0.5 ${collapsed ? "flex flex-col items-center" : ""}`}>
-              {g.items.map((item) => <li key={item.to}><Item item={item} collapsed={collapsed} /></li>)}
+              {g.items.filter((item) => !item.perm || (!!session && has(session, item.perm))).map((item) => <li key={item.to}><Item item={item} collapsed={collapsed} /></li>)}
             </ul>
           </div>
         ))}

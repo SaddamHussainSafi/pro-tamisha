@@ -1,0 +1,17 @@
+/* Email › Print: only the open message is printed (header + body), never the app around it.
+   The print copy is placed straight under <body> while printing (see ReadingPane.tsx). */
+.mail-print { display: none; }
+
+@media print {
+  @page { margin: 0.6in; }
+  html:has(body > .mail-print),
+  body:has(> .mail-print) {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body:has(> .mail-print) > :not(.mail-print) { display: none !important; }
+  .mail-print { display: block; color: #000; }
+  /* The email body is a sandboxed frame whose height can't be measured from here: one page. */
+  .mail-print-body { display: block; width: 100%; height: 8.6in; border: 0; }
+}

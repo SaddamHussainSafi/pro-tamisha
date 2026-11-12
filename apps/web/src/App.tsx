@@ -13,6 +13,7 @@ const chunks = {
   caseSizes: () => import("./pages/CaseSizes"),
   customers: () => import("./pages/Customers"),
   documents: () => import("./pages/Documents"),
+  email: () => import("./pages/Email"),
   gmail: () => import("./pages/Gmail"),
   inventory: () => import("./pages/Inventory"),
   invoices: () => import("./pages/Invoices"),
@@ -45,6 +46,7 @@ const CaseSizesPage = page(chunks.caseSizes, (m) => m.CaseSizesPage);
 const CustomersPage = page(chunks.customers, (m) => m.CustomersPage);
 const CustomerDetailPage = page(chunks.customers, (m) => m.CustomerDetailPage);
 const DocumentsPage = page(chunks.documents, (m) => m.DocumentsPage);
+const EmailPage = page(chunks.email, (m) => m.EmailPage);
 const GmailInboxPage = page(chunks.gmail, (m) => m.GmailInboxPage);
 const GmailCallbackPage = page(chunks.gmail, (m) => m.GmailCallbackPage);
 const InventoryPage = page(chunks.inventory, (m) => m.InventoryPage);
@@ -180,6 +182,7 @@ export function App() {
           <Route path="scan" element={<ScansPage />} />
           <Route path="scan/review/:id" element={<OcrReviewPage />} />
           <Route path="scan/:id" element={<ScanJobPage />} />
+          <Route path="email" element={<EmailPage />} />
           <Route path="gmail" element={<GmailInboxPage />} />
           <Route path="gmail/oauth/callback" element={<GmailCallbackPage />} />
           <Route path="documents" element={<DocumentsPage />} />
@@ -190,6 +193,7 @@ export function App() {
           <Route path="settings/security" element={<SettingsPage />} />
           <Route path="settings/ocr" element={<SettingsPage />} />
           <Route path="settings/notifications" element={<SettingsPage />} />
+          <Route path="settings/email-services" element={<SettingsPage />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="notifications" element={<Navigate to="/activity?view=notifications" replace />} />

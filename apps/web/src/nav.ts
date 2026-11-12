@@ -7,13 +7,22 @@ export type NavItem = {
   to: string;
   module: string | null;
   /** Live count shown on the entry (see components/OrderConnectLive.tsx). */
-  badge?: "order_connect";
+  badge?: "order_connect" | "mail";
+  /** Shown only to people holding this permission (e.g. Email needs mail.use). */
+  perm?: string;
   children?: { label: string; to: string }[];
 };
 export type NavGroup = { title: string | null; items: NavItem[] };
 
 export const NAV_GROUPS: NavGroup[] = [
-  { title: null, items: [{ label: "Overview", icon: "home", to: "/", module: null }] },
+  {
+    title: null,
+    items: [
+      { label: "Overview", icon: "home", to: "/", module: null },
+      // Lark Mail; separate from the Gmail Inbox (scanned documents) under Warehouse.
+      { label: "Email", icon: "mail", to: "/email", module: null, perm: "mail.use", badge: "mail" },
+    ],
+  },
   {
     title: "Sales",
     items: [

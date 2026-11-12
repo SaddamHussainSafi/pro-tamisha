@@ -420,6 +420,7 @@ def test_search_is_scoped_to_the_selected_mailbox(lark, make_api, world) -> None
     )
     assert q("cases", "&has_attachments=true") == ["Danger", "Order for next week"]
     assert q("nothing-like-this") == []
+    assert q("Hello") == ["Order for next week"]  # a word only in the HTML version
     hit = andy.get(f"/api/v1/mail/search?account_id={w['acc']}&q=TT2026").json()["items"][0]
     assert "TT2026-000123" in (hit["highlight"] or "")
 

@@ -59,6 +59,7 @@ class ParsedMail:
     truncated: bool
     remote_images: bool
     raw_sha256: str
+    html_text: str = ""  # words of the HTML version, for search when it differs from the text
     attachments: list[ParsedAttachment] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -170,7 +171,7 @@ def parse(raw: bytes, *, max_body: int = 400_000, max_parts: int = 200) -> Parse
             )
         )
     truncated = remote = False
-    safe_html = ""
+    safe_html = from_html = ""
     if html_body:
         safe_html, from_html, truncated, remote = sanitize(html_body, max_body)
         if not text_body.strip():
@@ -197,6 +198,7 @@ def parse(raw: bytes, *, max_body: int = 400_000, max_parts: int = 200) -> Parse
         truncated=truncated,
         remote_images=remote,
         raw_sha256=hashlib.sha256(raw).hexdigest(),
+        html_text=from_html if html_body else "",
         attachments=attachments,
         warnings=warnings,
     )

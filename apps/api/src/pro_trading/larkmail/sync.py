@@ -257,6 +257,7 @@ def store(
                     _addr_text(p.bcc),
                     names,
                     p.body_text[:100_000],
+                    p.html_text[:100_000] if p.html_text != p.body_text else "",
                 ]
             ),
         ),  # fmt: skip

@@ -1083,3 +1083,16 @@ No application code has been generated or executed by this planning pack. This l
 - **Rollback:**
   - `alembic downgrade 0029` drops the mail tables (imported copies only), the permissions and the archive columns.
   - Users: reactivate in User management, or restore the backup.
+- **Web (same day, second commit):**
+  - Email page `/email`: three panes on desktop, one at a time on phones; account selector; folders; infinite list; sandboxed reading pane with Load images; attachments; Reply / Reply all / Forward; Print.
+  - Compose: chips, rich text, uploads, signature, autosaved drafts, idempotent Send; Outbox with status. Live search and ERP links.
+  - Settings › Email services (Super Admin only). Email nav entry for `mail.use` with an unread badge. ⌘K deep links `/email?account=…&message=…`.
+  - Results:
+    - `tsc` clean; `vitest` 299 passed; eslint clean on the touched files.
+    - Playwright `email.spec.ts` (12) + `gmail.spec.ts` + `navigation.spec.ts`: 24 passed; `settings` / `smoke` / `search`: 15 passed.
+  - Search now also indexes the words of the HTML version; `test_lark_mail` + `test_user_replacement` + `test_gmail`: 56 passed.
+  - Open:
+    - A printed body is cut at about one page.
+    - A reopened draft lists its files by count only.
+    - "Create draft order" only links to the customer (no prefill route).
+    - The ⌘K screen list shows Email to people without access.

@@ -1,16 +1,18 @@
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { hasCompanyWide } from "../api";
+import { has, hasCompanyWide } from "../api";
 import { useAuth } from "../auth";
 import { Icon, type IconName } from "../ui/Icon";
 import { PageHeader } from "../ui/primitives";
 import { NotificationPreferences } from "../components/notifications/NotificationPreferences";
+import { LarkMail } from "./settings/LarkMail";
 import { MyAccount } from "./settings/MyAccount";
 import { OcrEngine } from "./settings/OcrEngine";
 import { Roles } from "./settings/Roles";
 import { Security } from "./settings/Security";
 import { Users } from "./settings/Users";
 
-type Tab = { to: string; key: string; label: string; icon: IconName; admin: boolean };
+/** `perm`: shown only with that permission (instead of the Super Admin `admin` rule). */
+type Tab = { to: string; key: string; label: string; icon: IconName; admin: boolean; perm?: string };
 const TABS: Tab[] = [
   { to: "/settings", key: "account", label: "My account", icon: "user", admin: false },
   { to: "/settings/notifications", key: "notifications", label: "Notifications", icon: "bell", admin: false },
@@ -18,6 +20,8 @@ const TABS: Tab[] = [
   { to: "/settings/roles", key: "roles", label: "Roles & permissions", icon: "layers", admin: true },
   { to: "/settings/security", key: "security", label: "Security & sessions", icon: "shield", admin: true },
   { to: "/settings/ocr", key: "ocr", label: "OCR test", icon: "layers", admin: true },
+  // Integrations › Email Services › Lark Mail (mail.manage: Super Admin only).
+  { to: "/settings/email-services", key: "email", label: "Email services", icon: "mail", admin: true, perm: "mail.manage" },
 ];
 
 /** Settings: My account for everyone; user management, roles and security for Super Admin. */
@@ -26,9 +30,11 @@ export function SettingsPage() {
   const loc = useLocation();
   if (!session) return null;
   const isAdmin = hasCompanyWide(session, "employee.manage");
-  const tabs = TABS.filter((t) => isAdmin || !t.admin);
+  const allowed = (t: Tab) => (t.perm ? has(session, t.perm) : isAdmin || !t.admin);
+  const tabs = TABS.filter(allowed);
   const current: Tab = TABS.find((t) => t.to === loc.pathname) ?? (TABS[0] as Tab);
-  if (current.admin && !isAdmin) return <Navigate to="/settings" replace />;
+  // Email Services says plainly that it is not allowed (a direct link must not just bounce).
+  if (!allowed(current) && !current.perm) return <Navigate to="/settings" replace />;
   return (
     <div className="space-y-5">
       <PageHeader title="Settings" subtitle={isAdmin ? "Your account, the people who can sign in, and how sign-in is protected." : "Your account and how you sign in."} />
@@ -47,7 +53,7 @@ export function SettingsPage() {
           ))}
         </nav>
       )}
-      {current.key === "users" ? <Users /> : current.key === "roles" ? <Roles /> : current.key === "security" ? <Security /> : current.key === "ocr" ? <OcrEngine /> : current.key === "notifications" ? <NotificationPreferences /> : <MyAccount />}
+      {current.key === "users" ? <Users /> : current.key === "roles" ? <Roles /> : current.key === "security" ? <Security /> : current.key === "ocr" ? <OcrEngine /> : current.key === "notifications" ? <NotificationPreferences /> : current.key === "email" ? <LarkMail /> : <MyAccount />}
     </div>
   );
 }
