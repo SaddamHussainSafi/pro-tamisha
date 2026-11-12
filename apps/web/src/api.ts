@@ -975,6 +975,8 @@ export type ShipmentDetail = Shipment & {
   costs: LandedCost[];
   comparison: CompareRow[];
   cost_totals: Record<string, string>;
+  /** What an empty Batch will most likely be named when the line is saved (D-37). */
+  next_batch_ref: string;
 };
 export type CountIn = {
   product_id: string;
@@ -1257,6 +1259,8 @@ export const api = {
     request<ShipmentDetail>("POST", "/shipments", b, true),
   attachShipmentScan: (id: string, b: { version: number; scan_job_id: string; kind: ShipmentDocKind; doc_ref?: string | null }) =>
     request<ShipmentDetail>("POST", `/shipments/${id}/documents`, b, true),
+  attachShipmentGmail: (id: string, b: { version: number; attachment_id: string; kind: ShipmentDocKind; doc_ref?: string | null }) =>
+    request<ShipmentDetail>("POST", `/shipments/${id}/documents/gmail`, b, true),
   uploadShipmentDoc: (id: string, file: File, q: { version: number; kind: ShipmentDocKind; doc_ref?: string }) =>
     request<ShipmentDetail>(
       "POST",

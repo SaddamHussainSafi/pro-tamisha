@@ -9,6 +9,8 @@ Rules (docs/modules/08-receiving.md):
 - Landed costs are captured, never auto-allocated to lots.
 """
 
+import re
+import unicodedata
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
@@ -16,10 +18,12 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from . import inventory as inv
 from .models import (
+    BatchCounter,
     Company,
     DeclaredLine,
     GrnLine,
@@ -54,6 +58,68 @@ def next_grn_no(db: Session, company_id: uuid.UUID) -> str:
         or 0
     )
     return f"GRN-{now():%Y%m%d}-{n + 1:04d}"
+
+
+# ------------------------------------------------------------------ automatic batch names (D-37)
+
+
+def supplier_initials(name: str, code: str = "") -> str:
+    """ "This Fruta SAS" -> "TFS". One-word names give their first three letters ("Agrofresh"
+    -> "AGR"). Accents and words in brackets are dropped. Falls back to the supplier code,
+    then "B"."""
+
+    def words(t: str) -> list[str]:
+        plain = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode()
+        return re.findall(r"[A-Za-z0-9]+", plain)
+
+    w = words(re.sub(r"\([^)]*\)|\[[^\]]*\]", " ", name))  # "(synthetic)" etc. is not a name
+    if len(w) >= 2:
+        out = "".join(x[0] for x in w)[:5]
+    elif w:
+        out = w[0][:3]
+    else:
+        out = "".join(words(code))[:5]
+    return out.upper() or "B"
+
+
+def _batch_used(db: Session, company_id: uuid.UUID, ref: str) -> bool:
+    return (
+        db.scalar(
+            select(GrnLine.id)
+            .join(Shipment, Shipment.id == GrnLine.shipment_id)
+            .where(Shipment.company_id == company_id, GrnLine.batch_ref == ref)
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def next_batch_ref(db: Session, company_id: uuid.UUID, prefix: str) -> str:
+    """Take the next running number for the company and return "<prefix>-0001" style. The
+    counter row is locked by the upsert until commit, so two saves never get the same number,
+    and a number is never handed out again (a removed line does not give its number back).
+    A number someone already typed by hand is skipped."""
+    for _ in range(1000):
+        n = db.scalar(
+            insert(BatchCounter)
+            .values(company_id=company_id, last_no=1)
+            .on_conflict_do_update(
+                index_elements=[BatchCounter.company_id],
+                set_={"last_no": BatchCounter.last_no + 1},
+            )
+            .returning(BatchCounter.last_no)
+        )
+        ref = f"{prefix}-{n:04d}"
+        if not _batch_used(db, company_id, ref):
+            return ref
+    raise RuntimeError("no free batch number")  # pragma: no cover
+
+
+def peek_batch_ref(db: Session, company_id: uuid.UUID, prefix: str) -> str:
+    """What the next automatic batch name will probably be (shown in the empty field; the
+    real number is only taken when the line is saved)."""
+    last = db.scalar(select(BatchCounter.last_no).where(BatchCounter.company_id == company_id))
+    return f"{prefix}-{(last or 0) + 1:04d}"
 
 
 @dataclass

@@ -8,14 +8,11 @@ import { deleteMode } from "../lib/trash";
 import { DeleteAction } from "../ui/DeleteAction";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { CardTitle, ConfirmDialog, EmptyState, ErrorState, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
+import { todayIso } from "../lib/format";
 
 type Msg = { tone: "error" | "ok"; text: string } | null;
 const link = "font-medium text-brand-primary hover:underline";
 const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
 const UNIT: Record<string, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
 
 function Notice({ msg }: { msg: Msg }) {
@@ -51,7 +48,7 @@ function RecordPayment({
   onCancel: () => void;
 }) {
   const first = suppliers.find((s) => s.id === vendorId);
-  const [f, setF] = useState({ vendor: vendorId ?? "", method: "WIRE" as SupplierPayMethod, amount: "", currency: first?.currency ?? "", paid_on: today(), reference: "", shipment: "", note: "" });
+  const [f, setF] = useState({ vendor: vendorId ?? "", method: "WIRE" as SupplierPayMethod, amount: "", currency: first?.currency ?? "", paid_on: todayIso(), reference: "", shipment: "", note: "" });
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
 
@@ -125,7 +122,7 @@ function RecordPayment({
           <label className="label" htmlFor="sp-date">
             Paid on
           </label>
-          <input id="sp-date" type="date" className="input" max={today()} value={f.paid_on} onChange={(e) => setF({ ...f, paid_on: e.target.value })} />
+          <input id="sp-date" type="date" className="input" max={todayIso()} value={f.paid_on} onChange={(e) => setF({ ...f, paid_on: e.target.value })} />
         </div>
         <div>
           <label className="label" htmlFor="sp-method">

@@ -488,3 +488,85 @@ def test_vendor_documents_are_filed_in_archive(owner, world, setup):
     assert items[0]["folder"].startswith("Vendors/V-GH1 Accra Roots Exports/")
     assert items[0]["vendor_name"] == "Accra Roots Exports"
     assert items[0]["filename"].startswith(s["shipment_no"])
+
+
+def test_supplier_initials_for_batch_names():
+    from pro_trading.receiving import supplier_initials
+
+    assert supplier_initials("This Fruta SAS") == "TFS"
+    assert supplier_initials("Accra Roots Exports") == "ARE"
+    assert supplier_initials("Agrofresh") == "AGR"
+    assert supplier_initials("Accra Roots Exports (synthetic)") == "ARE"
+    assert supplier_initials("Café Ñandú & Co.") == "CNC"
+    assert supplier_initials("", "V-GH1") == "VGH1"
+    assert supplier_initials("!!", "") == "B"
+
+
+def test_empty_batch_gets_supplier_initials_and_a_number_never_reused(owner, world, setup):
+    """D-37: a count line saved without a batch gets "<initials>-<running number>"; the number
+    runs per company, is shown beforehand as a preview, and is never handed out twice."""
+    cas, yam = setup["p"]["CAS"], setup["p"]["YAM"]
+    s = new_shipment(owner, world, setup)
+    assert s["next_batch_ref"] == "ARE-0001"
+    s = count(owner, s, cas, "5").json()
+    assert s["counted"][0]["batch_ref"] == "ARE-0001"
+    assert s["next_batch_ref"] == "ARE-0002"
+    s = count(owner, s, yam, "3", unit="LB", batch_ref="  LOT-77 ").json()
+    assert s["counted"][1]["batch_ref"] == "LOT-77"  # typed by hand: kept as typed
+    s = count(owner, s, yam, "2", unit="LB").json()
+    assert s["counted"][2]["batch_ref"] == "ARE-0002"
+    # a removed line does not give its number back
+    line = s["counted"][2]
+    s = act(owner, s, f"count/{line['id']}/remove", {}).json()
+    assert s["next_batch_ref"] == "ARE-0003"
+    # a number someone typed by hand is skipped
+    s = count(owner, s, yam, "1", unit="LB", batch_ref="ARE-0003").json()
+    s = count(owner, s, yam, "1", unit="LB").json()
+    assert s["counted"][-1]["batch_ref"] == "ARE-0004"
+    # editing with an empty batch keeps the line's name
+    first = s["counted"][0]
+    body = {
+        "line_version": first["version"],
+        "product_id": cas,
+        "unit_code": "BOX",
+        "accepted_qty": "6",
+        "batch_ref": "",
+    }
+    r = act(owner, s, f"count/{first['id']}", body, method="put")
+    assert r.status_code == 200, r.text
+    assert r.json()["counted"][0]["batch_ref"] == "ARE-0001"
+    # the batch name reaches the stock lot when the count is approved
+    s = act(owner, r.json(), "submit-count", {}).json()
+    r = act(owner, s, "post", {"acknowledge_discrepancies": True, "discrepancy_note": "no docs"})
+    assert r.status_code == 200, r.text
+    with get_sessionmaker()() as db:
+        refs = db.scalars(
+            text("SELECT batch_ref FROM inventory_lots WHERE company_id=:c ORDER BY batch_ref"),
+            {"c": world.company_id},
+        ).all()
+    assert "ARE-0001" in refs and "ARE-0004" in refs
+
+
+def test_concurrent_count_lines_get_different_batch_numbers(owner, world, setup):
+    cas = setup["p"]["CAS"]
+    ships = [new_shipment(owner, world, setup) for _ in range(4)]
+
+    def go(s):
+        r = count(owner, s, cas, "1")
+        assert r.status_code == 201, r.text
+        return r.json()["counted"][0]["batch_ref"]
+
+    with ThreadPoolExecutor(4) as ex:
+        refs = sorted(ex.map(go, ships))
+    assert refs == ["ARE-0001", "ARE-0002", "ARE-0003", "ARE-0004"]
+
+
+def test_counting_by_hand_needs_no_document(owner, world, setup):
+    s = new_shipment(owner, world, setup)
+    s = count(owner, s, setup["p"]["CAS"], "4").json()
+    assert s["documents"] == [] and s["document_count"] == 0
+    s = act(owner, s, "submit-count", {}).json()
+    r = act(owner, s, "post", {"acknowledge_discrepancies": True, "discrepancy_note": "no docs"})
+    assert r.status_code == 200, r.text
+    n, total = movements(world.company_id)
+    assert n == 1 and total == 4

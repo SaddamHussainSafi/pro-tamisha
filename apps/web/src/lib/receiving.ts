@@ -1,4 +1,4 @@
-import { ApiError, type CompareRow, type CompareStatus, type LandedCostKind, type ShipmentDocKind, type ShipmentStatus } from "../api";
+import { ApiError, type CompareRow, type ProductSummary, type CompareStatus, type LandedCostKind, type ShipmentDocKind, type ShipmentStatus } from "../api";
 import type { Tone } from "../ui/primitives";
 import { add, dec, isDecimal, toFixed } from "./decimal";
 import { qtyText } from "./inventory";
@@ -109,4 +109,19 @@ export function receivingMessage(err: unknown): string {
     default:
       return err.message;
   }
+}
+
+export const productLabel = (p: Pick<ProductSummary, "sku" | "name">) => `${p.sku} — ${p.name}`;
+
+/** Count grid: the product the typed text names exactly ("ALO — Aloe", "ALO" or "Aloe",
+ * any case), or null while it names none. */
+export function findProduct<P extends Pick<ProductSummary, "sku" | "name">>(products: P[], text: string): P | null {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  return (
+    products.find((p) => productLabel(p).toLowerCase() === t) ??
+    products.find((p) => p.sku.toLowerCase() === t) ??
+    products.find((p) => p.name.toLowerCase() === t) ??
+    null
+  );
 }

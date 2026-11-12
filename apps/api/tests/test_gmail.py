@@ -28,6 +28,7 @@ from pro_trading.gmail import processing, pubsub
 from pro_trading.gmail import sync as gsync
 from pro_trading.gmail.models import (
     GmailAccount,
+    GmailAttachment,
     GmailMessage,
     GmailProcessingJob,
 )
@@ -1509,3 +1510,65 @@ def test_production_refuses_unsafe_gmail_settings(monkeypatch):
     ok = Settings(**base, gmail_token_key=key)
     assert ok.gmail_redirect == "https://erp.example.test/gmail/oauth/callback"
     assert Settings(**{**base, "gmail_client_id": ""}).gmail_configured is False
+
+
+# ------------------------------------------------------------------ Receiving: attach from Gmail
+
+
+def test_gmail_file_attaches_to_a_shipment_without_download_or_ocr(
+    owner, user, connected, google, world
+):
+    pdf = order_sheet(1, {(1, "CAS"): "4"}, ref="INV-9", company="x", rows=[("CAS", "C", "BOX")])
+    google.add("Supplier invoice", files=[("invoice.pdf", "application/pdf", pdf)])
+    gsync.sync_account(connected)
+    att = first_attachment(owner)
+    v = owner.post(
+        f"{P}/vendors", json={"code": "TF", "name": "This Fruta SAS"}, headers=idem()
+    ).json()
+    s = owner.post(
+        f"{P}/shipments",
+        json={"warehouse_id": str(world.wh_a), "vendor_id": v["id"]},
+        headers=idem(),
+    ).json()
+    url = f"{P}/shipments/{s['id']}/documents/gmail"
+    body = {"version": s["version"], "attachment_id": att["id"], "kind": "INVOICE"}
+
+    # warehouse staff may count but not open Gmail files; sales may open them but not receive
+    assert user("wh_a").post(url, json=body, headers=idem()).status_code == 403
+    assert user("sales").post(url, json=body, headers=idem()).status_code == 403
+
+    key = idem()
+    r = owner.post(url, json={**body, "doc_ref": "INV-9"}, headers=key)
+    assert r.status_code == 201, r.text
+    d = r.json()["documents"][0]
+    assert d["kind"] == "INVOICE" and d["doc_ref"] == "INV-9" and d["filename"] == "invoice.pdf"
+    assert d["scan_job_no"]
+    assert owner.get(f"{P}/scans/documents/{d['document_id']}/content").content == pdf
+    # same request again (retry) -> same answer, nothing stored twice
+    r2 = owner.post(url, json={**body, "doc_ref": "INV-9"}, headers=key)
+    assert r2.status_code == 201 and len(r2.json()["documents"]) == 1
+    # a second click with a fresh key: refused, already on the shipment
+    s2 = r.json()
+    r3 = owner.post(url, json={**body, "version": s2["version"]}, headers=idem())
+    assert r3.status_code == 409 and code(r3) == "ALREADY_ATTACHED"
+    with get_sessionmaker()() as db:
+        a = db.get(GmailAttachment, uuid.UUID(att["id"]))
+        assert a is not None and a.source_document_id == uuid.UUID(d["document_id"])
+        # nothing was sent to OCR
+        assert (
+            db.scalar(
+                text(
+                    "SELECT count(*) FROM ocr_extractions e JOIN scan_jobs j ON j.id=e.scan_job_id "
+                    "WHERE j.company_id=:c"
+                ),
+                {"c": world.company_id},
+            )
+            == 0
+        )
+    # unknown attachment
+    r4 = owner.post(
+        url,
+        json={**body, "attachment_id": str(uuid.uuid4()), "version": s2["version"]},
+        headers=idem(),
+    )
+    assert r4.status_code == 404

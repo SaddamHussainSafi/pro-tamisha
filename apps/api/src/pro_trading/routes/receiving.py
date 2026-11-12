@@ -21,6 +21,8 @@ from .. import inventory as inv
 from .. import receiving as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize, deny, require_permission
 from ..errors import ApiError
+from ..gmail import processing as gmail_files
+from ..gmail.models import GmailAttachment, GmailMessage
 from ..models import (
     DeclaredLine,
     Employee,
@@ -47,6 +49,7 @@ from ..schemas import (
     ShipmentDocIn,
     ShipmentDocKind,
     ShipmentDocUploadIn,
+    ShipmentGmailDocIn,
     ShipmentIn,
     ShipmentPage,
     VendorIn,
@@ -229,6 +232,11 @@ def discrepancies(rows: list[svc.Row]) -> list[svc.Row]:
     return [r for r in rows if r.status != "MATCH"]
 
 
+def batch_prefix(db: Session, s: Shipment) -> str:
+    v = db.get(Vendor, s.vendor_id)
+    return svc.supplier_initials(v.name, v.code) if v else "B"
+
+
 def detail_out(db: Session, s: Shipment) -> dict[str, Any]:
     docs, declared, counted, costs = _load(db, s)
     rows = svc.compare(declared, counted)
@@ -314,6 +322,7 @@ def detail_out(db: Session, s: Shipment) -> dict[str, Any]:
         for c in costs
     ]
     out["comparison"] = [_row(r, prods) for r in rows]
+    out["next_batch_ref"] = svc.peek_batch_ref(db, s.company_id, batch_prefix(db, s))
     out["cost_totals"] = {k: str(v) for k, v in sorted(totals.items())}
     return out
 
@@ -670,34 +679,7 @@ def upload_document(
         doc, existed = scanning.store_document(
             db, p.company_id, data, mime, filename, p.employee.id, "MANUAL"
         )
-        job = (
-            db.scalar(
-                select(ScanJob)
-                .where(ScanJob.document_id == doc.id, ScanJob.warehouse_id == s.warehouse_id)
-                .order_by(ScanJob.created_at)
-                .limit(1)
-            )
-            if existed
-            else None
-        )
-        if job is None:
-            t = scanning.now()
-            job = ScanJob(
-                company_id=p.company_id,
-                warehouse_id=s.warehouse_id,
-                job_no=scanning.next_job_no(db, p.company_id),
-                job_type="VENDOR_DOCUMENT",
-                channel="MANUAL",
-                status="UPLOADED",
-                note=f"Receiving {s.shipment_no}",
-                requested_by=p.employee.id,
-                document_id=doc.id,
-                claimed_at=t,
-                completed_at=t,
-                duplicate=existed,
-            )
-            db.add(job)
-            db.flush()
+        job = _vendor_doc_job(db, p, s, doc, existed, f"Receiving {s.shipment_no}")
         link = _attach(db, s, p, doc.id, job.id, kind, doc_ref)
         return (
             detail_out(db, s),
@@ -720,6 +702,106 @@ def upload_document(
         params,
         201,
         "shipment.upload_document",
+        fn,
+    )
+
+
+def _vendor_doc_job(
+    db: Session, p: Principal, s: Shipment, doc: SourceDocument, existed: bool, note: str
+) -> ScanJob:
+    """The Scan Center record of a vendor document brought in from Receiving (reused when the
+    same file is already on a scan in this warehouse)."""
+    job = (
+        db.scalar(
+            select(ScanJob)
+            .where(ScanJob.document_id == doc.id, ScanJob.warehouse_id == s.warehouse_id)
+            .order_by(ScanJob.created_at)
+            .limit(1)
+        )
+        if existed
+        else None
+    )
+    if job is None:
+        t = scanning.now()
+        job = ScanJob(
+            company_id=p.company_id,
+            warehouse_id=s.warehouse_id,
+            job_no=scanning.next_job_no(db, p.company_id),
+            job_type="VENDOR_DOCUMENT",
+            channel="MANUAL",
+            status="UPLOADED",
+            note=note[:500],
+            requested_by=p.employee.id,
+            document_id=doc.id,
+            claimed_at=t,
+            completed_at=t,
+            duplicate=existed,
+        )
+        db.add(job)
+        db.flush()
+    return job
+
+
+@router.post(
+    "/shipments/{shipment_id}/documents/gmail", status_code=201, response_model=ShipmentDetail
+)
+def attach_gmail(
+    shipment_id: uuid.UUID,
+    body: ShipmentGmailDocIn,
+    request: Request,
+    db: DbDep,
+    key: idempotency.IdemKey,
+    p: PrincipalDep,
+) -> JSONResponse:
+    """Attach a file from the Gmail Inbox to the shipment without downloading it. The file is
+    fetched and checked exactly as for a preview (type taken from its bytes, size limit, must
+    open), kept unaltered as a source document, and listed in the Scan Center. Nothing is read
+    by OCR and no stock changes. Needs `grn.record` here and the right to open Gmail files."""
+    s0 = get_shipment(db, p, shipment_id)
+    authorize(request, p, "grn.record", s0.warehouse_id)
+    authorize(request, p, "gmail.attachment.read")
+    a = db.get(GmailAttachment, body.attachment_id)
+    if a is None or a.company_id != p.company_id:
+        raise ApiError(404, "NOT_FOUND", "Attachment not found")
+    m = db.get(GmailMessage, a.message_id)
+    assert m is not None
+    data, mime = gmail_files.load(db, a, m)  # may call Gmail; holds no transaction meanwhile
+
+    def fn() -> Result:
+        s = lock_for(db, request, p, shipment_id, "grn.record", body.version, "OPEN", "COUNTED")
+        doc, existed = scanning.store_document(
+            db, p.company_id, data, mime, a.filename, p.employee.id, "GMAIL"
+        )
+        att = db.get(GmailAttachment, a.id, with_for_update=True)
+        if att is not None and att.source_document_id is None:
+            att.source_document_id = doc.id
+        sender = m.from_name or m.from_email or "unknown sender"
+        job = _vendor_doc_job(
+            db, p, s, doc, existed, f"Receiving {s.shipment_no} · Gmail: {a.filename} from {sender}"
+        )
+        link = _attach(db, s, p, doc.id, job.id, body.kind, body.doc_ref)
+        return (
+            detail_out(db, s),
+            str(s.id),
+            {
+                "document_id": str(link.document_id),
+                "kind": body.kind,
+                "sha256": doc.sha256,
+                "gmail_attachment": str(a.id),
+                "filename": a.filename,
+                "scan": job.job_no,
+            },
+        )
+
+    return mutate(
+        db,
+        request,
+        p,
+        key,
+        f"shipment.gmail:{shipment_id}",
+        body,
+        201,
+        "shipment.attach_gmail",
         fn,
     )
 
@@ -909,7 +991,8 @@ def add_count(
             accepted_qty=inv.q4(body.accepted_qty),
             damaged_qty=inv.q4(body.damaged_qty),
             rejected_qty=inv.q4(body.rejected_qty),
-            batch_ref=(body.batch_ref or "").strip() or None,
+            batch_ref=(body.batch_ref or "").strip()
+            or svc.next_batch_ref(db, p.company_id, batch_prefix(db, s)),
             expires_at=body.expires_at,
             note=(body.note or "").strip() or None,
             counted_by=p.employee.id,
@@ -923,6 +1006,7 @@ def add_count(
             {
                 "grn_line_id": str(ln.id),
                 "sku": prod.sku,
+                "batch": ln.batch_ref,
                 "unit": body.unit_code,
                 "accepted": str(body.accepted_qty),
                 "damaged": str(body.damaged_qty),
@@ -963,7 +1047,12 @@ def edit_count(
         ln.accepted_qty = inv.q4(body.accepted_qty)
         ln.damaged_qty = inv.q4(body.damaged_qty)
         ln.rejected_qty = inv.q4(body.rejected_qty)
-        ln.batch_ref = (body.batch_ref or "").strip() or None
+        # Left empty: keep the line's batch name, or give it one if it had none (D-37).
+        ln.batch_ref = (
+            (body.batch_ref or "").strip()
+            or ln.batch_ref
+            or svc.next_batch_ref(db, p.company_id, batch_prefix(db, s))
+        )
         ln.expires_at = body.expires_at
         ln.note = (body.note or "").strip() or None
         ln.counted_by = p.employee.id

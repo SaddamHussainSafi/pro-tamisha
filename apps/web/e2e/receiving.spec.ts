@@ -50,22 +50,52 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
 
   await page.getByRole("button", { name: "New shipment" }).click();
   const form = page.getByRole("form", { name: "New shipment" });
+  // The arrival date starts as today and can be changed.
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  await expect(form.getByLabel("Arrives on")).toHaveValue(today);
   await pick(form.getByLabel("Supplier", { exact: true }), "V-ACC");
-  await form.getByLabel("Supplier invoice no. (optional)").fill("ARX-5521");
-  await form.getByLabel("Airway bill no. (optional)").fill("176-55512345");
+  await form.getByLabel("Supplier invoice no.").fill("ARX-5521");
+  await form.getByLabel("Airway bill no.").fill("176-55512345");
+  await page.screenshot({ path: "screenshots/receiving-new-1440.png", fullPage: true });
   await form.getByRole("button", { name: "Create shipment" }).click();
   await expect(page.getByRole("heading", { name: /^Receive SHP-/ })).toBeVisible();
   shipmentUrl = page.url();
+  await expect(page.getByText("Optional — you can count by hand without any document.")).toBeVisible();
+  // Warehouse staff can't open Gmail files, so only Upload and the Scan Center are offered.
+  const add = page.getByRole("group", { name: "Add a document" });
+  await expect(add.getByRole("button", { name: "From Gmail" })).toHaveCount(0);
+  await expect(add.getByRole("button", { name: "From Scan Center" })).toBeVisible();
+  await page.screenshot({ path: "screenshots/receiving-empty-1440.png", fullPage: true });
 
   // Vendor invoice, kept unaltered.
-  const add = page.getByRole("group", { name: "Add a document" });
   await add.getByLabel("Document type").selectOption("INVOICE");
-  await add.getByLabel("Number on the document (optional)").fill("ARX-5521");
+  await add.getByLabel("Number on it").fill("ARX-5521");
   await page.getByTestId("doc-upload").setInputFiles({ name: "vendor-invoice.png", mimeType: "image/png", buffer: invoice });
   await expect(page.getByRole("status").filter({ hasText: "Supplier invoice added" })).toBeVisible();
   await expect(page.getByRole("img", { name: /^Original Supplier invoice/ })).toBeVisible();
+  await page.getByRole("button", { name: "Supplier invoice ARX-5521" }).click(); // fold the viewer away
+  await expect(page.getByRole("img", { name: /^Original Supplier invoice/ })).toHaveCount(0);
 
-  // What the invoice says — the vendor's own wording maps through the remembered alias.
+  // What physically arrived: one grid row, batch left empty → named from the supplier.
+  const cl = page.getByRole("form", { name: "Add count line" });
+  await cl.getByLabel("Batch").focus();
+  await expect(cl.getByLabel("Batch")).toHaveAttribute("placeholder", "ARE-0001");
+  await cl.getByLabel("Product").fill("CFZ");
+  await cl.getByLabel("Unit", { exact: true }).selectOption("BOX");
+  await cl.getByLabel("Good").fill("23");
+  await cl.getByLabel("Damaged", { exact: true }).fill("2");
+  await cl.getByLabel(/^Expiry/).fill("2027-06-30");
+  await cl.getByLabel("Good").press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Count line saved" })).toBeVisible();
+  const lines = page.getByRole("list", { name: "Counted lines" });
+  await expect(lines.getByRole("listitem").filter({ hasText: "CFZ" })).toContainText("ARE-0001");
+  await expect(cl.getByLabel("Product")).toBeFocused(); // ready for the next row
+  await expect(cl.getByLabel("Batch")).toHaveAttribute("placeholder", "ARE-0002");
+
+  // What the invoice says — optional, folded away until used; the vendor's own wording maps
+  // through the remembered alias.
+  await page.getByText("Check against the documents").click();
   await page.getByRole("button", { name: "Add document line" }).click();
   const dl = page.getByRole("form", { name: "Add document line" });
   await dl.getByLabel("Description as printed").fill("MANIOC FROZEN 40LB CTN");
@@ -76,21 +106,15 @@ test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for ap
   await expect(page.getByRole("status").filter({ hasText: "Document line added" })).toBeVisible();
   await expect(page.getByText("“MANIOC FROZEN 40LB CTN”")).toBeVisible();
 
-  // What physically arrived.
-  const cl = page.getByRole("form", { name: "Add count line" });
-  await pick(cl.getByLabel("Product", { exact: true }), "CFZ");
-  await cl.getByLabel("Unit", { exact: true }).selectOption("BOX");
-  await cl.getByLabel("Accepted (good)").fill("23");
-  await cl.getByLabel("Damaged", { exact: true }).fill("2");
-  await cl.getByLabel(/^Expiry date/).fill("2027-06-30");
-  await cl.getByLabel("Batch (optional)").fill("ACC-2611");
-  await cl.getByRole("button", { name: "Save count line" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Count line saved" })).toBeVisible();
-
   const cmp = page.getByRole("region", { name: "Documents vs. what arrived" });
   await expect(cmp.getByRole("row").filter({ hasText: "CFZ" })).toContainText("Damaged");
   await axe(page);
   await page.screenshot({ path: "screenshots/receiving-count-1440.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(cl.getByLabel("Product")).toBeVisible();
+  await axe(page);
+  await page.screenshot({ path: "screenshots/receiving-count-390.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   // Warehouse can't approve; it sends the count on.
   await expect(page.getByRole("button", { name: "Approve & post stock" })).toHaveCount(0);

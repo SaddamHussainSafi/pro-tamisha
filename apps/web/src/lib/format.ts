@@ -13,3 +13,9 @@ export function greeting(d = new Date()) {
 export function longDate(d = new Date()) {
   return d.toLocaleDateString("en-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
+
+/** Today's date on this computer as YYYY-MM-DD, the value a date input takes. Forms that record
+ * when something happens start with it; the person can still pick any other date. */
+export function todayIso(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

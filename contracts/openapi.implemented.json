@@ -15765,6 +15765,10 @@
             "title": "Id",
             "type": "string"
           },
+          "next_batch_ref": {
+            "title": "Next Batch Ref",
+            "type": "string"
+          },
           "note": {
             "anyOf": [
               {
@@ -15882,7 +15886,8 @@
           "counted",
           "costs",
           "comparison",
-          "cost_totals"
+          "cost_totals",
+          "next_batch_ref"
         ],
         "title": "ShipmentDetail",
         "type": "object"
@@ -16029,6 +16034,51 @@
           "created_at"
         ],
         "title": "ShipmentDocOut",
+        "type": "object"
+      },
+      "ShipmentGmailDocIn": {
+        "description": "Attach a file from the Gmail Inbox to a shipment (no download, no OCR).",
+        "properties": {
+          "attachment_id": {
+            "format": "uuid",
+            "title": "Attachment Id",
+            "type": "string"
+          },
+          "doc_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Ref"
+          },
+          "kind": {
+            "enum": [
+              "AWB",
+              "INVOICE",
+              "PACKING_LIST",
+              "COMBINED",
+              "OTHER"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "attachment_id",
+          "kind"
+        ],
+        "title": "ShipmentGmailDocIn",
         "type": "object"
       },
       "ShipmentIn": {
@@ -32822,6 +32872,71 @@
           }
         },
         "summary": "Attach Scan",
+        "tags": [
+          "receiving"
+        ]
+      }
+    },
+    "/api/v1/shipments/{shipment_id}/documents/gmail": {
+      "post": {
+        "description": "Attach a file from the Gmail Inbox to the shipment without downloading it. The file is\nfetched and checked exactly as for a preview (type taken from its bytes, size limit, must\nopen), kept unaltered as a source document, and listed in the Scan Center. Nothing is read\nby OCR and no stock changes. Needs `grn.record` here and the right to open Gmail files.",
+        "operationId": "attach_gmail_api_v1_shipments__shipment_id__documents_gmail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentGmailDocIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Gmail",
         "tags": [
           "receiving"
         ]

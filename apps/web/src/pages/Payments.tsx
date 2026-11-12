@@ -19,15 +19,12 @@ import { cad, dec } from "../lib/decimal";
 import { checkPlan, INVOICE_STATE, METHOD, money2, moneyOrNull, PAYMENT_STATUS, paymentMessage, REF_LABEL, suggestAllocation } from "../lib/payments";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
+import { todayIso } from "../lib/format";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const money = (v: string) => cad(dec(v));
 const day = (iso: string) =>
   new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
 type Msg = { tone: "error" | "ok"; text: string } | null;
 
 export const PaymentChip = ({ status }: { status: PaymentStatus }) => (
@@ -222,7 +219,7 @@ function RecordPayment({ onCancel }: { onCancel: () => void }) {
     invoice_id: "",
     method: "INTERAC" as PaymentMethod,
     amount: "",
-    received_on: today(),
+    received_on: todayIso(),
     payer_ref: "",
     note: "",
   });
@@ -337,7 +334,7 @@ function RecordPayment({ onCancel }: { onCancel: () => void }) {
         </label>
         <label className="block">
           <span className="mb-1 block text-ink-muted">Date sent</span>
-          <input className="input w-full" type="date" required max={today()} value={f.received_on} onChange={(e) => set("received_on", e.target.value)} />
+          <input className="input w-full" type="date" required max={todayIso()} value={f.received_on} onChange={(e) => set("received_on", e.target.value)} />
         </label>
         <label className="block">
           <span className="mb-1 block text-ink-muted">What the customer quoted (optional)</span>

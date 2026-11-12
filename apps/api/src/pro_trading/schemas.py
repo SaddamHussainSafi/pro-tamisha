@@ -1538,6 +1538,15 @@ class ShipmentDocIn(BaseModel):
     doc_ref: str | None = Field(default=None, max_length=64)
 
 
+class ShipmentGmailDocIn(BaseModel):
+    """Attach a file from the Gmail Inbox to a shipment (no download, no OCR)."""
+
+    version: int = Field(ge=1)
+    attachment_id: uuid.UUID
+    kind: ShipmentDocKind
+    doc_ref: str | None = Field(default=None, max_length=64)
+
+
 class ShipmentDocUploadIn(BaseModel):
     """Audit/idempotency fingerprint of a direct upload (query params + content hash)."""
 
@@ -1703,6 +1712,8 @@ class ShipmentDetail(ShipmentOut):
     costs: list[LandedCostOut]
     comparison: list[CompareRow]
     cost_totals: dict[str, Decimal]
+    # What an empty Batch will most likely become when the line is saved (D-37); a preview.
+    next_batch_ref: str
 
 
 class ShipmentPage(BaseModel):

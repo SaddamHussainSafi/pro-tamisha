@@ -47,11 +47,14 @@ type Props = {
   /** Bumped by the page's Refresh button. */
   reloadKey?: number;
   onProcessed: (out: ProcessOut) => void;
+  /** Picker only: hand the chosen file back instead of reading it (Receiving › From Gmail). */
+  onSelect?: (a: GmailAttachment) => void;
+  selectLabel?: string;
 };
 
 /** The stored inbox: filters, search, the email list, one email with its files, and the
  * "Use for OCR" step. The same component is the Gmail Inbox page and the document picker. */
-export function GmailBrowser({ status, mode, defaultCategory = "PICK_SHEET", initialMessage = null, initialShow = "all", reloadKey = 0, onProcessed }: Props) {
+export function GmailBrowser({ status, mode, defaultCategory = "PICK_SHEET", initialMessage = null, initialShow = "all", reloadKey = 0, onProcessed, onSelect, selectLabel = "Select document" }: Props) {
   const picker = mode === "picker";
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, show: initialShow });
   const q = useDebounced(filters.q, 300);
@@ -223,8 +226,8 @@ export function GmailBrowser({ status, mode, defaultCategory = "PICK_SHEET", ini
           <p className="min-w-0 text-sm text-ink-muted" aria-live="polite">
             {picked ? `Selected: ${picked.filename}${picked.page_count ? ` · ${picked.page_count} ${picked.page_count === 1 ? "page" : "pages"}` : ""}` : "No document selected."}
           </p>
-          <button type="button" className="btn-primary" disabled={!picked || !status.can_process} onClick={() => picked && use(picked)}>
-            Select document
+          <button type="button" className="btn-primary" disabled={!picked || (!onSelect && !status.can_process)} onClick={() => picked && (onSelect ? onSelect(picked) : use(picked))}>
+            {selectLabel}
           </button>
         </div>
       )}

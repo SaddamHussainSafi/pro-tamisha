@@ -1499,6 +1499,15 @@ class DeclaredLine(Base):
     removed_reason: Mapped[str | None] = mapped_column(Text)
 
 
+class BatchCounter(Base):
+    """Last automatic batch number used per company (D-37). Never decreases."""
+
+    __tablename__ = "batch_counters"
+    __table_args__ = (CheckConstraint("last_no >= 0", name="batch_counter_nonneg"),)
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), primary_key=True)
+    last_no: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
 class GrnLine(Base):
     """Physical count of one product/unit/batch: accepted (saleable), damaged, rejected.
     Frozen once posted (lot_id set; DB trigger)."""

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
@@ -8,6 +8,7 @@ import {
   type LandedCostKind,
   type Product,
   type ProductSummary,
+  type ScanJob,
   type Shipment,
   type ShipmentDetail,
   type ShipmentDocKind,
@@ -15,12 +16,17 @@ import {
   type Vendor,
   type Warehouse, hasCompanyWide, type SupplierBalance } from "../api";
 import { useAuth } from "../auth";
+import { GmailBrowser } from "../components/gmail/GmailBrowser";
+import { Modal } from "../components/gmail/PagePreview";
+import { isDecimal } from "../lib/decimal";
+import { todayIso } from "../lib/format";
+import { gmail, gmailMessage, type GmailAttachment, type GmailStatus } from "../lib/gmail";
 import { amountIn, balanceWords } from "../lib/suppliers";
 import { useViewMode } from "../lib/viewMode";
 import { CardGrid, CardGridSkeleton, EntityCard, Tile } from "../ui/CardGrid";
 import { ViewToggle } from "../ui/ViewToggle";
 import { stockUnits, qtyText } from "../lib/inventory";
-import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
+import { COMPARE, COST_KIND, countTotal, diffText, DOC_KIND, findProduct, productLabel, moneyText, receivingMessage, saleableSummary, SHIPMENT_STATUS, unitPlaces } from "../lib/receiving";
 import { ACCEPT, checkFile, fileSize } from "../lib/scans";
 import { useTrashChanges } from "../lib/trash";
 import { DeleteAction } from "../ui/DeleteAction";
@@ -153,8 +159,9 @@ function NewShipment({ warehouses, onCancel, onCreated }: { warehouses: Warehous
   const [vendor, setVendor] = useState("");
   const [inv, setInv] = useState("");
   const [awb, setAwb] = useState("");
-  const [expected, setExpected] = useState("");
+  const [expected, setExpected] = useState(todayIso);
   const [note, setNote] = useState("");
+  const [withNote, setWithNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -183,33 +190,41 @@ function NewShipment({ warehouses, onCancel, onCreated }: { warehouses: Warehous
     }
   }
   return (
-    <form className="card grid gap-3 p-6 md:grid-cols-3" aria-label="New shipment" onSubmit={submit}>
-      <h2 className="font-semibold md:col-span-3">New shipment</h2>
+    <form className="card space-y-4 p-5 sm:p-6" aria-label="New shipment" onSubmit={submit}>
       <div>
-        <label className="label" htmlFor="ns-v">Supplier</label>
-        <select id="ns-v" className="input" value={vendor} onChange={(e) => setVendor(e.target.value)}>
-          <option value="">Choose…</option>
-          {vendors.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.code})</option>)}
-        </select>
+        <h2 className="font-semibold">New shipment</h2>
+        <p className="text-sm text-ink-muted">Only the supplier is needed. Documents can be added on the next screen, or not at all.</p>
       </div>
-      <div>
-        <label className="label" htmlFor="ns-exp">Expected on (optional)</label>
-        <input id="ns-exp" type="date" className="input" value={expected} onChange={(e) => setExpected(e.target.value)} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+        <div>
+          <label className="label" htmlFor="ns-v">Supplier</label>
+          <select id="ns-v" className="input" value={vendor} required onChange={(e) => setVendor(e.target.value)}>
+            <option value="">Choose…</option>
+            {vendors.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.code})</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="ns-exp">Arrives on</label>
+          <input id="ns-exp" type="date" className="input" value={expected} onChange={(e) => setExpected(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="ns-inv">Supplier invoice no.</label>
+          <input id="ns-inv" className="input" value={inv} maxLength={64} placeholder="Optional" onChange={(e) => setInv(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="ns-awb">Airway bill no.</label>
+          <input id="ns-awb" className="input" value={awb} maxLength={64} placeholder="Optional" onChange={(e) => setAwb(e.target.value)} />
+        </div>
+        {withNote && (
+          <div className="sm:col-span-2 lg:col-span-4">
+            <label className="label" htmlFor="ns-note">Note</label>
+            <input id="ns-note" className="input" value={note} maxLength={1000} autoFocus onChange={(e) => setNote(e.target.value)} />
+          </div>
+        )}
       </div>
-      <div>
-        <label className="label" htmlFor="ns-inv">Supplier invoice no. (optional)</label>
-        <input id="ns-inv" className="input" value={inv} maxLength={64} onChange={(e) => setInv(e.target.value)} />
-      </div>
-      <div>
-        <label className="label" htmlFor="ns-awb">Airway bill no. (optional)</label>
-        <input id="ns-awb" className="input" value={awb} maxLength={64} onChange={(e) => setAwb(e.target.value)} />
-      </div>
-      <div>
-        <label className="label" htmlFor="ns-note">Note (optional)</label>
-        <input id="ns-note" className="input" value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
-      </div>
-      {error && <div className="md:col-span-3"><Notice tone="error">{error}</Notice></div>}
-      <div className="flex justify-end gap-2 md:col-span-3">
+      {error && <Notice tone="error">{error}</Notice>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {!withNote && <button type="button" className="mr-auto text-sm font-medium text-brand-primary-hover hover:underline" onClick={() => setWithNote(true)}>+ Add a note</button>}
         <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
         <button className="btn-primary" disabled={busy}>Create shipment</button>
       </div>
@@ -227,6 +242,36 @@ type Dialog =
   | { kind: "post" }
   | null;
 
+/** Where the shipment is: documents (optional) → count → send → manager approves. */
+function Steps({ s }: { s: ShipmentDetail }) {
+  const step = s.status === "POSTED" ? 4 : s.status === "COUNTED" ? 3 : s.counted.length > 0 ? 2 : 1;
+  const items = [
+    { label: s.documents.length > 0 ? `Documents (${s.documents.length})` : "Documents — optional", done: s.documents.length > 0 },
+    { label: "Count what arrived", done: step > 1 },
+    { label: "Send for approval", done: step > 2 },
+    { label: "Manager approves, stock is added", done: step > 3 },
+  ];
+  if (s.status === "CANCELLED") return null;
+  return (
+    <ol className="flex flex-wrap gap-x-1 gap-y-2 text-sm" aria-label="Steps">
+      {items.map((it, i) => {
+        const current = i === step && !it.done;
+        return (
+          <li key={it.label} className="flex items-center gap-1" aria-current={current ? "step" : undefined}>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 ${it.done ? "border-success/40 bg-success/8 text-ink" : current ? "border-brand-primary bg-brand-accent/10 font-semibold text-ink" : "border-line bg-card text-ink-muted"}`}
+            >
+              {it.done ? <Icon name="check" size={14} /> : <span className="num text-xs">{i + 1}</span>}
+              {it.label}
+            </span>
+            {i < items.length - 1 && <Icon name="chevron" size={14} className="text-ink-muted" />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function ShipmentPage() {
   const { id = "" } = useParams();
   const { session } = useAuth();
@@ -235,7 +280,6 @@ export function ShipmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [doc, setDoc] = useState(0);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [reason, setReason] = useState("");
   const [ack, setAck] = useState(false);
@@ -282,7 +326,6 @@ export function ShipmentPage() {
   const open = s.status === "OPEN";
   const editable = open && canRecord;
   const costsEditable = s.status !== "CANCELLED" && (canRecord || canApprove);
-  const current = s.documents[doc] ?? s.documents[0];
   const differences = s.comparison.filter((r) => r.status !== "MATCH");
   const docName = (docId: string | null) => {
     const d = s.documents.find((x) => x.id === docId);
@@ -314,6 +357,7 @@ export function ShipmentPage() {
 
   return (
     <div className="space-y-4">
+      <p className="text-sm"><Link className={link} to="/receiving">← All shipments</Link></p>
       <PageHeader
         title={`Receive ${s.shipment_no}`}
         subtitle={
@@ -321,24 +365,19 @@ export function ShipmentPage() {
             {s.vendor_name}
             {s.vendor_invoice_no && <> · Invoice {s.vendor_invoice_no}</>}
             {s.awb_no && <> · Waybill {s.awb_no}</>}
-            {s.expected_on && <> · Expected {day(s.expected_on)}</>} · {s.currency}
+            {s.expected_on && <> · Arrives {day(s.expected_on)}</>}
           </>
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ShipChip s={s} />
-            {open && canRecord && (
-              <button className="btn-primary" disabled={busy || s.counted.length === 0} onClick={() => void run(() => api.submitShipmentCount(s.id, s.version), "Count sent for approval.")}>
-                Send count for approval
-              </button>
-            )}
             {s.status === "COUNTED" && canRecord && <button className="btn-ghost" onClick={() => setDialog({ kind: "reopen" })}>Reopen count</button>}
-            {s.status === "COUNTED" && canApprove && <button className="btn-primary" onClick={() => setDialog({ kind: "post" })}>Approve &amp; post stock</button>}
             {(open || s.status === "COUNTED") && canApprove && <button className="btn-ghost" onClick={() => setDialog({ kind: "cancel" })}>Cancel shipment</button>}
+            {s.status === "COUNTED" && canApprove && <button className="btn-primary" onClick={() => setDialog({ kind: "post" })}>Approve &amp; post stock</button>}
           </div>
         }
       />
-      <p className="text-sm"><Link className={link} to="/receiving">← All shipments</Link></p>
+      <Steps s={s} />
       {error && <Notice tone="error">{error}</Notice>}
       {ok && <Notice tone="ok">{ok}</Notice>}
       {s.status === "POSTED" && (
@@ -349,127 +388,10 @@ export function ShipmentPage() {
       {s.status === "CANCELLED" && <Notice tone="error">Cancelled: {s.cancel_reason}. No stock was changed.</Notice>}
       {s.status === "COUNTED" && !canApprove && <Notice tone="ok">Count submitted by {s.counted_by_name}. A manager will approve it before stock changes.</Notice>}
 
-      {/* ---------- comparison ---------- */}
-      <section className="card min-w-0 overflow-hidden" aria-labelledby="cmp-h">
-        <div className="flex flex-wrap items-center gap-4 border-b border-line p-5 sm:p-6">
-          <span className="grid size-14 shrink-0 place-items-center rounded-ctl bg-brand-primary text-white"><Icon name="receiving" size={26} /></span>
-          <div className="mr-auto min-w-0">
-            <h2 id="cmp-h" className="text-[22px] font-semibold tracking-tight">Documents vs. what arrived</h2>
-            <p className="text-sm text-ink-muted">Declared on the supplier documents, compared with your count.</p>
-          </div>
-          {s.comparison.length === 0 ? null : differences.length > 0 ? (
-            <StatusChip tone="warning">{differences.length} difference{differences.length === 1 ? "" : "s"}</StatusChip>
-          ) : (
-            <StatusChip tone="success">Everything matches</StatusChip>
-          )}
-        </div>
-        {s.comparison.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-ink-muted">Enter the document lines and your count below. The comparison appears here.</p>
-        ) : (
-          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
-            <table className="w-full min-w-[40rem] border-separate border-spacing-0">
-              <caption className="sr-only">Declared versus counted, per product and unit</caption>
-              <thead>
-                <tr>
-                  <th className="th">Product</th>
-                  <th className="th text-right">Declared</th>
-                  <th className="th text-right">Accepted</th>
-                  <th className="th text-right">Damaged</th>
-                  <th className="th text-right">Refused</th>
-                  <th className="th text-right">Difference</th>
-                  <th className="th">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {s.comparison.map((r) => {
-                  const c = COMPARE[r.status];
-                  const docs = Object.entries(r.declared_by_document);
-                  return (
-                    <tr key={`${r.product_id}-${r.unit_code}`} className={`align-middle ${r.status === "MATCH" ? "" : "bg-danger/[0.04]"}`}>
-                      <td className="td min-w-[14rem]">
-                        <div className="flex items-center gap-3">
-                          <span className="grid size-12 shrink-0 place-items-center rounded-ctl border border-line bg-subtle text-ink-muted"><Icon name="inventory" size={22} /></span>
-                          <div className="min-w-0">
-                            <div className="text-base font-semibold">{r.product_name}</div>
-                            <div className="text-sm text-ink-muted">{r.sku} · {r.unit_code.toLowerCase()}</div>
-                          </div>
-                        </div>
-                        {r.status === "DOC_CONFLICT" && (
-                          <ul className="mt-1 text-xs text-danger">
-                            {docs.map(([d, q]) => <li key={d}>{docName(d === "manual" ? null : d)}: {qtyText(q)}</li>)}
-                          </ul>
-                        )}
-                      </td>
-                      <td className="td num text-right">{r.declared_qty ? qtyText(r.declared_qty) : "—"}</td>
-                      <td className="td num text-right font-semibold">{r.accepted_qty ? qtyText(r.accepted_qty) : "—"}</td>
-                      <td className="td num text-right">{r.damaged_qty ? qtyText(r.damaged_qty) : "—"}</td>
-                      <td className="td num text-right">{r.rejected_qty ? qtyText(r.rejected_qty) : "—"}</td>
-                      <td className="td num text-right">{diffText(r.difference, r.unit_code)}</td>
-                      <td className="td">
-                        <StatusChip tone={c.tone}>{c.label}</StatusChip>
-                        <div className="mt-1 text-xs text-ink-muted">{c.hint}</div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        {/* ---------- documents ---------- */}
-        <section className="card flex min-w-0 flex-col overflow-hidden" aria-labelledby="docs-h">
-          <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-            <h2 id="docs-h" className="mr-auto font-semibold">Supplier documents</h2>
-            <span className="text-xs text-ink-muted">Kept exactly as received</span>
-          </div>
-          {s.documents.length > 0 ? (
-            <>
-              <div className="flex gap-1 overflow-x-auto border-b border-line p-2" role="tablist" aria-label="Documents">
-                {s.documents.map((d, i) => (
-                  <button
-                    key={d.id}
-                    role="tab"
-                    aria-selected={current?.id === d.id}
-                    onClick={() => setDoc(i)}
-                    className={`whitespace-nowrap rounded-[var(--radius-ctl)] px-2.5 py-1 text-xs ${current?.id === d.id ? "bg-brand-secondary text-white" : "text-ink-muted hover:bg-canvas"}`}
-                  >
-                    {DOC_KIND[d.kind]}{d.doc_ref ? ` ${d.doc_ref}` : ""}
-                  </button>
-                ))}
-              </div>
-              {current && (
-                <div role="tabpanel" className="flex flex-1 flex-col bg-canvas">
-                  <div className="flex flex-wrap gap-x-4 px-3 py-2 text-xs text-ink-muted">
-                    <span>{current.filename}</span>
-                    <span>{fileSize(current.byte_size)}</span>
-                    <span>Added by {current.added_by_name}</span>
-                    <a className={link} href={scanDocumentUrl(current.document_id)} target="_blank" rel="noreferrer">Open in new tab</a>
-                  </div>
-                  {current.mime_type === "application/pdf" ? (
-                    <iframe title={`Original ${DOC_KIND[current.kind]}`} src={scanDocumentUrl(current.document_id)} className="min-h-[32rem] w-full flex-1 border-0 bg-card" />
-                  ) : current.mime_type === "image/tiff" ? (
-                    <p className="p-4 text-sm">TIFF files can't be shown in the browser. <a className={link} href={scanDocumentUrl(current.document_id)}>Download it</a>.</p>
-                  ) : (
-                    <img alt={`Original ${DOC_KIND[current.kind]}`} src={scanDocumentUrl(current.document_id)} className="mx-auto max-h-[40rem] w-auto" />
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="p-4"><EmptyState title="No documents yet" hint="Upload the supplier invoice, airway bill or packing list." /></div>
-          )}
-          {editable && <DocUpload s={s} busy={busy} run={run} onAdded={() => setDoc(s.documents.length)} />}
-        </section>
-
-        <div className="min-w-0 space-y-4">
-          <DeclaredSection s={s} editable={editable} busy={busy} run={run} catalog={catalog} docName={docName} onWithdraw={(lid) => setDialog({ kind: "withdrawDeclared", id: lid })} />
-          <CountSection s={s} editable={editable} busy={busy} run={run} catalog={catalog} />
-          <CostSection s={s} editable={costsEditable} busy={busy} run={run} docName={docName} onWithdraw={(cid) => setDialog({ kind: "withdrawCost", id: cid })} />
-        </div>
-      </div>
+      <DocumentsStrip s={s} editable={editable} busy={busy} run={run} />
+      <CountSection s={s} editable={editable} busy={busy} run={run} catalog={catalog} />
+      <CheckSection s={s} editable={editable} busy={busy} run={run} catalog={catalog} docName={docName} differences={differences.length} onWithdraw={(lid) => setDialog({ kind: "withdrawDeclared", id: lid })} />
+      <CostSection s={s} editable={costsEditable} busy={busy} run={run} docName={docName} onWithdraw={(cid) => setDialog({ kind: "withdrawCost", id: cid })} />
 
       <ReasonDialog
         open={dialog !== null && dialog.kind !== "post"}
@@ -530,38 +452,549 @@ export function ShipmentPage() {
 type Run = (fn: () => Promise<ShipmentDetail>, done?: string) => Promise<boolean>;
 type Catalog = ReturnType<typeof useCatalog>;
 
-function DocUpload({ s, busy, run, onAdded }: { s: ShipmentDetail; busy: boolean; run: Run; onAdded: () => void }) {
+/* ---------------------------------------------------------------- documents */
+
+function DocumentsStrip({ s, editable, busy, run }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run }) {
+  const { session } = useAuth();
   const [kind, setKind] = useState<ShipmentDocKind>("INVOICE");
   const [ref, setRef] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [from, setFrom] = useState<"gmail" | "scans" | null>(null);
+  const current = s.documents.find((d) => d.id === viewing) ?? null;
+  const gmailOk = !!session && has(session, "gmail.read") && has(session, "gmail.attachment.read");
+
+  async function added(p: Promise<ShipmentDetail>, what: string) {
+    if (await run(() => p, `${DOC_KIND[kind]} added${what}.`)) {
+      setRef("");
+      setFrom(null);
+    }
+  }
+  // Show a newly added document straight away.
+  const count = s.documents.length;
+  const [seen, setSeen] = useState(count);
+  useEffect(() => {
+    if (count > seen) setViewing(s.documents[count - 1]?.id ?? null);
+    setSeen(count);
+  }, [count, seen, s.documents]);
+
   async function onFile(file: File | undefined, input: HTMLInputElement) {
     setMsg(null);
     if (!file) return;
     const bad = checkFile(file);
     input.value = "";
     if (bad) return setMsg(bad);
-    if (await run(() => api.uploadShipmentDoc(s.id, file, { version: s.version, kind, doc_ref: ref.trim() || undefined }), `${DOC_KIND[kind]} added.`)) {
-      setRef("");
-      onAdded();
+    await added(api.uploadShipmentDoc(s.id, file, { version: s.version, kind, doc_ref: ref.trim() || undefined }), "");
+  }
+
+  return (
+    <section className="card min-w-0 overflow-hidden" aria-labelledby="docs-h">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
+        <h2 id="docs-h" className="font-semibold">Supplier documents</h2>
+        <span className="text-sm text-ink-muted">Optional — you can count by hand without any document.</span>
+      </div>
+      {s.documents.length > 0 && (
+        <div className="flex flex-wrap gap-2 border-t border-line px-4 py-3 sm:px-5" role="list" aria-label="Documents">
+          {s.documents.map((d) => (
+            <span role="listitem" key={d.id}>
+              <button
+                type="button"
+                aria-expanded={viewing === d.id}
+                onClick={() => setViewing(viewing === d.id ? null : d.id)}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${viewing === d.id ? "border-brand-secondary bg-brand-secondary text-white" : "border-line bg-card hover:bg-subtle"}`}
+              >
+                <Icon name="file" size={14} />
+                {DOC_KIND[d.kind]}{d.doc_ref ? ` ${d.doc_ref}` : ""}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {current && (
+        <div className="border-t border-line bg-canvas">
+          <div className="flex flex-wrap gap-x-4 px-4 py-2 text-xs text-ink-muted sm:px-5">
+            <span>{current.filename}</span>
+            <span>{fileSize(current.byte_size)}</span>
+            <span>Added by {current.added_by_name}</span>
+            <a className={link} href={scanDocumentUrl(current.document_id)} target="_blank" rel="noreferrer">Open in new tab</a>
+          </div>
+          {current.mime_type === "application/pdf" ? (
+            <iframe title={`Original ${DOC_KIND[current.kind]}`} src={scanDocumentUrl(current.document_id)} className="h-[28rem] w-full border-0 bg-card" />
+          ) : current.mime_type === "image/tiff" ? (
+            <p className="p-4 text-sm">TIFF files can't be shown in the browser. <a className={link} href={scanDocumentUrl(current.document_id)}>Download it</a>.</p>
+          ) : (
+            <img alt={`Original ${DOC_KIND[current.kind]}`} src={scanDocumentUrl(current.document_id)} className="mx-auto max-h-[28rem] w-auto" />
+          )}
+        </div>
+      )}
+      {editable && (
+        <div className="flex flex-wrap items-end gap-2 border-t border-line bg-canvas px-4 py-3 sm:px-5" role="group" aria-label="Add a document">
+          <div className="w-full sm:w-48">
+            <label className="label" htmlFor="doc-kind">Document type</label>
+            <select id="doc-kind" className="input" value={kind} onChange={(e) => setKind(e.target.value as ShipmentDocKind)}>
+              {(Object.keys(DOC_KIND) as ShipmentDocKind[]).map((k) => <option key={k} value={k}>{DOC_KIND[k]}</option>)}
+            </select>
+          </div>
+          <div className="w-full sm:w-44">
+            <label className="label" htmlFor="doc-ref">Number on it</label>
+            <input id="doc-ref" className="input" value={ref} maxLength={64} placeholder="Optional" onChange={(e) => setRef(e.target.value)} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <label className={`btn-ghost cursor-pointer gap-2 ${busy ? "pointer-events-none opacity-60" : ""}`}>
+              <Icon name="upload" size={16} />
+              Upload file
+              <input data-testid="doc-upload" type="file" accept={ACCEPT} className="sr-only" onChange={(e) => void onFile(e.target.files?.[0], e.target)} />
+            </label>
+            {gmailOk && (
+              <button type="button" className="btn-ghost gap-2" disabled={busy} onClick={() => setFrom("gmail")}>
+                <Icon name="mail" size={16} />
+                From Gmail
+              </button>
+            )}
+            <button type="button" className="btn-ghost gap-2" disabled={busy} onClick={() => setFrom("scans")}>
+              <Icon name="scan" size={16} />
+              From Scan Center
+            </button>
+          </div>
+          {msg && <div className="w-full"><Notice tone="error">{msg}</Notice></div>}
+        </div>
+      )}
+      {from === "gmail" && <GmailDocPicker onClose={() => setFrom(null)} onPick={(a) => void added(api.attachShipmentGmail(s.id, { version: s.version, attachment_id: a.id, kind, doc_ref: ref.trim() || null }), ` from Gmail`)} />}
+      {from === "scans" && <ScanDocPicker s={s} onClose={() => setFrom(null)} onPick={(j) => void added(api.attachShipmentScan(s.id, { version: s.version, scan_job_id: j.id, kind, doc_ref: ref.trim() || null }), ` from the Scan Center`)} />}
+    </section>
+  );
+}
+
+function GmailDocPicker({ onClose, onPick }: { onClose: () => void; onPick: (a: GmailAttachment) => void }) {
+  const [status, setStatus] = useState<GmailStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    gmail.status().then(setStatus, (err: unknown) => setError(gmailMessage(err)));
+  }, []);
+  return (
+    <Modal open title="Attach a document from Gmail" onClose={onClose} wide>
+      <div className="p-5">
+        {error ? (
+          <ErrorState title="Couldn't reach the Gmail Inbox" detail={error} />
+        ) : !status ? (
+          <LoadingRows rows={4} cols={2} />
+        ) : status.message_count === 0 ? (
+          <EmptyState icon="mail" title="No emails on file" hint="Documents sent to the scanning mailbox show here once it is connected." />
+        ) : (
+          <GmailBrowser status={status} mode="picker" initialShow="attachments" onProcessed={() => undefined} onSelect={onPick} selectLabel="Attach to shipment" />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function ScanDocPicker({ s, onClose, onPick }: { s: ShipmentDetail; onClose: () => void; onPick: (j: ScanJob) => void }) {
+  const [rows, setRows] = useState<ScanJob[] | null>(null);
+  const [q, setQ] = useState("");
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      api.scanJobs({ status: "UPLOADED", warehouse_id: s.warehouse_id, q: q.trim() || undefined, limit: 50 }).then(
+        (p) => {
+          setRows(p.items.filter((j) => j.document_id));
+          setError(false);
+        },
+        () => setError(true),
+      );
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q, s.warehouse_id]);
+  const onShipment = new Set(s.documents.map((d) => d.document_id));
+  return (
+    <Modal open title="Attach a document from the Scan Center" onClose={onClose}>
+      <div className="space-y-3 p-5">
+        <label className="relative block">
+          <span className="sr-only">Search scans</span>
+          <Icon name="search" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+          <input type="search" className="input w-full rounded-full py-2 pl-10" placeholder="Search scan no., file or note" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+        {error ? (
+          <ErrorState title="Couldn't load scans" />
+        ) : rows === null ? (
+          <LoadingRows rows={4} cols={2} />
+        ) : rows.length === 0 ? (
+          <EmptyState icon="scan" title="No scanned documents" hint="Scan the paper in the Scan Center first, or upload the file here instead." />
+        ) : (
+          <ul className="divide-y divide-line rounded-ctl border border-line" aria-label="Scanned documents">
+            {rows.map((j) => {
+              const already = !!j.document_id && onShipment.has(j.document_id);
+              return (
+                <li key={j.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-ctl bg-subtle text-ink-muted"><Icon name="file" size={18} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{j.document_filename ?? j.job_no}</span>
+                    <span className="block truncate text-xs text-ink-muted">{j.job_no} · {when(j.completed_at ?? j.created_at)}{j.note ? ` · ${j.note}` : ""}</span>
+                  </span>
+                  <button type="button" className="btn-ghost px-3.5 py-1.5 text-xs" disabled={already} onClick={() => onPick(j)} aria-label={`Attach ${j.document_filename ?? j.job_no}`}>
+                    {already ? "Attached" : "Attach"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------------------------------------------------------- count grid */
+
+/** Small decimal cell: digits and one dot only, never a float. */
+function QtyCell({ id, label, value, onChange, places, unit }: { id: string; label: string; value: string; onChange: (v: string) => void; places: number; unit: string }) {
+  const dp = value.split(".")[1]?.length ?? 0;
+  const invalid = value !== "" && (!isDecimal(value) || dp > places);
+  return (
+    <div className="min-w-0">
+      <label className="label md:sr-only" htmlFor={id}>{label}</label>
+      <div className={`flex items-center rounded-[var(--radius-ctl)] bg-card focus-within:border-brand-primary ${invalid ? "border-2 border-danger" : "border border-line"}`}>
+        <input
+          id={id}
+          inputMode="decimal"
+          autoComplete="off"
+          className="num w-full min-w-0 bg-transparent px-2.5 py-2 text-right font-medium focus:outline-none"
+          value={value}
+          aria-invalid={invalid || undefined}
+          title={invalid ? (places === 0 ? "Whole numbers only" : `Up to ${places} decimal places`) : undefined}
+          onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ""))}
+        />
+        <span className="pr-2 text-xs text-ink-muted">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+// Product · Unit · Good · Damaged · Refused · Batch · Expiry · Note · action
+const COLS = "md:grid-cols-[minmax(12rem,2.2fr)_5.5rem_repeat(3,minmax(5.5rem,0.8fr))_minmax(7rem,1fr)_9.5rem_minmax(6rem,1fr)_6.5rem]";
+
+function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run; catalog: Catalog }) {
+  const [text, setText] = useState("");
+  const [product, setProduct] = useState("");
+  const [unit, setUnit] = useState<UnitCode>("BOX");
+  const [accepted, setAccepted] = useState("");
+  const [damaged, setDamaged] = useState("");
+  const [rejected, setRejected] = useState("");
+  const [batch, setBatch] = useState("");
+  const [expires, setExpires] = useState("");
+  const [note, setNote] = useState("");
+  const [hint, setHint] = useState<string | null>(null);
+  const productRef = useRef<HTMLInputElement>(null);
+  const tracks = !!catalog.full[product]?.tracks_expiry;
+  const places = unitPlaces(unit);
+  const total = countTotal(accepted, damaged, rejected);
+  const totals = useMemo(() => saleableSummary(s.counted.map((c) => ({ accepted_qty: c.accepted_qty, unit_code: c.unit_code }))), [s.counted]);
+  const units = product ? catalog.units(product) : (["BOX", "PIECE", "LB", "KG"] as UnitCode[]);
+  const u = unit.toLowerCase();
+  const picked = catalog.products.find((p) => p.id === product);
+
+  function chooseText(v: string) {
+    setText(v);
+    const p = findProduct(catalog.products, v);
+    setProduct(p?.id ?? "");
+    if (p) {
+      setHint(null);
+      void catalog.load(p.id).then((full) => {
+        const us = full ? stockUnits(full) : [];
+        const first = full && us.includes(full.stock_unit) ? full.stock_unit : us[0];
+        if (first) setUnit(first);
+      });
     }
   }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!product) {
+      setHint(text.trim() ? "Pick the product from the list." : "Choose a product.");
+      productRef.current?.focus();
+      return;
+    }
+    if (total === "0.0000") return setHint("Enter how many arrived (good, damaged or refused).");
+    setHint(null);
+    const ok = await run(
+      () =>
+        api.addCount(s.id, s.version, {
+          product_id: product,
+          unit_code: unit,
+          accepted_qty: accepted || "0",
+          damaged_qty: damaged || "0",
+          rejected_qty: rejected || "0",
+          batch_ref: batch.trim() || null,
+          expires_at: expires || null,
+          note: note.trim() || null,
+        }),
+      "Count line saved.",
+    );
+    if (ok) {
+      setText("");
+      setProduct("");
+      setAccepted("");
+      setDamaged("");
+      setRejected("");
+      setBatch("");
+      setExpires("");
+      setNote("");
+      productRef.current?.focus();
+    }
+  }
+
+  const head = (t: string, right = false) => <span className={`text-xs font-semibold uppercase tracking-wide text-ink-muted ${right ? "text-right" : ""}`}>{t}</span>;
+
   return (
-    <div className="grid gap-2 border-t border-line p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" role="group" aria-label="Add a document">
-      <div>
-        <label className="label" htmlFor="doc-kind">Document type</label>
-        <select id="doc-kind" className="input" value={kind} onChange={(e) => setKind(e.target.value as ShipmentDocKind)}>
-          {(Object.keys(DOC_KIND) as ShipmentDocKind[]).map((k) => <option key={k} value={k}>{DOC_KIND[k]}</option>)}
-        </select>
+    <section className="card min-w-0 overflow-hidden" aria-labelledby="cnt-h">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-5">
+        <h2 id="cnt-h" className="mr-auto font-semibold">What arrived</h2>
+        {s.counted.length > 0 && <span className="text-sm text-ink-muted">Saleable: <span className="num font-semibold text-ink">{totals}</span></span>}
+        {editable && (
+          <button className="btn-primary" disabled={busy || s.counted.length === 0} onClick={() => void run(() => api.submitShipmentCount(s.id, s.version), "Count sent for approval.")}>
+            Send count for approval
+          </button>
+        )}
       </div>
-      <div>
-        <label className="label" htmlFor="doc-ref">Number on the document (optional)</label>
-        <input id="doc-ref" className="input" value={ref} maxLength={64} onChange={(e) => setRef(e.target.value)} />
+      {editable && <p className="px-4 pb-3 text-sm text-ink-muted sm:px-5">One row per product as it comes off the truck. Leave Batch empty and it is named for you ({s.next_batch_ref}, …). Nothing is added to stock until a manager approves.</p>}
+      <div className={`hidden gap-2 border-y border-line bg-subtle/60 px-4 py-2 sm:px-5 md:grid ${COLS}`} aria-hidden>
+        {head("Product")}{head("Unit")}{head("Good", true)}{head("Damaged", true)}{head("Refused", true)}{head("Batch")}{head("Expiry")}{head("Note")}<span />
       </div>
-      <label className={`btn-ghost cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
-        Upload file
-        <input data-testid="doc-upload" type="file" accept={ACCEPT} className="sr-only" onChange={(e) => void onFile(e.target.files?.[0], e.target)} />
-      </label>
-      {msg && <div className="sm:col-span-3"><Notice tone="error">{msg}</Notice></div>}
+      <ul aria-label="Counted lines" className="divide-y divide-line border-line max-md:border-t">
+        {s.counted.map((c) => (
+          <li key={c.id} className={`grid grid-cols-2 items-center gap-x-2 gap-y-1 px-4 py-2.5 text-sm sm:px-5 ${COLS}`}>
+            <span className="col-span-2 min-w-0 md:col-span-1">
+              <span className="font-medium">{c.product_name}</span> <span className="text-xs text-ink-muted">{c.sku}</span>
+            </span>
+            <span className="text-ink-muted max-md:hidden">{c.unit_code.toLowerCase()}</span>
+            <span className="num font-semibold md:text-right"><span className="text-xs font-normal text-ink-muted md:hidden">Good </span>{qtyText(c.accepted_qty, c.unit_code)}</span>
+            <span className="num md:text-right"><span className="text-xs text-ink-muted md:hidden">Damaged </span>{qtyText(c.damaged_qty)}</span>
+            <span className="num md:text-right"><span className="text-xs text-ink-muted md:hidden">Refused </span>{qtyText(c.rejected_qty)}</span>
+            <span className="truncate"><span className="text-xs text-ink-muted md:hidden">Batch </span>{c.batch_ref ?? "—"}{c.lot_code && <span className="block text-xs text-ink-muted">Lot {c.lot_code}</span>}</span>
+            <span><span className="text-xs text-ink-muted md:hidden">Expiry </span>{c.expires_at ? day(c.expires_at) : "—"}</span>
+            <span className="truncate text-ink-muted">{c.note ?? ""}</span>
+            <span className="text-right">
+              {editable && (
+                <button className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Remove count line ${c.seq}`} disabled={busy} onClick={() => void run(() => api.removeCount(s.id, c.id, s.version), "Count line removed.")}>
+                  Remove
+                </button>
+              )}
+            </span>
+          </li>
+        ))}
+        {s.counted.length === 0 && !editable && <li className="px-4 py-3 text-sm text-ink-muted sm:px-5">Nothing counted.</li>}
+      </ul>
+      {editable && (
+        <form className={`grid grid-cols-2 items-end gap-2 border-t border-line bg-canvas px-4 py-3 sm:px-5 ${COLS}`} aria-label="Add count line" onSubmit={submit}>
+          <div className="col-span-2 min-w-0 md:col-span-1">
+            <label className="label md:sr-only" htmlFor="cl-p">Product</label>
+            <input
+              ref={productRef}
+              id="cl-p"
+              className="input py-2"
+              list="cl-products"
+              autoComplete="off"
+              placeholder="Type code or name"
+              value={text}
+              aria-invalid={!!hint && !product ? true : undefined}
+              onChange={(e) => chooseText(e.target.value)}
+            />
+            <datalist id="cl-products">
+              {catalog.products.map((p) => <option key={p.id} value={productLabel(p)} />)}
+            </datalist>
+          </div>
+          <div className="min-w-0">
+            <label className="label md:sr-only" htmlFor="cl-u">Unit</label>
+            <select id="cl-u" className="input py-2" value={unit} onChange={(e) => setUnit(e.target.value as UnitCode)}>
+              {units.map((x) => <option key={x} value={x}>{x.toLowerCase()}</option>)}
+            </select>
+          </div>
+          <QtyCell id="cl-a" label="Good" unit={u} value={accepted} onChange={setAccepted} places={places} />
+          <QtyCell id="cl-d" label="Damaged" unit={u} value={damaged} onChange={setDamaged} places={places} />
+          <QtyCell id="cl-r" label="Refused" unit={u} value={rejected} onChange={setRejected} places={places} />
+          <div className="min-w-0">
+            <label className="label md:sr-only" htmlFor="cl-b">Batch</label>
+            <input id="cl-b" className="input py-2" value={batch} maxLength={64} placeholder={s.next_batch_ref} title="Leave empty to name it automatically" onChange={(e) => setBatch(e.target.value)} />
+          </div>
+          <div className="min-w-0">
+            <label className="label md:sr-only" htmlFor="cl-x">{tracks ? "Expiry (required)" : "Expiry"}</label>
+            <input id="cl-x" type="date" className="input py-2" value={expires} required={tracks} onChange={(e) => setExpires(e.target.value)} />
+          </div>
+          <div className="min-w-0">
+            <label className="label md:sr-only" htmlFor="cl-n">Note</label>
+            <input id="cl-n" className="input py-2" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <button className="btn-primary col-span-2 px-3 md:col-span-1" disabled={busy}>Add</button>
+          {hint && <p role="alert" className="col-span-2 text-sm text-danger md:col-span-9">{hint}</p>}
+          <p className="col-span-2 text-xs text-ink-muted md:col-span-9" aria-live="polite">
+            {picked && <><span className="font-medium text-ink">{picked.name}</span> ({picked.sku}) · </>}
+            Total on this row: <span className="num font-semibold text-ink">{qtyText(total, unit)}</span> · Enter saves the row.
+          </p>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------- documents vs. count */
+
+function CheckSection({ s, editable, busy, run, catalog, docName, differences, onWithdraw }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run; catalog: Catalog; docName: (id: string | null) => string; differences: number; onWithdraw: (id: string) => void }) {
+  const live = s.declared.filter((d) => !d.removed_at);
+  const gone = s.declared.filter((d) => d.removed_at);
+  // Open by itself once there is something to compare; otherwise one line, closed.
+  const [openState, setOpen] = useState<boolean | null>(null);
+  const isOpen = openState ?? live.length > 0;
+  return (
+    <details className="card min-w-0 overflow-hidden" open={isOpen} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <Icon name="chevron" size={16} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
+        <h2 className="font-semibold">Check against the documents</h2>
+        <span className="mr-auto text-sm text-ink-muted">{live.length === 0 ? "Optional — type in what the invoice lists to spot shortages" : `${live.length} line${live.length === 1 ? "" : "s"} from the documents`}</span>
+        {live.length > 0 && s.comparison.length > 0 && (differences > 0 ? <StatusChip tone="warning">{differences} difference{differences === 1 ? "" : "s"}</StatusChip> : <StatusChip tone="success">Everything matches</StatusChip>)}
+      </summary>
+      <div className="border-t border-line">
+        <DeclaredLines s={s} live={live} gone={gone} editable={editable} busy={busy} run={run} catalog={catalog} docName={docName} onWithdraw={onWithdraw} />
+        {live.length > 0 && s.comparison.length > 0 && (
+          <div className="overflow-x-auto border-t border-line" tabIndex={0} role="region" aria-label="Documents vs. what arrived">
+            <table className="w-full min-w-[40rem] border-separate border-spacing-0">
+              <caption className="sr-only">Declared versus counted, per product and unit</caption>
+              <thead>
+                <tr>
+                  <th className="th">Product</th>
+                  <th className="th text-right">Documents</th>
+                  <th className="th text-right">Good</th>
+                  <th className="th text-right">Damaged</th>
+                  <th className="th text-right">Refused</th>
+                  <th className="th text-right">Difference</th>
+                  <th className="th">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.comparison.map((r) => {
+                  const c = COMPARE[r.status];
+                  const docs = Object.entries(r.declared_by_document);
+                  return (
+                    <tr key={`${r.product_id}-${r.unit_code}`} className={r.status === "MATCH" ? "" : "bg-danger/[0.04]"}>
+                      <td className="td">
+                        <span className="font-medium">{r.product_name}</span> <span className="text-xs text-ink-muted">{r.sku} · {r.unit_code.toLowerCase()}</span>
+                        {r.status === "DOC_CONFLICT" && (
+                          <ul className="mt-1 text-xs text-danger">
+                            {docs.map(([d, q]) => <li key={d}>{docName(d === "manual" ? null : d)}: {qtyText(q)}</li>)}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="td num text-right">{r.declared_qty ? qtyText(r.declared_qty) : "—"}</td>
+                      <td className="td num text-right font-semibold">{r.accepted_qty ? qtyText(r.accepted_qty) : "—"}</td>
+                      <td className="td num text-right">{r.damaged_qty ? qtyText(r.damaged_qty) : "—"}</td>
+                      <td className="td num text-right">{r.rejected_qty ? qtyText(r.rejected_qty) : "—"}</td>
+                      <td className="td num text-right">{diffText(r.difference, r.unit_code)}</td>
+                      <td className="td" title={c.hint}><StatusChip tone={c.tone}>{c.label}</StatusChip></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function DeclaredLines({ s, live, gone, editable, busy, run, catalog, docName, onWithdraw }: { s: ShipmentDetail; live: ShipmentDetail["declared"]; gone: ShipmentDetail["declared"]; editable: boolean; busy: boolean; run: Run; catalog: Catalog; docName: (id: string | null) => string; onWithdraw: (id: string) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [docId, setDocId] = useState("");
+  const [label, setLabel] = useState("");
+  const [product, setProduct] = useState("");
+  const [unit, setUnit] = useState<UnitCode>("BOX");
+  const [q, setQ] = useState("");
+  const [cost, setCost] = useState("");
+  const [remember, setRemember] = useState(true);
+  useEffect(() => {
+    if (!docId && s.documents[0]) setDocId(s.documents[0].id);
+  }, [docId, s.documents]);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const ok = await run(
+      () =>
+        api.declareLine(s.id, {
+          version: s.version,
+          shipment_document_id: docId || null,
+          raw_label: label.trim(),
+          product_id: product || null,
+          unit_code: unit,
+          declared_qty: q,
+          unit_cost: cost || null,
+          remember_alias: !!product && remember,
+        }),
+      "Document line added.",
+    );
+    if (ok) {
+      setLabel("");
+      setProduct("");
+      setQ("");
+      setCost("");
+    }
+  }
+
+  return (
+    <div>
+      {live.length > 0 && (
+        <ul className="divide-y divide-line" aria-label="Lines from the documents">
+          {live.map((d) => (
+            <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-sm sm:px-5">
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{d.product_name}</span> <span className="text-xs text-ink-muted">{d.sku}</span>
+                <span className="block text-xs text-ink-muted">“{d.raw_label}” · {docName(d.shipment_document_id)}</span>
+              </span>
+              <span className="num">{qtyText(d.declared_qty, d.unit_code)}</span>
+              {d.unit_cost && <span className="num text-xs text-ink-muted">{moneyText(d.unit_cost, s.currency)} each</span>}
+              {editable && <button className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Withdraw ${d.sku} line`} onClick={() => onWithdraw(d.id)}>Withdraw</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {gone.length > 0 && (
+        <details className="border-t border-line px-4 py-2 text-xs text-ink-muted sm:px-5">
+          <summary>{gone.length} withdrawn line{gone.length === 1 ? "" : "s"}</summary>
+          <ul className="mt-1 space-y-0.5">
+            {gone.map((d) => <li key={d.id}>{d.sku} {qtyText(d.declared_qty, d.unit_code)} — “{d.removed_reason}”</li>)}
+          </ul>
+        </details>
+      )}
+      {editable && !adding && (
+        <div className="px-4 py-3 sm:px-5">
+          <button className="btn-ghost gap-2" onClick={() => setAdding(true)}><Icon name="plus" size={16} />Add document line</button>
+        </div>
+      )}
+      {adding && editable && (
+        <form className="grid gap-2 border-t border-line bg-canvas p-4 sm:px-5 md:grid-cols-3 md:items-end" aria-label="Add document line" onSubmit={submit}>
+          <div>
+            <label className="label" htmlFor="dl-doc">From document</label>
+            <select id="dl-doc" className="input" value={docId} onChange={(e) => setDocId(e.target.value)}>
+              <option value="">No document</option>
+              {s.documents.map((d) => <option key={d.id} value={d.id}>{docName(d.id)}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="label" htmlFor="dl-label">Description as printed</label>
+            <input id="dl-label" className="input" value={label} maxLength={200} required onChange={(e) => setLabel(e.target.value)} />
+          </div>
+          <ProductUnit idp="dl" optional catalog={catalog} product={product} unit={unit} onProduct={setProduct} onUnit={setUnit} />
+          <NumericInput label="Quantity on document" value={q} onChange={setQ} places={unitPlaces(unit)} invalidHint={unitPlaces(unit) === 0 ? "Whole numbers only" : undefined} />
+          <NumericInput label={`Unit cost (${s.currency}, optional)`} value={cost} onChange={setCost} places={4} />
+          {product && (
+            <label className="flex items-center gap-2 text-sm md:col-span-2">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              Remember this description for {s.vendor_code}
+            </label>
+          )}
+          <div className="flex justify-end gap-2 md:col-span-3">
+            <button type="button" className="btn-ghost" onClick={() => setAdding(false)}>Close</button>
+            <button className="btn-primary" disabled={busy || !label.trim() || !q}>Add line</button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
@@ -600,226 +1033,7 @@ function ProductUnit({ catalog, product, unit, onProduct, onUnit, idp, optional 
   );
 }
 
-function DeclaredSection({ s, editable, busy, run, catalog, docName, onWithdraw }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run; catalog: Catalog; docName: (id: string | null) => string; onWithdraw: (id: string) => void }) {
-  const [adding, setAdding] = useState(false);
-  const [docId, setDocId] = useState("");
-  const [label, setLabel] = useState("");
-  const [product, setProduct] = useState("");
-  const [unit, setUnit] = useState<UnitCode>("BOX");
-  const [q, setQ] = useState("");
-  const [cost, setCost] = useState("");
-  const [remember, setRemember] = useState(true);
-  const live = s.declared.filter((d) => !d.removed_at);
-  const gone = s.declared.filter((d) => d.removed_at);
-  useEffect(() => {
-    if (!docId && s.documents[0]) setDocId(s.documents[0].id);
-  }, [docId, s.documents]);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const ok = await run(
-      () =>
-        api.declareLine(s.id, {
-          version: s.version,
-          shipment_document_id: docId || null,
-          raw_label: label.trim(),
-          product_id: product || null,
-          unit_code: unit,
-          declared_qty: q,
-          unit_cost: cost || null,
-          remember_alias: !!product && remember,
-        }),
-      "Document line added.",
-    );
-    if (ok) {
-      setLabel("");
-      setProduct("");
-      setQ("");
-      setCost("");
-    }
-  }
-
-  return (
-    <section className="card min-w-0 overflow-hidden" aria-labelledby="dec-h">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-        <h2 id="dec-h" className="mr-auto font-semibold">What the documents say</h2>
-        {editable && !adding && <button className="btn-ghost" onClick={() => setAdding(true)}>Add document line</button>}
-      </div>
-      {live.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-ink-muted">No lines entered from the documents. These are for comparison only — they never change stock.</p>
-      ) : (
-        <ul className="divide-y divide-line">
-          {live.map((d) => (
-            <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-sm">
-              <span className="min-w-0 flex-1">
-                <span className="font-medium">{d.product_name}</span> <span className="text-xs text-ink-muted">{d.sku}</span>
-                <span className="block text-xs text-ink-muted">“{d.raw_label}” · {docName(d.shipment_document_id)}</span>
-              </span>
-              <span className="num">{qtyText(d.declared_qty, d.unit_code)}</span>
-              {d.unit_cost && <span className="num text-xs text-ink-muted">{moneyText(d.unit_cost, s.currency)} each</span>}
-              {editable && <button className="btn-ghost text-xs" aria-label={`Withdraw ${d.sku} line`} onClick={() => onWithdraw(d.id)}>Withdraw</button>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {gone.length > 0 && (
-        <details className="border-t border-line px-4 py-2 text-xs text-ink-muted">
-          <summary>{gone.length} withdrawn line{gone.length === 1 ? "" : "s"}</summary>
-          <ul className="mt-1 space-y-0.5">
-            {gone.map((d) => <li key={d.id}>{d.sku} {qtyText(d.declared_qty, d.unit_code)} — “{d.removed_reason}”</li>)}
-          </ul>
-        </details>
-      )}
-      {adding && editable && (
-        <form className="grid gap-2 border-t border-line bg-canvas p-3 md:grid-cols-3 md:items-end" aria-label="Add document line" onSubmit={submit}>
-          <div>
-            <label className="label" htmlFor="dl-doc">From document</label>
-            <select id="dl-doc" className="input" value={docId} onChange={(e) => setDocId(e.target.value)}>
-              <option value="">No document</option>
-              {s.documents.map((d) => <option key={d.id} value={d.id}>{docName(d.id)}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="label" htmlFor="dl-label">Description as printed</label>
-            <input id="dl-label" className="input" value={label} maxLength={200} required onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <ProductUnit idp="dl" optional catalog={catalog} product={product} unit={unit} onProduct={setProduct} onUnit={setUnit} />
-          <NumericInput label="Quantity on document" value={q} onChange={setQ} places={unitPlaces(unit)} invalidHint={unitPlaces(unit) === 0 ? "Whole numbers only" : undefined} />
-          <NumericInput label={`Unit cost (${s.currency}, optional)`} value={cost} onChange={setCost} places={4} />
-          {product && (
-            <label className="flex items-center gap-2 text-sm md:col-span-2">
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-              Remember this description for {s.vendor_code}
-            </label>
-          )}
-          <div className="flex justify-end gap-2 md:col-span-3">
-            <button type="button" className="btn-ghost" onClick={() => setAdding(false)}>Close</button>
-            <button className="btn-primary" disabled={busy || !label.trim() || !q}>Add line</button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
-}
-
-function CountSection({ s, editable, busy, run, catalog }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run; catalog: Catalog }) {
-  const [product, setProduct] = useState("");
-  const [unit, setUnit] = useState<UnitCode>("BOX");
-  const [accepted, setAccepted] = useState("");
-  const [damaged, setDamaged] = useState("");
-  const [rejected, setRejected] = useState("");
-  const [batch, setBatch] = useState("");
-  const [expires, setExpires] = useState("");
-  const [note, setNote] = useState("");
-  const tracks = !!catalog.full[product]?.tracks_expiry;
-  const places = unitPlaces(unit);
-  const total = countTotal(accepted, damaged, rejected);
-  const totals = useMemo(() => saleableSummary(s.counted.map((c) => ({ accepted_qty: c.accepted_qty, unit_code: c.unit_code }))), [s.counted]);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const ok = await run(
-      () =>
-        api.addCount(s.id, s.version, {
-          product_id: product,
-          unit_code: unit,
-          accepted_qty: accepted || "0",
-          damaged_qty: damaged || "0",
-          rejected_qty: rejected || "0",
-          batch_ref: batch.trim() || null,
-          expires_at: expires || null,
-          note: note.trim() || null,
-        }),
-      "Count line saved.",
-    );
-    if (ok) {
-      setProduct("");
-      setAccepted("");
-      setDamaged("");
-      setRejected("");
-      setBatch("");
-      setExpires("");
-      setNote("");
-    }
-  }
-
-  return (
-    <section className="card min-w-0 overflow-hidden" aria-labelledby="cnt-h">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-        <h2 id="cnt-h" className="mr-auto font-semibold">What arrived (physical count)</h2>
-        {s.counted.length > 0 && <span className="text-sm text-ink-muted">Saleable: <span className="num font-semibold text-ink">{totals}</span></span>}
-      </div>
-      {s.counted.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-ink-muted">Count each product as it comes off the truck. Split good, damaged and refused.</p>
-      ) : (
-        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
-          <table className="w-full min-w-[36rem] border-separate border-spacing-0">
-            <caption className="sr-only">Counted lines</caption>
-            <thead>
-              <tr>
-                <th className="th">Product / batch</th>
-                <th className="th text-right">Accepted</th>
-                <th className="th text-right">Damaged</th>
-                <th className="th text-right">Refused</th>
-                <th className="th"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {s.counted.map((c) => (
-                <tr key={c.id}>
-                  <td className="td">
-                    <div className="font-medium">{c.product_name} <span className="text-xs text-ink-muted">{c.sku}</span></div>
-                    <div className="text-xs text-ink-muted">
-                      {c.unit_code.toLowerCase()}
-                      {c.batch_ref && <> · Batch {c.batch_ref}</>}
-                      {c.expires_at && <> · Expires {day(c.expires_at)}</>}
-                      {c.lot_code && <> · Lot {c.lot_code}</>}
-                      {c.note && <> · {c.note}</>}
-                    </div>
-                  </td>
-                  <td className="td num text-right font-semibold">{qtyText(c.accepted_qty)}</td>
-                  <td className="td num text-right">{qtyText(c.damaged_qty)}</td>
-                  <td className="td num text-right">{qtyText(c.rejected_qty)}</td>
-                  <td className="td text-right">
-                    {editable && (
-                      <button className="btn-ghost text-xs" aria-label={`Remove count line ${c.seq}`} disabled={busy} onClick={() => void run(() => api.removeCount(s.id, c.id, s.version), "Count line removed.")}>
-                        Remove
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {editable && (
-        <form className="grid gap-2 border-t border-line bg-canvas p-3 md:grid-cols-3 md:items-end" aria-label="Add count line" onSubmit={submit}>
-          <ProductUnit idp="cl" catalog={catalog} product={product} unit={unit} onProduct={setProduct} onUnit={setUnit} />
-          <NumericInput label="Accepted (good)" unit={unit.toLowerCase()} value={accepted} onChange={setAccepted} places={places} invalidHint={places === 0 ? "Whole numbers only" : undefined} />
-          <NumericInput label="Damaged" unit={unit.toLowerCase()} value={damaged} onChange={setDamaged} places={places} invalidHint={places === 0 ? "Whole numbers only" : undefined} />
-          <NumericInput label="Refused / sent back" unit={unit.toLowerCase()} value={rejected} onChange={setRejected} places={places} invalidHint={places === 0 ? "Whole numbers only" : undefined} />
-          <div>
-            <label className="label" htmlFor="cl-b">Batch (optional)</label>
-            <input id="cl-b" className="input" value={batch} maxLength={64} onChange={(e) => setBatch(e.target.value)} />
-          </div>
-          <div>
-            <label className="label" htmlFor="cl-x">Expiry date{tracks ? " (required)" : " (optional)"}</label>
-            <input id="cl-x" type="date" className="input" value={expires} required={tracks} onChange={(e) => setExpires(e.target.value)} />
-          </div>
-          <div className="md:col-span-2">
-            <label className="label" htmlFor="cl-n">Note (optional)</label>
-            <input id="cl-n" className="input" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          <div className="flex items-center justify-end gap-3 md:col-span-3">
-            <span className="text-sm text-ink-muted">Total counted: <span className="num font-semibold text-ink">{qtyText(total, unit)}</span></span>
-            <button className="btn-primary" disabled={busy || !product || total === "0.0000"}>Save count line</button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
-}
+/* ---------------------------------------------------------------- costs */
 
 function CostSection({ s, editable, busy, run, docName, onWithdraw }: { s: ShipmentDetail; editable: boolean; busy: boolean; run: Run; docName: (id: string | null) => string; onWithdraw: (id: string) => void }) {
   const [kind, setKind] = useState<LandedCostKind>("FREIGHT");
@@ -830,6 +1044,7 @@ function CostSection({ s, editable, busy, run, docName, onWithdraw }: { s: Shipm
   const live = s.costs.filter((c) => !c.removed_at);
   const gone = s.costs.filter((c) => c.removed_at);
   const totals = Object.entries(s.cost_totals);
+  if (!editable && live.length === 0 && gone.length === 0) return null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -844,64 +1059,64 @@ function CostSection({ s, editable, busy, run, docName, onWithdraw }: { s: Shipm
   }
 
   return (
-    <section className="card min-w-0 overflow-hidden" aria-labelledby="cost-h">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-        <h2 id="cost-h" className="mr-auto font-semibold">Freight, duty and other costs</h2>
+    <details className="card group/cost min-w-0 overflow-hidden">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <Icon name="chevron" size={16} className="transition-transform group-open/cost:rotate-90" />
+        <h2 className="font-semibold">Freight, duty and other costs</h2>
+        <span className="mr-auto text-sm text-ink-muted">{live.length === 0 ? "Optional" : `${live.length} recorded`}</span>
         {totals.length > 0 && <span className="num text-sm font-semibold">{totals.map(([c, a]) => moneyText(a, c)).join(" + ")}</span>}
-      </div>
-      <p className="px-4 pt-3 text-xs text-ink-muted">Recorded against the shipment only. They are not spread over product costs until the allocation rule is decided.</p>
-      {live.length > 0 && (
-        <ul className="divide-y divide-line">
-          {live.map((c) => (
-            <li key={c.id} className="flex flex-wrap items-center gap-x-4 px-4 py-2 text-sm">
-              <span className="flex-1">
-                {COST_KIND[c.kind]}
-                <span className="block text-xs text-ink-muted">{docName(c.shipment_document_id)}{c.note ? ` · ${c.note}` : ""} · {c.created_by_name}</span>
-              </span>
-              <span className="num">{moneyText(c.amount, c.currency)}</span>
-              {editable && <button className="btn-ghost text-xs" aria-label={`Withdraw ${COST_KIND[c.kind]} cost`} onClick={() => onWithdraw(c.id)}>Withdraw</button>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {gone.length > 0 && (
-        <details className="border-t border-line px-4 py-2 text-xs text-ink-muted">
-          <summary>{gone.length} withdrawn cost{gone.length === 1 ? "" : "s"}</summary>
-          <ul className="mt-1">{gone.map((c) => <li key={c.id}>{COST_KIND[c.kind]} {moneyText(c.amount, c.currency)} — “{c.removed_reason}”</li>)}</ul>
-        </details>
-      )}
-      {editable ? (
-        <form className="mt-2 grid gap-2 border-t border-line bg-canvas p-3 md:grid-cols-4 md:items-end" aria-label="Add a cost" onSubmit={submit}>
-          <div>
-            <label className="label" htmlFor="lc-k">Cost type</label>
-            <select id="lc-k" className="input" value={kind} onChange={(e) => setKind(e.target.value as LandedCostKind)}>
-              {(Object.keys(COST_KIND) as LandedCostKind[]).map((k) => <option key={k} value={k}>{COST_KIND[k]}</option>)}
-            </select>
-          </div>
-          <NumericInput label="Amount" value={amount} onChange={setAmount} places={2} />
-          <div>
-            <label className="label" htmlFor="lc-c">Currency</label>
-            <input id="lc-c" className="input uppercase" value={cur} maxLength={3} onChange={(e) => setCur(e.target.value)} />
-          </div>
-          <div>
-            <label className="label" htmlFor="lc-d">From document</label>
-            <select id="lc-d" className="input" value={docId} onChange={(e) => setDocId(e.target.value)}>
-              <option value="">No document</option>
-              {s.documents.map((d) => <option key={d.id} value={d.id}>{docName(d.id)}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-3">
-            <label className="label" htmlFor="lc-n">Note (optional)</label>
-            <input id="lc-n" className="input" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          <div className="flex justify-end">
+      </summary>
+      <div className="border-t border-line">
+        <p className="px-4 pt-3 text-xs text-ink-muted sm:px-5">Recorded against the shipment only. They are not spread over product costs until the allocation rule is decided.</p>
+        {live.length > 0 && (
+          <ul className="divide-y divide-line">
+            {live.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-4 px-4 py-2 text-sm sm:px-5">
+                <span className="flex-1">
+                  {COST_KIND[c.kind]}
+                  <span className="block text-xs text-ink-muted">{docName(c.shipment_document_id)}{c.note ? ` · ${c.note}` : ""} · {c.created_by_name}</span>
+                </span>
+                <span className="num">{moneyText(c.amount, c.currency)}</span>
+                {editable && <button className="btn-ghost px-3 py-1.5 text-xs" aria-label={`Withdraw ${COST_KIND[c.kind]} cost`} onClick={() => onWithdraw(c.id)}>Withdraw</button>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {gone.length > 0 && (
+          <details className="border-t border-line px-4 py-2 text-xs text-ink-muted sm:px-5">
+            <summary>{gone.length} withdrawn cost{gone.length === 1 ? "" : "s"}</summary>
+            <ul className="mt-1">{gone.map((c) => <li key={c.id}>{COST_KIND[c.kind]} {moneyText(c.amount, c.currency)} — “{c.removed_reason}”</li>)}</ul>
+          </details>
+        )}
+        {editable && (
+          <form className="mt-2 grid gap-2 border-t border-line bg-canvas p-4 sm:px-5 md:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,2fr)_auto] md:items-end" aria-label="Add a cost" onSubmit={submit}>
+            <div>
+              <label className="label" htmlFor="lc-k">Cost type</label>
+              <select id="lc-k" className="input" value={kind} onChange={(e) => setKind(e.target.value as LandedCostKind)}>
+                {(Object.keys(COST_KIND) as LandedCostKind[]).map((k) => <option key={k} value={k}>{COST_KIND[k]}</option>)}
+              </select>
+            </div>
+            <NumericInput label="Amount" value={amount} onChange={setAmount} places={2} />
+            <div>
+              <label className="label" htmlFor="lc-c">Currency</label>
+              <input id="lc-c" className="input uppercase" value={cur} maxLength={3} onChange={(e) => setCur(e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="lc-d">From document</label>
+              <select id="lc-d" className="input" value={docId} onChange={(e) => setDocId(e.target.value)}>
+                <option value="">No document</option>
+                {s.documents.map((d) => <option key={d.id} value={d.id}>{docName(d.id)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="lc-n">Note</label>
+              <input id="lc-n" className="input" value={note} maxLength={500} placeholder="Optional" onChange={(e) => setNote(e.target.value)} />
+            </div>
             <button className="btn-primary" disabled={busy || !amount || cur.trim().length !== 3}>Add cost</button>
-          </div>
-        </form>
-      ) : (
-        live.length === 0 && <p className="px-4 pb-3 text-sm text-ink-muted">No costs recorded.</p>
-      )}
-    </section>
+          </form>
+        )}
+      </div>
+    </details>
   );
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api";
-import { countTotal, diffText, moneyText, receivingMessage, saleableSummary, unitPlaces } from "./receiving";
+import { todayIso } from "./format";
+import { countTotal, diffText, findProduct, moneyText, productLabel, receivingMessage, saleableSummary, unitPlaces } from "./receiving";
 
 describe("receiving helpers", () => {
   it("adds count parts exactly and treats blanks as zero", () => {
@@ -46,5 +47,31 @@ describe("receiving helpers", () => {
     expect(receivingMessage(e("VERSION_CONFLICT"))).toMatch(/reloaded/);
     expect(receivingMessage(e("UNMAPPED_LABEL", "“X” isn't known"))).toBe("“X” isn't known");
     expect(receivingMessage(new Error("boom"))).toMatch(/Nothing was saved/);
+  });
+});
+
+describe("count grid product lookup", () => {
+  const ps = [
+    { sku: "ALO", name: "Aloe" },
+    { sku: "ALOP", name: "Aloe (packaged)" },
+    { sku: "CAS", name: "Cassava" },
+  ];
+  it("finds a product by its list label, code or name, in any case", () => {
+    expect(productLabel({ sku: "ALO", name: "Aloe" })).toBe("ALO — Aloe");
+    expect(findProduct(ps, "ALO — Aloe")?.sku).toBe("ALO");
+    expect(findProduct(ps, "alop")?.sku).toBe("ALOP");
+    expect(findProduct(ps, " cassava ")?.sku).toBe("CAS");
+  });
+  it("finds nothing while the text names no single product", () => {
+    expect(findProduct(ps, "")).toBeNull();
+    expect(findProduct(ps, "AL")).toBeNull();
+    expect(findProduct(ps, "Aloe (pack")).toBeNull();
+  });
+});
+
+describe("today's date for date fields", () => {
+  it("is the local calendar day as YYYY-MM-DD", () => {
+    expect(todayIso(new Date(2026, 10, 11, 23, 59))).toBe("2026-11-11");
+    expect(todayIso(new Date(2027, 0, 5, 0, 1))).toBe("2027-01-05");
   });
 });
