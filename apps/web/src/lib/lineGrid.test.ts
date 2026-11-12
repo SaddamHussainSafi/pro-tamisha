@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { UnitProfile } from "../api";
 import {
   applyPaste,
+  gridUnits,
   blankLine,
   billable,
   cleanQty,
@@ -208,5 +210,14 @@ describe("weight (boxes are sold per lb)", () => {
     expect(rowProblem({ ...box, unit_code: "LB" }, 0, [box])).toMatch(/only for boxes/);
     const rows = previewRows([box, { ...box, key: 99, weight: "x" }, line({ product_id: "lb", unit_code: "LB", qty: "2", weight: "2" })]);
     expect(rows.lines.map((l) => l.weight_lb)).toEqual(["35", undefined, undefined]); // bad or not a box: not sent
+  });
+});
+
+describe("grid units (D-38: box, lb and kg; kg for an lb product is invoiced in lb)", () => {
+  const prof = (code: string, unit: UnitProfile["unit_code"], d = false): UnitProfile => ({ id: code, code, unit_code: unit, pieces_per_unit: null, weight_lb_per_unit: null, is_default: d, active: true });
+  it("adds lb and kg after the product's own units", () => {
+    expect(gridUnits({ stock_unit: "BOX", unit_profiles: [prof("CASE40", "BOX", true)] })).toEqual(["BOX", "LB", "KG"]);
+    expect(gridUnits({ stock_unit: "LB", unit_profiles: [] })).toEqual(["LB", "KG"]);
+    expect(gridUnits({ stock_unit: "KG", unit_profiles: [prof("PC", "PIECE")] })).toEqual(["PIECE", "KG", "LB"]);
   });
 });

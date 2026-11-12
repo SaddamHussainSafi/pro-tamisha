@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import inventory as inv
-from . import pricing
+from . import pricing, units
 from .errors import ApiError
 from .models import (
     OPEN_PICK_STATUSES,
@@ -162,6 +162,36 @@ def validate_lines(db: Session, company_id: uuid.UUID, lines: list[Any]) -> list
         seen.add(k)
         products.append(prod)
     return products
+
+
+def kg_for_lb(db: Session, company_id: uuid.UUID, product_id: uuid.UUID, unit: str) -> bool:
+    """KG chosen for a product kept in lb (D-38, owner 2026-11-12: "Invoice in lb"). Such a
+    line is saved, reserved, packed and invoiced in lb; KG stays a stock unit only for kg
+    products (one measure per product)."""
+    if unit != "KG":
+        return False
+    prod = db.get(Product, product_id)
+    return (
+        prod is not None and prod.company_id == company_id and "KG" not in inv.stock_units(db, prod)
+    )
+
+
+def lines_in_stock_unit[T: Any](db: Session, company_id: uuid.UUID, lines: list[T]) -> list[T]:
+    """Order lines with kg-for-lb lines converted exactly (1 lb = 0.45359237 kg, 4 places) and
+    "Ordered in kg: 105 kg" added to the line note, so the customer's own figure stays on
+    record. Other lines are returned unchanged."""
+    out: list[T] = []
+    for ln in lines:
+        if kg_for_lb(db, company_id, ln.product_id, ln.unit_code):
+            kg = ln.qty
+            said = f"Ordered in kg: {kg.normalize():f} kg"
+            own = (getattr(ln, "note", "") or "").strip()
+            upd: dict[str, Any] = {"unit_code": "LB", "qty": units.kg_to_lb(kg)}
+            if hasattr(ln, "note"):
+                upd["note"] = (f"{own} · {said}" if own else said)[:500]
+            ln = ln.model_copy(update=upd)
+        out.append(ln)
+    return out
 
 
 def get_customer(db: Session, company_id: uuid.UUID, cid: uuid.UUID) -> Customer:

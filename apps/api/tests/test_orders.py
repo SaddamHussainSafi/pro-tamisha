@@ -300,7 +300,8 @@ def test_worker_cannot_change_price_confirm_or_close(owner, user, world, setup):
 
 def test_validation_and_draft_editing(owner, user, world, setup):
     sales = user("sales")
-    r = new_order(sales, world, setup, [("CAS", "KG", "2")])
+    # kg is now saved as lb (D-38); a unit the product has no size for is still refused
+    r = new_order(sales, world, setup, [("CAS", "PIECE", "2")])
     assert r.status_code == 422 and code(r) == "INVALID_UNIT"
     r = new_order(sales, world, setup, [("CAS", "BOX", "1.5")])
     assert r.status_code == 422 and code(r) == "UNIT_NOT_DIVISIBLE"
@@ -528,3 +529,67 @@ def test_failure_injection_rolls_back(owner, user, world, setup, monkeypatch):
     assert after["attempts"] == [] and after["status"] == "CONFIRMED"
     r = open_pick(sales, o, key=key)  # same key retried after the outage
     assert r.status_code == 201, r.text
+
+
+# ---------------------------------------------- D-38: kg for products kept in lb
+
+
+def test_kg_for_a_product_kept_in_lb_is_ordered_and_priced_in_lb(owner, world, setup):
+    """Owner, 2026-11-12 (D-38, "Invoice in lb"): a kg line for a product kept in lb is saved
+    in lb (exact: 1 lb = 0.45359237 kg, 4 places) and keeps the customer's kg in its note."""
+    cas = setup["p"]["CAS"]
+    line = {"product_id": cas, "unit_code": "KG", "qty": "10"}
+    pv = owner.post(
+        f"{P}/sales-orders/preview",
+        json={"customer_id": setup["cust"], "warehouse_id": str(world.wh_a), "lines": [line]},
+    )
+    assert pv.status_code == 200, pv.text
+    row = pv.json()["lines"][0]
+    # the row stays as typed; price, amount and weight are the lb line's
+    assert (row["unit_code"], row["qty"], row["problem"]) == ("KG", "10.0000", None)
+    assert (row["rate"], row["lb_rate"], row["line_amount"]) == ("1.5000", "1.5000", "33.07")
+    assert row["weight_lb"] == "22.0462"
+
+    r = new_order(owner, world, setup, [("CAS", "KG", "10")])
+    assert r.status_code == 201, r.text
+    o = r.json()
+    ln = o["lines"][0]
+    assert (ln["unit_code"], ln["ordered_qty"]) == ("LB", "22.0462")
+    assert ln["note"] == "Ordered in kg: 10 kg"
+    c = owner.post(
+        f"{P}/sales-orders/{o['id']}/confirm", json={"version": o["version"]}, headers=idem()
+    )
+    assert c.status_code == 200, c.text
+    priced = c.json()["lines"][0]
+    assert priced["rate"] == "1.5000"  # the same price the preview showed
+
+    # kg and lb of the same product end up as one lb line: refused as a repeat
+    r = new_order(owner, world, setup, [("CAS", "KG", "10"), ("CAS", "LB", "5")])
+    assert r.status_code == 422 and code(r) == "DUPLICATE_LINE"
+    # editing a draft converts the same way
+    d = new_order(owner, world, setup, [("CAS", "BOX", "1")]).json()
+    body = {
+        "version": d["version"],
+        "customer_id": setup["cust"],
+        "warehouse_id": str(world.wh_a),
+        "lines": [{"product_id": cas, "unit_code": "KG", "qty": "2.5", "note": "cut small"}],
+    }
+    r = owner.put(f"{P}/sales-orders/{d['id']}", json=body, headers=idem())
+    assert r.status_code == 200, r.text
+    ln = r.json()["lines"][0]
+    assert (ln["unit_code"], ln["ordered_qty"]) == ("LB", "5.5116")
+    assert ln["note"] == "cut small · Ordered in kg: 2.5 kg"
+
+
+def test_products_kept_in_kg_stay_in_kg(owner, world, setup):
+    r = owner.post(
+        f"{P}/products",
+        json={"sku": "GNG", "name": "Ginger", "stock_unit": "KG", "unit_profiles": []},
+        headers=idem(),
+    )
+    assert r.status_code == 201, r.text
+    setup["p"]["GNG"] = r.json()["id"]
+    r = new_order(owner, world, setup, [("GNG", "KG", "3")])
+    assert r.status_code == 201, r.text
+    ln = r.json()["lines"][0]
+    assert (ln["unit_code"], ln["ordered_qty"], ln["note"]) == ("KG", "3.0000", "")

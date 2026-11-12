@@ -117,11 +117,12 @@ export function keyMove(
 /** What the grid needs about a product: names to match and units to offer. */
 export type GridProduct = { id: string; sku: string; name: string; aliases: string[]; units: UnitCode[]; stock_unit: UnitCode };
 
-/** Units the server accepts for a product: its case sizes' units, its stock unit, and LB
- * (catch weight is always allowed). The product's default case size comes first. */
+/** Units the server accepts for a product: its case sizes' units, its stock unit, LB (catch
+ * weight is always allowed) and KG — kg for a product kept in lb is saved and invoiced in lb
+ * (D-38, owner 2026-11-12). The product's default case size comes first. */
 export function gridUnits(p: Pick<Product, "stock_unit" | "unit_profiles">): UnitCode[] {
   const u = unitsFor(p);
-  return u.includes("LB") ? u : [...u, "LB"];
+  return [...u, ...(["LB", "KG"] as UnitCode[]).filter((x) => !u.includes(x))];
 }
 
 export function toGridProduct(p: Product): GridProduct {

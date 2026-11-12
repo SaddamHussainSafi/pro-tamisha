@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from . import inventory as inv
 from . import orders as osvc
+from . import units
 from .errors import ApiError
 from .invoicing import TAX_CODE, ZERO, fefo_key, money
 from .models import Customer, InventoryBalance, InventoryLot, Product, ProductUnitProfile
@@ -97,7 +98,12 @@ def preview(
             "problem": None,
         }
         lines.append(row)
-        problem = _check(db, prod, ln.unit_code, ln.qty, i, seen, ln.weight_lb)
+        # kg for a product kept in lb: checked, priced and stocked as the lb line it will be
+        # saved as (D-38); the row keeps the kg the person typed.
+        as_lb = osvc.kg_for_lb(db, company_id, prod.id, ln.unit_code)
+        unit = "LB" if as_lb else ln.unit_code
+        qty = units.kg_to_lb(ln.qty) if as_lb else ln.qty
+        problem = _check(db, prod, unit, qty, i, seen, ln.weight_lb)
         if problem:
             row["problem"] = problem
             continue
@@ -105,7 +111,7 @@ def preview(
         if cust is not None:
             try:
                 rate, snap = osvc.quote(
-                    db, company_id, prod, ln.unit_code, cust, at, i,
+                    db, company_id, prod, unit, cust, at, i,
                     weighed_box_lb=osvc.line_box_lb(ln.weight_lb, ln.qty),
                 )  # fmt: skip
             except ApiError as e:
@@ -113,19 +119,21 @@ def preview(
             else:
                 row |= {
                     "rate": rate,
-                    "line_amount": money(ln.qty * rate),
+                    "line_amount": money(qty * rate),
                     "basis": snap.get("basis") or "PRICE_BOOK",
                     "price_scope": snap.get("scope"),
                     "price_version_code": snap.get("version_code"),
-                    "lb_rate": Decimal(snap["lb_rate"]) if snap.get("lb_rate") else None,
+                    "lb_rate": rate
+                    if as_lb
+                    else (Decimal(snap["lb_rate"]) if snap.get("lb_rate") else None),
                 }
-        pack = _pack_lb(db, prod, ln.unit_code, snap)
+        pack = _pack_lb(db, prod, unit, snap)
         row["pack_lb"] = pack
         if ln.weight_lb is not None and ln.unit_code == "BOX":
             row["weight_lb"] = inv.q4(ln.weight_lb)  # weighed: what was entered
         else:
-            row["weight_lb"] = inv.q4(ln.qty * pack) if pack is not None else None
-        lots = lots_for(db, company_id, body.warehouse_id, prod.id, ln.unit_code)
+            row["weight_lb"] = inv.q4(qty * pack) if pack is not None else None
+        lots = lots_for(db, company_id, body.warehouse_id, prod.id, unit)
         if ln.lot_id is not None:
             chosen = [x for x in lots if x[0].id == ln.lot_id]
             if not chosen and row["problem"] is None:
@@ -145,7 +153,7 @@ def preview(
         else:
             avail = sum((q for _, q in lots), ZERO)
         row["available_qty"] = inv.q4(avail)
-        row["stock_ok"] = avail >= ln.qty
+        row["stock_ok"] = avail >= qty
         row["lots"] = [
             {
                 "lot_id": lot.id,

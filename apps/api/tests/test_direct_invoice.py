@@ -103,3 +103,20 @@ def test_refusals(owner, user, world, setup):
         f"{P}/invoices/direct/preview", json={**b, "warehouse_id": str(world.company_id)}
     )
     assert r.status_code in (403, 422)
+
+
+def test_direct_invoice_in_kg_is_issued_in_lb(owner, world, setup):
+    """D-38: kg typed for a product kept in lb is invoiced (and taken from stock) in lb."""
+    stock(owner, world, setup, "CAS", "LB", "100")
+    b = body(world, setup, [("CAS", "KG", "10")])
+    pv = owner.post(f"{P}/invoices/direct/preview", json=b)
+    assert pv.status_code == 200, pv.text
+    assert pv.json()["total"] == "33.07" and pv.json()["stock_ok"]
+    r = owner.post(f"{P}/invoices/direct", json={**b, "dispatch_confirmed": True}, headers=idem())
+    assert r.status_code == 201, r.text
+    inv = r.json()
+    assert inv["total"] == "33.07"
+    line = inv["lines"][0]
+    assert line["unit_code"] == "LB" and Decimal(line["billed_qty"]) == Decimal("22.0462")
+    n, total = movements(inv["id"])
+    assert (n, Decimal(total)) == (1, Decimal("-22.0462"))

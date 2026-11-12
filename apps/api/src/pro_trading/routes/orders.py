@@ -214,6 +214,7 @@ def insert_order(
     """Insert a DRAFT order (validated, numbered). Shared by the order form and OCR acceptance."""
     wh = warehouse(db, p, body.warehouse_id)
     svc.get_customer(db, p.company_id, body.customer_id)
+    body = body.model_copy(update={"lines": svc.lines_in_stock_unit(db, p.company_id, body.lines)})
     prods = svc.validate_lines(db, p.company_id, body.lines)
     db.get(Company, p.company_id, with_for_update={"key_share": True})  # serialize numbering
     n = next_number(db, SalesOrder.order_no, p.company_id, "sales_order")
@@ -299,16 +300,17 @@ def update_draft(
         check_version(o.version, body.version, "Order")
         warehouse(db, p, body.warehouse_id)
         svc.get_customer(db, p.company_id, body.customer_id)
-        svc.validate_lines(db, p.company_id, body.lines)
+        b = body.model_copy(update={"lines": svc.lines_in_stock_unit(db, p.company_id, body.lines)})
+        svc.validate_lines(db, p.company_id, b.lines)
         for ln in svc.order_lines(db, o.id):
             db.delete(ln)
         db.flush()
         o.customer_id, o.warehouse_id = body.customer_id, body.warehouse_id
         o.requested_for, o.note = body.requested_for, body.note
-        write_lines(db, o, body)
+        write_lines(db, o, b)
         bump(o)
         db.flush()
-        return svc.order_out(db, o), str(o.id), {"lines": len(body.lines)}
+        return svc.order_out(db, o), str(o.id), {"lines": len(b.lines)}
 
     return mutate(
         db, request, p, key, f"sales_order.edit:{order_id}", body, 200, "sales_order.edit", fn
