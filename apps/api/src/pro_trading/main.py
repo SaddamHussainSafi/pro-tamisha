@@ -28,6 +28,7 @@ from .routes import (
     health,
     inventory,
     invoices,
+    mail,
     notifications,
     ocr,
     ocr_engine,
@@ -205,6 +206,8 @@ def create_app() -> FastAPI:
         public_orders.router,
         trash.router,
         gmail.router,
+        mail.router,
+        mail.admin,
         search.router,
         client_errors.router,
     ):

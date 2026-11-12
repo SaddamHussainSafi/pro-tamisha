@@ -60,6 +60,10 @@ PERMISSIONS: Final[dict[str, str]] = {
     "gmail.process": "Send an email attachment to OCR for review",
     "gmail.reprocess": "Read an already processed email attachment again",
     "gmail.manage": "Connect or disconnect the company's Gmail mailbox",
+    # Email (Lark Mail). Holding mail.use opens nothing by itself: each mailbox is given to
+    # people one by one (mail_access). mail.manage is Super Admin only.
+    "mail.use": "Use the Email module for the mailboxes given to you (read and send)",
+    "mail.manage": "Set up company mailboxes: Lark passwords, sync, access (Super Admin)",
 }
 
 ALL: Final = frozenset(PERMISSIONS)
@@ -125,6 +129,7 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
                 "gmail.attachment.download",
                 "gmail.process",
                 "gmail.reprocess",
+                "mail.use",
             }
         ),
     ),
@@ -211,4 +216,7 @@ assert all(
 assert all(
     "gmail.manage" not in p for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
 ), "only Super Admin may connect or disconnect the Gmail mailbox"
+assert all(
+    "mail.manage" not in p for c, (_, _, p) in DEFAULT_ROLES.items() if c != "OWNER_ADMIN"
+), "only Super Admin may configure email connections"
 SUPER_ADMIN: Final = "OWNER_ADMIN"

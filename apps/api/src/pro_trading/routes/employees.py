@@ -146,10 +146,16 @@ def _send_invite(db: Session, e: Employee, by: uuid.UUID) -> None:
 
 
 @router.get("/employees", response_model=list[StaffOut])
-def list_staff(db: DbDep, p: Principal = Manage) -> list[dict[str, Any]]:
+def list_staff(
+    db: DbDep, p: Principal = Manage, archived: bool = False
+) -> list[dict[str, Any]]:
+    """Archived accounts (replaced users, kept for history) only with ?archived=true."""
     rows = db.scalars(
         select(Employee)
-        .where(Employee.company_id == p.company_id)
+        .where(
+            Employee.company_id == p.company_id,
+            Employee.archived_at.is_not(None) if archived else Employee.archived_at.is_(None),
+        )
         .order_by(Employee.active.desc(), func.lower(Employee.display_name))
     ).all()
     return [_out(db, e) for e in rows]
@@ -238,6 +244,8 @@ def patch_staff(
             if not body.active and OWNER in _roles(db, e.id) and not _other_owners(db, p, e.id):
                 raise ApiError(422, "LAST_OWNER", "Keep at least one active Owner / Admin")
             e.active = body.active
+            if body.active:
+                e.archived_at, e.archived_reason = None, None  # reactivated: back in the list
             revoke = revoke or not body.active
             if not body.active:
                 accounts.revoke_tokens(db, e.id)  # open invite / reset links stop working

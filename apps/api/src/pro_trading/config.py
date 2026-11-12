@@ -10,6 +10,7 @@ DEV_MFA_KEY = "dev-only-insecure-key-change-me-000000000000="
 DEV_SCAN_KEY = "dev-only-scan-capability-key-change-me"
 DEV_ORDER_CONNECT_KEY = "dev-only-order-connect-key-change-me"
 DEV_GMAIL_KEY = "dev-only-gmail-token-key-change-me"
+DEV_LARK_MAIL_KEY = "dev-only-lark-mail-key-change-me"
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -166,6 +167,29 @@ class Settings(BaseSettings):
     gmail_max_retries: int = Field(default=3, ge=0, le=6)
     # Stored body text / sanitized HTML per email (longer bodies are cut and marked).
     gmail_max_body_chars: int = Field(default=200_000, ge=1_000, le=2_000_000)
+    # Email module (Lark Mail, docs/modules/16-email-lark.md). Company mailboxes are added by a
+    # Super Admin in Settings > Integrations > Email Services; the dedicated Lark app password is
+    # typed there and stored encrypted with LARK_MAIL_KEY (Fernet). Separate from Gmail Inbox.
+    lark_mail_key: str = DEV_LARK_MAIL_KEY
+    lark_imap_host: str = "imap.larksuite.com"
+    lark_imap_port: int = 993
+    lark_smtp_host: str = "smtp.larksuite.com"
+    lark_smtp_port: int = 465
+    # Only addresses on this domain may be added (stops a personal address by mistake).
+    lark_mail_domain: str = "tamishatrading.com"
+    # Plain (non-TLS) IMAP/SMTP: only for the local test servers in tests/; refused otherwise.
+    lark_mail_allow_plaintext: bool = False
+    lark_mail_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    # Messages fetched per step; history is imported newest first, this many per folder per run.
+    lark_mail_fetch_batch: int = Field(default=25, ge=1, le=200)
+    lark_mail_backfill_per_run: int = Field(default=200, ge=1, le=5000)
+    lark_mail_max_message_bytes: int = Field(default=50 * 1024 * 1024, ge=1024)
+    lark_mail_max_attachment_bytes: int = Field(default=25 * 1024 * 1024, ge=1024)
+    lark_mail_max_body_chars: int = Field(default=400_000, ge=1_000, le=4_000_000)
+    lark_mail_flag_window: int = Field(default=1000, ge=0, le=20_000)
+    # Optional ClamAV daemon for attachment scanning (empty = attachments show "Not scanned").
+    clamd_host: str = ""
+    clamd_port: int = 3310
 
     @property
     def public_origin(self) -> str:
@@ -256,6 +280,13 @@ class Settings(BaseSettings):
                     "GMAIL_PUBSUB_TOPIC needs GMAIL_PUSH_AUDIENCE + GMAIL_PUSH_SERVICE_ACCOUNT "
                     "(or GMAIL_PUSH_TOKEN) so pushes can be verified"
                 )
+        if self.lark_mail_key != DEV_LARK_MAIL_KEY:
+            try:
+                Fernet(self.lark_mail_key)
+            except ValueError:
+                problems.append("LARK_MAIL_KEY is not a valid Fernet key")
+        if self.lark_mail_allow_plaintext:
+            problems.append("LARK_MAIL_ALLOW_PLAINTEXT is for tests only")
         for name in ("gmail_api_base", "gmail_oauth_token_url", "gmail_oauth_certs_url"):
             if not str(getattr(self, name)).startswith("https://"):
                 problems.append(f"{name.upper()} must be https")

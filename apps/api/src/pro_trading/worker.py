@@ -14,6 +14,8 @@ from .gmail.sync import SYNC_EVENT as GMAIL_SYNC_EVENT
 from .gmail.sync import handle_sync as handle_gmail_sync
 from .gmail.sync import poll_all as poll_gmail
 from .invoicing import EMAIL_EVENT, handle_email
+from .larkmail.outgoing import process_queue as send_mail_queue
+from .larkmail.sync import poll_all as poll_lark_mail
 from .notifications import EMAIL_EVENT as NOTIFY_EMAIL_EVENT
 from .notifications import handle_email as handle_notify_email
 from .ocr import EXTRACT_EVENT, handle_extract
@@ -35,6 +37,10 @@ app.conf.beat_schedule = {
     "search-index": {"task": "pro_trading.search_index", "schedule": 3.0},
     # Gmail Inbox: looks for new mail on a timer (the fallback when no Pub/Sub push arrives,
     # and the catch-up for a push Google dropped); also renews the mailbox watch once a day.
+    # Email (Lark Mail): mailboxes due for a sync (each has its own interval and backoff), and
+    # the outgoing queue. Separate from the Gmail Inbox poll.
+    "mail-sync": {"task": "pro_trading.mail_sync", "schedule": 20.0},
+    "mail-send": {"task": "pro_trading.mail_send", "schedule": 5.0},
     "gmail-poll": {
         "task": "pro_trading.gmail_poll",
         "schedule": float(get_settings().gmail_poll_seconds),
@@ -90,3 +96,15 @@ def search_index(*_: Any) -> int:
     """Drain the search change queue (search/indexer.py). Never touches the ERP tables."""
     with get_sessionmaker()() as db:
         return drain_search_queue(db).documents
+
+
+@app.task(name="pro_trading.mail_sync")  # type: ignore[untyped-decorator]
+def mail_sync(*_: Any) -> int:
+    """Sync the Lark mailboxes that are due (none configured = no network call)."""
+    return int(poll_lark_mail()["new"])
+
+
+@app.task(name="pro_trading.mail_send")  # type: ignore[untyped-decorator]
+def mail_send(*_: Any) -> int:
+    """Send queued emails (each exactly once; uncertain ones wait for a person)."""
+    return send_mail_queue()

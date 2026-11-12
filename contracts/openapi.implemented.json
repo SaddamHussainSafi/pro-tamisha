@@ -1,6 +1,222 @@
 {
   "components": {
     "schemas": {
+      "AccessIn": {
+        "properties": {
+          "grants": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 20,
+            "title": "Grants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "grants"
+        ],
+        "title": "AccessIn",
+        "type": "object"
+      },
+      "AccountCreateIn": {
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "title": "Address",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "default": "PERSONAL",
+            "enum": [
+              "PERSONAL",
+              "SHARED"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 60,
+            "title": "Label",
+            "type": "string"
+          },
+          "user_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "User Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "AccountCreateIn",
+        "type": "object"
+      },
+      "AccountOut": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "can_send": {
+            "title": "Can Send",
+            "type": "boolean"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "signature_html": {
+            "title": "Signature Html",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "label",
+          "display_name",
+          "kind",
+          "status",
+          "can_send",
+          "unread",
+          "last_sync_at",
+          "history_complete",
+          "signature_html"
+        ],
+        "title": "AccountOut",
+        "type": "object"
+      },
+      "AccountPatchIn": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PERSONAL",
+                  "SHARED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "signature_html": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Html"
+          },
+          "sync_interval_seconds": {
+            "anyOf": [
+              {
+                "maximum": 86400.0,
+                "minimum": 60.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Interval Seconds"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "title": "AccountPatchIn",
+        "type": "object"
+      },
       "ActivateIn": {
         "properties": {
           "effective_at": {
@@ -185,6 +401,26 @@
         "title": "ActivityPage",
         "type": "object"
       },
+      "Addr": {
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "Addr",
+        "type": "object"
+      },
       "AdjustmentIn": {
         "properties": {
           "delta_qty": {
@@ -239,6 +475,268 @@
           "note"
         ],
         "title": "AdjustmentIn",
+        "type": "object"
+      },
+      "AdminAccountOut": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "failure_count": {
+            "title": "Failure Count",
+            "type": "integer"
+          },
+          "has_password": {
+            "title": "Has Password",
+            "type": "boolean"
+          },
+          "health": {
+            "title": "Health",
+            "type": "string"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idle_supported": {
+            "title": "Idle Supported",
+            "type": "boolean"
+          },
+          "imap_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imap Error"
+          },
+          "imap_host": {
+            "title": "Imap Host",
+            "type": "string"
+          },
+          "imap_ok_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imap Ok At"
+          },
+          "imap_port": {
+            "title": "Imap Port",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "last_sync_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync Attempt At"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "next_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Sync At"
+          },
+          "password_set_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password Set At"
+          },
+          "signature_html": {
+            "title": "Signature Html",
+            "type": "string"
+          },
+          "smtp_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Error"
+          },
+          "smtp_host": {
+            "title": "Smtp Host",
+            "type": "string"
+          },
+          "smtp_ok_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Ok At"
+          },
+          "smtp_port": {
+            "title": "Smtp Port",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_enabled": {
+            "title": "Sync Enabled",
+            "type": "boolean"
+          },
+          "sync_interval_seconds": {
+            "title": "Sync Interval Seconds",
+            "type": "integer"
+          },
+          "syncing": {
+            "title": "Syncing",
+            "type": "boolean"
+          },
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "users": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "label",
+          "display_name",
+          "kind",
+          "status",
+          "has_password",
+          "password_set_at",
+          "imap_host",
+          "imap_port",
+          "smtp_host",
+          "smtp_port",
+          "username",
+          "imap_ok_at",
+          "smtp_ok_at",
+          "imap_error",
+          "smtp_error",
+          "sync_enabled",
+          "sync_interval_seconds",
+          "last_sync_at",
+          "last_sync_attempt_at",
+          "next_sync_at",
+          "syncing",
+          "failure_count",
+          "last_error_code",
+          "last_error",
+          "history_complete",
+          "message_count",
+          "unread_count",
+          "capabilities",
+          "idle_supported",
+          "users",
+          "health",
+          "signature_html"
+        ],
+        "title": "AdminAccountOut",
         "type": "object"
       },
       "AgingCustomerOut": {
@@ -630,6 +1128,60 @@
           "ids"
         ],
         "title": "ArchiveIn",
+        "type": "object"
+      },
+      "AttachmentOut": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "downloadable": {
+            "title": "Downloadable",
+            "type": "boolean"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "inline": {
+            "title": "Inline",
+            "type": "boolean"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "previewable": {
+            "title": "Previewable",
+            "type": "boolean"
+          },
+          "scan_detail": {
+            "title": "Scan Detail",
+            "type": "string"
+          },
+          "scan_status": {
+            "title": "Scan Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "mime_type",
+          "byte_size",
+          "inline",
+          "previewable",
+          "downloadable",
+          "scan_status",
+          "scan_detail"
+        ],
+        "title": "AttachmentOut",
         "type": "object"
       },
       "AuditEventOut": {
@@ -3632,25 +4184,47 @@
         "title": "DomainIn",
         "type": "object"
       },
-      "DraftIn": {
-        "additionalProperties": false,
+      "DraftOut": {
         "properties": {
-          "fields": {
-            "items": {
-              "$ref": "#/components/schemas/FieldIn"
-            },
-            "maxItems": 30,
-            "minItems": 1,
-            "title": "Fields",
-            "type": "array"
-          },
-          "intro": {
-            "default": "",
-            "maxLength": 1000,
-            "title": "Intro",
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
             "type": "string"
           },
-          "logo_id": {
+          "bcc": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Bcc",
+            "type": "array"
+          },
+          "body_html": {
+            "title": "Body Html",
+            "type": "string"
+          },
+          "cc": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Cc",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "source_message_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -3660,60 +4234,49 @@
                 "type": "null"
               }
             ],
-            "title": "Logo Id"
+            "title": "Source Message Id"
           },
-          "product_scope": {
-            "default": "ALL",
-            "enum": [
-              "ALL",
-              "CATEGORIES",
-              "PRODUCTS"
-            ],
-            "title": "Product Scope",
+          "subject": {
+            "title": "Subject",
             "type": "string"
           },
-          "revision": {
-            "minimum": 0.0,
-            "title": "Revision",
-            "type": "integer"
-          },
-          "scope_ids": {
+          "to": {
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
             },
-            "maxItems": 500,
-            "title": "Scope Ids",
+            "title": "To",
             "type": "array"
           },
-          "show_prices": {
-            "default": false,
-            "title": "Show Prices",
-            "type": "boolean"
-          },
-          "success_message": {
-            "maxLength": 500,
-            "minLength": 1,
-            "title": "Success Message",
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
             "type": "string"
           },
-          "theme": {
-            "$ref": "#/components/schemas/ThemeIn"
-          },
-          "title": {
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
+          "upload_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Upload Ids",
+            "type": "array"
           }
         },
         "required": [
-          "revision",
-          "title",
-          "success_message",
-          "fields"
+          "id",
+          "account_id",
+          "mode",
+          "source_message_id",
+          "to",
+          "cc",
+          "bcc",
+          "subject",
+          "body_html",
+          "upload_ids",
+          "updated_at"
         ],
-        "title": "DraftIn",
+        "title": "DraftOut",
         "type": "object"
       },
       "EmployeeOut": {
@@ -3870,6 +4433,44 @@
           "label"
         ],
         "title": "FieldIn",
+        "type": "object"
+      },
+      "FolderOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          },
+          "virtual": {
+            "default": false,
+            "title": "Virtual",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "total",
+          "unread"
+        ],
+        "title": "FolderOut",
         "type": "object"
       },
       "ForgotPasswordIn": {
@@ -7074,6 +7675,114 @@
         "title": "LineProblemOut",
         "type": "object"
       },
+      "LinkIn": {
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "enum": [
+              "customer",
+              "vendor",
+              "sales_order",
+              "invoice",
+              "shipment",
+              "payment"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id"
+        ],
+        "title": "LinkIn",
+        "type": "object"
+      },
+      "LinkOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entity_type",
+          "entity_id",
+          "label",
+          "url",
+          "created_by",
+          "created_at"
+        ],
+        "title": "LinkOut",
+        "type": "object"
+      },
+      "LinkTarget": {
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "label",
+          "sub"
+        ],
+        "title": "LinkTarget",
+        "type": "object"
+      },
       "LoginIn": {
         "properties": {
           "email": {
@@ -7401,17 +8110,141 @@
         "title": "LotStatusIn",
         "type": "object"
       },
-      "MessageOut": {
+      "MessagePage": {
         "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [
-          "message"
+          "items",
+          "next_cursor"
         ],
-        "title": "MessageOut",
+        "title": "MessagePage",
+        "type": "object"
+      },
+      "MessageRow": {
+        "properties": {
+          "attachment_count": {
+            "title": "Attachment Count",
+            "type": "integer"
+          },
+          "folder_id": {
+            "format": "uuid",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "from_email": {
+            "title": "From Email",
+            "type": "string"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "highlight": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highlight"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "removed_in_lark": {
+            "title": "Removed In Lark",
+            "type": "boolean"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "starred": {
+            "title": "Starred",
+            "type": "boolean"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_count": {
+            "title": "Thread Count",
+            "type": "integer"
+          },
+          "thread_key": {
+            "title": "Thread Key",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "To",
+            "type": "array"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "folder_id",
+          "thread_key",
+          "thread_count",
+          "from_name",
+          "from_email",
+          "to",
+          "subject",
+          "snippet",
+          "received_at",
+          "unread",
+          "starred",
+          "attachment_count",
+          "removed_in_lark"
+        ],
+        "title": "MessageRow",
         "type": "object"
       },
       "MfaChangeIn": {
@@ -10353,6 +11186,88 @@
         "title": "OrderSummaryOut",
         "type": "object"
       },
+      "OutgoingOut": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "seen_in_sent": {
+            "title": "Seen In Sent",
+            "type": "boolean"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "To",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "account_id",
+          "status",
+          "subject",
+          "to",
+          "attempts",
+          "last_error",
+          "created_at",
+          "sent_at",
+          "seen_in_sent"
+        ],
+        "title": "OutgoingOut",
+        "type": "object"
+      },
       "PairingIn": {
         "properties": {
           "name": {
@@ -10419,6 +11334,25 @@
           "new_password"
         ],
         "title": "PasswordChangeIn",
+        "type": "object"
+      },
+      "PasswordIn": {
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 4,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "title": "PasswordIn",
         "type": "object"
       },
       "PasswordSetIn": {
@@ -13942,6 +14876,17 @@
         "title": "RestoredOut",
         "type": "object"
       },
+      "RetryIn": {
+        "properties": {
+          "confirm_may_duplicate": {
+            "default": false,
+            "title": "Confirm May Duplicate",
+            "type": "boolean"
+          }
+        },
+        "title": "RetryIn",
+        "type": "object"
+      },
       "ReturnIn": {
         "properties": {
           "condition": {
@@ -14110,6 +15055,88 @@
           "message"
         ],
         "title": "RowErrorOut",
+        "type": "object"
+      },
+      "RunOut": {
+        "properties": {
+          "backfilled": {
+            "title": "Backfilled",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "folders": {
+            "title": "Folders",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "new_messages": {
+            "title": "New Messages",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "started_at",
+          "finished_at",
+          "status",
+          "new_messages",
+          "backfilled",
+          "folders",
+          "error_code",
+          "error"
+        ],
+        "title": "RunOut",
         "type": "object"
       },
       "SalesPointOut": {
@@ -15359,104 +16386,6 @@
         "title": "SearchHitOut",
         "type": "object"
       },
-      "SearchOut": {
-        "properties": {
-          "filters": {
-            "items": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "title": "Filters",
-            "type": "array"
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/SearchGroupOut"
-            },
-            "title": "Groups",
-            "type": "array"
-          },
-          "index": {
-            "$ref": "#/components/schemas/IndexStatusOut"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/SearchHitOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          },
-          "notes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Notes",
-            "type": "array"
-          },
-          "q": {
-            "title": "Q",
-            "type": "string"
-          },
-          "terms": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Terms",
-            "type": "array"
-          },
-          "took_ms": {
-            "title": "Took Ms",
-            "type": "number"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          },
-          "total_capped": {
-            "title": "Total Capped",
-            "type": "boolean"
-          },
-          "types": {
-            "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "title": "Types",
-            "type": "array"
-          }
-        },
-        "required": [
-          "q",
-          "terms",
-          "filters",
-          "types",
-          "groups",
-          "items",
-          "total",
-          "total_capped",
-          "next_cursor",
-          "index",
-          "notes",
-          "took_ms"
-        ],
-        "title": "SearchOut",
-        "type": "object"
-      },
       "SecurityEventOut": {
         "properties": {
           "action": {
@@ -15640,6 +16569,109 @@
           "password_min_length"
         ],
         "title": "SecuritySettingsOut",
+        "type": "object"
+      },
+      "SendIn": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "bcc": {
+            "items": {
+              "$ref": "#/components/schemas/Addr"
+            },
+            "maxItems": 100,
+            "title": "Bcc",
+            "type": "array"
+          },
+          "body_html": {
+            "default": "",
+            "maxLength": 1000000,
+            "title": "Body Html",
+            "type": "string"
+          },
+          "cc": {
+            "items": {
+              "$ref": "#/components/schemas/Addr"
+            },
+            "maxItems": 100,
+            "title": "Cc",
+            "type": "array"
+          },
+          "draft_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Id"
+          },
+          "forward_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Forward Attachment Ids",
+            "type": "array"
+          },
+          "mode": {
+            "default": "new",
+            "enum": [
+              "new",
+              "reply",
+              "reply_all",
+              "forward"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "source_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Message Id"
+          },
+          "subject": {
+            "default": "",
+            "maxLength": 998,
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/Addr"
+            },
+            "maxItems": 100,
+            "title": "To",
+            "type": "array"
+          },
+          "upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Upload Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "title": "SendIn",
         "type": "object"
       },
       "SessionInfoOut": {
@@ -16852,6 +17884,34 @@
         "title": "StaffPatchIn",
         "type": "object"
       },
+      "StateIn": {
+        "properties": {
+          "read": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read"
+          },
+          "starred": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starred"
+          }
+        },
+        "title": "StateIn",
+        "type": "object"
+      },
       "StatusIn": {
         "additionalProperties": false,
         "properties": {
@@ -17559,6 +18619,69 @@
         "title": "SyncOut",
         "type": "object"
       },
+      "TestOut": {
+        "properties": {
+          "folders": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "idle_supported": {
+            "title": "Idle Supported",
+            "type": "boolean"
+          },
+          "imap_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imap Error"
+          },
+          "imap_ok": {
+            "title": "Imap Ok",
+            "type": "boolean"
+          },
+          "saved": {
+            "default": false,
+            "title": "Saved",
+            "type": "boolean"
+          },
+          "smtp_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Error"
+          },
+          "smtp_ok": {
+            "title": "Smtp Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "imap_ok",
+          "smtp_ok",
+          "imap_error",
+          "smtp_error",
+          "folders",
+          "idle_supported"
+        ],
+        "title": "TestOut",
+        "type": "object"
+      },
       "ThemeIn": {
         "additionalProperties": false,
         "properties": {
@@ -17890,6 +19013,35 @@
           "qty"
         ],
         "title": "UnitQtyOut",
+        "type": "object"
+      },
+      "UploadOut": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "mime_type",
+          "byte_size"
+        ],
+        "title": "UploadOut",
         "type": "object"
       },
       "ValidationError": {
@@ -18451,6 +19603,395 @@
         "title": "WeightRowIn",
         "type": "object"
       },
+      "pro_trading__order_connect__schemas__DraftIn": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldIn"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Fields",
+            "type": "array"
+          },
+          "intro": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Intro",
+            "type": "string"
+          },
+          "logo_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Id"
+          },
+          "product_scope": {
+            "default": "ALL",
+            "enum": [
+              "ALL",
+              "CATEGORIES",
+              "PRODUCTS"
+            ],
+            "title": "Product Scope",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "scope_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Scope Ids",
+            "type": "array"
+          },
+          "show_prices": {
+            "default": false,
+            "title": "Show Prices",
+            "type": "boolean"
+          },
+          "success_message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Success Message",
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/ThemeIn"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "title",
+          "success_message",
+          "fields"
+        ],
+        "title": "DraftIn",
+        "type": "object"
+      },
+      "pro_trading__routes__mail__DraftIn": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "bcc": {
+            "items": {
+              "$ref": "#/components/schemas/Addr"
+            },
+            "maxItems": 100,
+            "title": "Bcc",
+            "type": "array"
+          },
+          "body_html": {
+            "default": "",
+            "maxLength": 1000000,
+            "title": "Body Html",
+            "type": "string"
+          },
+          "cc": {
+            "items": {
+              "$ref": "#/components/schemas/Addr"
+            },
+            "maxItems": 100,
+            "title": "Cc",
+            "type": "array"
+          },
+          "forward_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Forward Attachment Ids",
+            "type": "array"
+          },
+          "mode": {
+            "default": "new",
+            "enum": [
+              "new",
+              "reply",
+              "reply_all",
+              "forward"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "source_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Message Id"
+          },
+          "subject": {
+            "default": "",
+            "maxLength": 998,
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/Addr"
+            },
+            "maxItems": 100,
+            "title": "To",
+            "type": "array"
+          },
+          "upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Upload Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "title": "DraftIn",
+        "type": "object"
+      },
+      "pro_trading__routes__mail__MessageOut": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentOut"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Bcc",
+            "type": "array"
+          },
+          "body_html": {
+            "title": "Body Html",
+            "type": "string"
+          },
+          "body_text": {
+            "title": "Body Text",
+            "type": "string"
+          },
+          "body_truncated": {
+            "title": "Body Truncated",
+            "type": "boolean"
+          },
+          "cc": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Cc",
+            "type": "array"
+          },
+          "folder_id": {
+            "format": "uuid",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "folder_role": {
+            "title": "Folder Role",
+            "type": "string"
+          },
+          "from_email": {
+            "title": "From Email",
+            "type": "string"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "has_remote_images": {
+            "title": "Has Remote Images",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LinkOut"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "message_id_header": {
+            "title": "Message Id Header",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "remote_images_loaded": {
+            "title": "Remote Images Loaded",
+            "type": "boolean"
+          },
+          "removed_in_lark": {
+            "title": "Removed In Lark",
+            "type": "boolean"
+          },
+          "reply_to": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Reply To",
+            "type": "array"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "starred": {
+            "title": "Starred",
+            "type": "boolean"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread": {
+            "items": {
+              "$ref": "#/components/schemas/MessageRow"
+            },
+            "title": "Thread",
+            "type": "array"
+          },
+          "to": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "To",
+            "type": "array"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "account_id",
+          "folder_id",
+          "folder_role",
+          "message_id_header",
+          "from_name",
+          "from_email",
+          "to",
+          "cc",
+          "bcc",
+          "reply_to",
+          "subject",
+          "sent_at",
+          "received_at",
+          "body_html",
+          "body_text",
+          "body_truncated",
+          "has_remote_images",
+          "remote_images_loaded",
+          "unread",
+          "starred",
+          "removed_in_lark",
+          "attachments",
+          "thread",
+          "links",
+          "warnings"
+        ],
+        "title": "MessageOut",
+        "type": "object"
+      },
+      "pro_trading__routes__mail__SearchOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "SearchOut",
+        "type": "object"
+      },
       "pro_trading__routes__notifications__CountOut": {
         "properties": {
           "unread": {
@@ -18531,6 +20072,104 @@
           "actions"
         ],
         "title": "PreviewOut",
+        "type": "object"
+      },
+      "pro_trading__routes__search__SearchOut": {
+        "properties": {
+          "filters": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Filters",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SearchGroupOut"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "index": {
+            "$ref": "#/components/schemas/IndexStatusOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "q": {
+            "title": "Q",
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Terms",
+            "type": "array"
+          },
+          "took_ms": {
+            "title": "Took Ms",
+            "type": "number"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_capped": {
+            "title": "Total Capped",
+            "type": "boolean"
+          },
+          "types": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "q",
+          "terms",
+          "filters",
+          "types",
+          "groups",
+          "items",
+          "total",
+          "total_capped",
+          "next_cursor",
+          "index",
+          "notes",
+          "took_ms"
+        ],
+        "title": "SearchOut",
         "type": "object"
       },
       "pro_trading__routes__trash__PreviewOut": {
@@ -18733,6 +20372,19 @@
           "lines"
         ],
         "title": "CountOut",
+        "type": "object"
+      },
+      "pro_trading__schemas__MessageOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "MessageOut",
         "type": "object"
       }
     }
@@ -19410,7 +21062,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MessageOut"
+                  "$ref": "#/components/schemas/pro_trading__schemas__MessageOut"
                 }
               }
             },
@@ -20688,7 +22340,20 @@
     },
     "/api/v1/employees": {
       "get": {
+        "description": "Archived accounts (replaced users, kept for history) only with ?archived=true.",
         "operationId": "list_staff_api_v1_employees_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Archived",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -20703,6 +22368,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Staff",
@@ -23663,6 +25338,1621 @@
         ]
       }
     },
+    "/api/v1/mail/accounts": {
+      "get": {
+        "description": "Only the mailboxes this person was given. Never a combined inbox.",
+        "operationId": "my_accounts_api_v1_mail_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AccountOut"
+                  },
+                  "title": "Response My Accounts Api V1 Mail Accounts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "My Accounts",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/accounts/{account_id}/drafts": {
+      "get": {
+        "operationId": "list_drafts_api_v1_mail_accounts__account_id__drafts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DraftOut"
+                  },
+                  "title": "Response List Drafts Api V1 Mail Accounts  Account Id  Drafts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Drafts",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/accounts/{account_id}/folders": {
+      "get": {
+        "operationId": "folders_api_v1_mail_accounts__account_id__folders_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FolderOut"
+                  },
+                  "title": "Response Folders Api V1 Mail Accounts  Account Id  Folders Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Folders",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/accounts/{account_id}/messages": {
+      "get": {
+        "operationId": "list_messages_api_v1_mail_accounts__account_id__messages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "default": "inbox",
+              "maxLength": 40,
+              "title": "Folder",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_attachments",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Has Attachments",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Messages",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/accounts/{account_id}/outgoing": {
+      "get": {
+        "operationId": "outgoing_api_v1_mail_accounts__account_id__outgoing_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OutgoingOut"
+                  },
+                  "title": "Response Outgoing Api V1 Mail Accounts  Account Id  Outgoing Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Outgoing",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts": {
+      "get": {
+        "operationId": "admin_accounts_api_v1_mail_admin_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminAccountOut"
+                  },
+                  "title": "Response Admin Accounts Api V1 Mail Admin Accounts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Admin Accounts",
+        "tags": [
+          "email-admin"
+        ]
+      },
+      "post": {
+        "operationId": "admin_create_api_v1_mail_admin_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Create",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}": {
+      "patch": {
+        "operationId": "admin_patch_api_v1_mail_admin_accounts__account_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountPatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Patch",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/access": {
+      "put": {
+        "operationId": "admin_access_api_v1_mail_admin_accounts__account_id__access_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Access",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/credentials": {
+      "post": {
+        "description": "Test the typed Lark app password and save it (encrypted) only if Lark accepted the IMAP\nlogin. Rotation: saving a new password keeps every imported email.",
+        "operationId": "admin_credentials_api_v1_mail_admin_accounts__account_id__credentials_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Credentials",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/log": {
+      "get": {
+        "description": "Security log: configuration changes, tests, access grants and refused access attempts.",
+        "operationId": "admin_log_api_v1_mail_admin_accounts__account_id__log_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Admin Log Api V1 Mail Admin Accounts  Account Id  Log Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Log",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/pause": {
+      "post": {
+        "operationId": "admin_pause_api_v1_mail_admin_accounts__account_id__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Pause",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/reconnect": {
+      "post": {
+        "description": "Try the saved password again (after Lark had refused it or the server was down).",
+        "operationId": "admin_reconnect_api_v1_mail_admin_accounts__account_id__reconnect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Reconnect",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/resume": {
+      "post": {
+        "operationId": "admin_resume_api_v1_mail_admin_accounts__account_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Resume",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/runs": {
+      "get": {
+        "operationId": "admin_runs_api_v1_mail_admin_accounts__account_id__runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunOut"
+                  },
+                  "title": "Response Admin Runs Api V1 Mail Admin Accounts  Account Id  Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Runs",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/sync": {
+      "post": {
+        "operationId": "admin_sync_now_api_v1_mail_admin_accounts__account_id__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Sync Now",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/accounts/{account_id}/test": {
+      "post": {
+        "description": "Log in to IMAP and SMTP with the typed password (not saved) or the saved one. Sends no\nemail. The mailbox is only ever shown as connected after Lark accepted the login.",
+        "operationId": "admin_test_api_v1_mail_admin_accounts__account_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Test",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/admin/users": {
+      "get": {
+        "operationId": "admin_users_api_v1_mail_admin_users_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Admin Users Api V1 Mail Admin Users Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Admin Users",
+        "tags": [
+          "email-admin"
+        ]
+      }
+    },
+    "/api/v1/mail/attachments/{attachment_id}": {
+      "get": {
+        "operationId": "attachment_api_v1_mail_attachments__attachment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "inline",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Inline",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attachment",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/drafts": {
+      "post": {
+        "operationId": "create_draft_api_v1_mail_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/pro_trading__routes__mail__DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Draft",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/drafts/{draft_id}": {
+      "put": {
+        "description": "Autosave. The mailbox can't be changed by saving (it is the sender identity).",
+        "operationId": "save_draft_api_v1_mail_drafts__draft_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/pro_trading__routes__mail__DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Draft",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/drafts/{draft_id}/discard": {
+      "post": {
+        "description": "Hide an unsent Pro Trading draft (kept in the database; Lark is not touched).",
+        "operationId": "discard_draft_api_v1_mail_drafts__draft_id__discard_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard Draft",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/link-targets": {
+      "get": {
+        "operationId": "link_targets_api_v1_mail_link_targets_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "customer",
+                "vendor",
+                "sales_order",
+                "invoice",
+                "shipment",
+                "payment"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LinkTarget"
+                  },
+                  "title": "Response Link Targets Api V1 Mail Link Targets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Link Targets",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/links/{link_id}/unlink": {
+      "post": {
+        "description": "Mark a link as removed (the row stays for the audit trail).",
+        "operationId": "unlink_api_v1_mail_links__link_id__unlink_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlink",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/messages/{message_id}": {
+      "get": {
+        "operationId": "get_message_api_v1_mail_messages__message_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "images",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Images",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pro_trading__routes__mail__MessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Message",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/messages/{message_id}/links": {
+      "post": {
+        "description": "Explicitly connect an email to an ERP record. Changes nothing in that record.",
+        "operationId": "add_link_api_v1_mail_messages__message_id__links_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Link",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/messages/{message_id}/state": {
+      "post": {
+        "description": "Read / starred for this person only. Lark is not changed.",
+        "operationId": "set_state_api_v1_mail_messages__message_id__state_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set State",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/outgoing/{outgoing_id}/retry": {
+      "post": {
+        "description": "A person decides to send a FAILED or UNCERTAIN message again (UNCERTAIN needs an explicit\n\"it may arrive twice\" confirmation).",
+        "operationId": "retry_api_v1_mail_outgoing__outgoing_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "outgoing_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Outgoing Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutgoingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/search": {
+      "get": {
+        "description": "Search one mailbox (the selected one; a person with two mailboxes switches).",
+        "operationId": "search_api_v1_mail_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 320,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 320,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_attachments",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Has Attachments",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pro_trading__routes__mail__SearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/send": {
+      "post": {
+        "description": "Queue one message. The same Idempotency-Key always answers with the same queue row, so\na double click or a retried request never sends twice.",
+        "operationId": "send_api_v1_mail_send_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutgoingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/mail/uploads": {
+      "post": {
+        "operationId": "upload_api_v1_mail_uploads_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filename",
+            "required": false,
+            "schema": {
+              "default": "file",
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload",
+        "tags": [
+          "email"
+        ]
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "description": "Newest first, keyset-paginated by `seq` (`before` = the previous page's next_before).",
@@ -25478,7 +28768,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DraftIn"
+                "$ref": "#/components/schemas/pro_trading__order_connect__schemas__DraftIn"
               }
             }
           },
@@ -32409,7 +35699,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SearchOut"
+                  "$ref": "#/components/schemas/pro_trading__routes__search__SearchOut"
                 }
               }
             },

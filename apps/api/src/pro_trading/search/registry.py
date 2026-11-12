@@ -60,9 +60,13 @@ DOC_TYPES: dict[str, DocType] = {
         DocType("gmail", "Gmail", ("gmail.read",), "company", 14),
         # Not stored in search_documents: looked up live in audit_events (admins only).
         DocType("activity", "Activity", ("audit.read",), "company", 15),
+        # Not stored in search_documents either: looked up live in the Email module's own
+        # index, and only in the mailboxes this person was given (mail_access).
+        DocType("email", "Email", ("mail.use",), "company", 16),
     )
 }
-INDEXED_TYPES = tuple(k for k in DOC_TYPES if k != "activity")
+LIVE_ONLY = frozenset({"activity", "email"})
+INDEXED_TYPES = tuple(k for k in DOC_TYPES if k not in LIVE_ONLY)
 
 # Modules the owner listed that have no table yet. A future table only needs a builder in
 # indexer.BUILDERS, a DocType here and a trigger in a migration.

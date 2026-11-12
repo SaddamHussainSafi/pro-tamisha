@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from ..deps import Principal
 from .parser import ParsedQuery, tsquery, words
-from .registry import DOC_TYPES, Visibility, compact, fold, ident_forms
+from .registry import DOC_TYPES, LIVE_ONLY, Visibility, compact, fold, ident_forms
 
 log = logging.getLogger("pro_trading.search")
 
@@ -46,6 +46,7 @@ MATCH_LABEL = {
     600: "words",
     500: "filter",
     400: "linked record",
+    320: "email",
     300: "activity",
     200: "similar spelling",
     100: "scanned text",
@@ -429,6 +430,37 @@ def _activity(db: Session, p: Principal, needle: str) -> list[Hit]:
     ]
 
 
+def _email(db: Session, p: Principal, needle: str) -> list[Hit]:
+    """Email (Lark Mail): only mailboxes this person was given; newest matches first."""
+    if not needle.strip() or len(needle) > 200:
+        return []
+    from ..larkmail.access import accessible_ids
+    from ..routes.mail import search_query
+
+    ids = accessible_ids(db, p)
+    if not ids:
+        return []
+    from ..larkmail.models import MailMessage
+
+    try:
+        with db.begin_nested():
+            db.execute(text("SET LOCAL statement_timeout = '2s'"))
+            rows = list(db.scalars(
+                search_query(p, ids, needle).order_by(MailMessage.received_at.desc()).limit(8)
+            ))  # fmt: skip
+    except SQLAlchemyError:
+        return []
+    return [
+        Hit(
+            "email", m.id, None, m.subject or "(no subject)",
+            f"{m.from_name or m.from_email} · {m.received_at:%Y-%m-%d}",
+            f"/email?account={m.account_id}&message={m.id}", None, m.received_at.date(), None,
+            None, score=320.0, snippet=m.snippet or None,
+        )  # fmt: skip
+        for m in rows
+    ]
+
+
 def search(
     db: Session,
     p: Principal,
@@ -468,11 +500,14 @@ def search(
         if "activity" in types:
             for h in _activity(db, p, needle):
                 hits[("activity", h.source_id)] = h
+        if "email" in types:
+            for h in _email(db, p, needle):
+                hits[("email", h.source_id)] = h
 
     degraded = False
     capped = False
-    if use_index and types - {"activity"}:
-        w = _where(p, vis, pq, sorted(types - {"activity"}), ids)
+    if use_index and types - LIVE_ONLY:
+        w = _where(p, vis, pq, sorted(types - LIVE_ONLY), ids)
         try:
             with db.begin_nested():
                 db.execute(text("SET LOCAL statement_timeout = '3s'"))
@@ -546,6 +581,8 @@ def _live_passes(h: Hit, pq: ParsedQuery, ids: dict[str, Any]) -> bool:
 
 def snippet(db: Session, h: Hit, terms: list[str]) -> str | None:
     """Short text around the first matching word, for linked-record and scanned-text hits."""
+    if h.doc_type == "email":
+        return h.snippet
     if h.doc_type == "activity" or h.tier not in (400, 100) or not terms:
         return None
     col = "ocr_text" if h.tier == 100 else "body"

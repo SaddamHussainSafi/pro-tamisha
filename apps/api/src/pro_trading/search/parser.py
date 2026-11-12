@@ -44,6 +44,7 @@ TYPE_ALIASES: dict[str, str] = {
     "count": "stock_count", "counts": "stock_count", "stock_count": "stock_count",
     "document": "document", "documents": "document",
     "gmail": "gmail", "email": "gmail", "emails": "gmail",
+    "mail": "email", "lark": "email", "inbox": "email",
     "activity": "activity", "audit": "activity",
 }  # fmt: skip
 OTHER_KEYS = {"sku", "customer", "store", "supplier", "vendor", "status", "date", "amount", "type"}

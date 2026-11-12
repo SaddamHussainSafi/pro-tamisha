@@ -15,7 +15,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REQUEST_ID = re.compile(r"[^A-Za-z0-9._:-]")
 UPLOAD_PATHS = re.compile(
-    r"^/api/v1/(scans/uploads|scan-bridge/jobs/[^/]+/upload|shipments/[^/]+/documents/upload)$"
+    r"^/api/v1/(scans/uploads|mail/uploads|scan-bridge/jobs/[^/]+/upload|shipments/[^/]+/documents/upload)$"
 )
 
 

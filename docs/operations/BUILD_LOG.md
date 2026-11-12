@@ -1023,3 +1023,63 @@ No application code has been generated or executed by this planning pack. This l
   - The dev worker runs at concurrency 1, so a long Gmail poll briefly delays indexing. Exact numbers are unaffected.
   - Online Orders requests, returns / adjustments documents and stock movements as separate results are not searchable (see above).
   - Recent records keep the newest 20 per employee.
+
+## 2026-11-12 — Email (Lark Mail) module and the user replacement (owner's master directive)
+
+- **What the owner gets:**
+  - A new **Email** menu. It is separate from Gmail Inbox / Scan Center, which are unchanged.
+  - **Settings › Email Services** (Super Admin only) to connect each @tamishatrading.com Lark mailbox with its Lark app password.
+  - The seven authorized users, created and invited.
+  - Details: `docs/modules/16-email-lark.md`.
+- **Phase 1, audit:**
+  - Six roles. The directive's SUPER_ADMIN is `OWNER_ADMIN` ("Super Admin") and its ADMIN is `MANAGER` ("Admin").
+  - 76 foreign keys point at `employees`.
+  - The real company `0f766da1…` had 5 accounts (Olivia Owner = dev sign-in, Mark Manager, Sam Sales, Wendy Warehouse, Fiona Finance). The other ~1,300 companies in the dev DB are synthetic test companies.
+  - The directive's "Email Scan" = module 15 (`/gmail`, `gmail/`) + Scan Center. It was not modified; its Fernet / beat / sanitizer / sandboxed-iframe patterns were reused.
+- **Phase 2, users:**
+  - Backup: `python -m pro_trading.user_replacement backup` wrote `var/backups/tami-20261112-112240.dump` (55.8 MB). The restore into a scratch DB matched (employees, invoices, orders, stock movements and audit row counts equal); the scratch DB was dropped.
+  - An extra dump was taken before migration 0030: `var/backups/tami-before-0030-20261112-112037.dump`.
+  - `report`: 5 accounts and their history rows (Olivia 1,060, Sam 99, Mark 89, Wendy 75, Fiona 5); none is one of the seven people.
+  - `users --by user`: created Saddam Hussain + Asha Narine (Super Admin) and Vada Narine, Ajay Narine, Denise G., Nishar Miya, Andy Narine (Admin).
+    - Each has an invitation in the dev mailbox. No password was set by us.
+    - Eight mailboxes were prepared (NOT_CONFIGURED): seven personal, plus info@ shared by Saddam and Asha.
+    - A second run created nothing (idempotent).
+  - `archive` refused, as designed: neither new Super Admin has accepted the invitation yet. The 5 old accounts stay active until then (D-44); nothing is deleted.
+- **Phases 3–8, Email:**
+  - Read-only IMAP adapter with a command guard: refuses SELECT / STORE / COPY / MOVE / EXPUNGE / DELETE / APPEND / CREATE / RENAME, non-PEEK fetches and non-UID FETCH.
+  - Resumable non-destructive sync:
+    - UIDVALIDITY re-keying, server removals marked
+    - lease per mailbox, backoff
+    - AUTH_FAILED stops retries
+  - Encrypted app passwords. They are saved only after Lark accepts the IMAP login.
+  - Per-person read / star state. Mailbox-level access checks on every endpoint (404 + audit).
+  - Outgoing queue: exactly-once per Idempotency-Key; UNCERTAIN never auto-retried.
+  - Drafts and uploads.
+  - Search: tsvector + trigram, scoped to one mailbox. Universal search gets an "Email" group, live, limited to the person's own mailboxes.
+  - ERP links (customer, supplier, order, invoice, receiving, payment), explicit and audited.
+  - Super Admin endpoints: test, save password, sync now, pause / resume / reconnect, access grants, sync runs, security log.
+- **Files:**
+  - API:
+    - `migrations/versions/0030_lark_mail.py`
+    - `src/pro_trading/larkmail/` (`models`, `imap`, `smtp`, `mime`, `sanitize`, `sync`, `outgoing`, `access`, `secrets`, `sniff`, `clamd`)
+    - `routes/mail.py`, `user_replacement.py`
+    - `scripts/mail_ui_fixture.py`
+    - Tests: `tests/lark_fakes.py` (local IMAP / SMTP stand-ins), `tests/test_lark_mail.py`, `tests/test_user_replacement.py`
+    - Small hunks: `config.py`, `models.py` (`archived_at`), `permissions.py` (`mail.use` / `mail.manage`), `main.py`, `bodylimit.py`, `worker.py` (beat `mail-sync` 20 s, `mail-send` 5 s), `routes/employees.py` (archived hidden), `search/{registry,engine,parser}.py`, `routes/search.py`
+    - `contracts/openapi.implemented.json`
+  - Docs: `docs/modules/16-email-lark.md`, D-40…D-46.
+- **Commands / results:**
+  - `pytest -o addopts="" -q tests` on `tami_test_lark`: **669 passed, 1 skipped, 1 failed**. The failure was `test_contract`, the stale OpenAPI file; after `scripts/export_openapi.py` it passes.
+  - Included: `test_gmail.py` (Gmail Inbox regression), `test_search.py`, `test_user_management.py`, `test_rbac.py`, `test_trash*`.
+  - New: 20 in `test_lark_mail.py`, 1 in `test_user_replacement.py`.
+  - `ruff check` / `ruff format` clean on new files. `mypy` clean on `larkmail`, `routes/mail.py`, `user_replacement.py`, `search`, `worker`.
+- **Dev stack:**
+  - `alembic upgrade head` applied 0030 to `tami`. The running API had already reloaded the new `Employee` columns, so this was needed at once; it is additive.
+  - Celery worker restarted for the two new beat tasks. Both run (`mail_sync` → 0, `mail_send` → 0: no mailbox connected).
+- **Only tested against stand-ins:**
+  - All IMAP / SMTP behaviour (local servers in `tests/lark_fakes.py`).
+  - **No Lark mailbox is connected.** No real email was read or sent.
+  - The owner pasted Andy's Lark code in chat; it was not used. Entering it is the owner's step in Settings › Email Services, and since it appeared in chat it should be regenerated in Lark first.
+- **Rollback:**
+  - `alembic downgrade 0029` drops the mail tables (imported copies only), the permissions and the archive columns.
+  - Users: reactivate in User management, or restore the backup.

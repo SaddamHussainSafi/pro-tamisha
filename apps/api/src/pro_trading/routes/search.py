@@ -221,7 +221,7 @@ def preview(
     doc_type: str, rid: uuid.UUID, request: Request, db: DbDep, p: PrincipalDep
 ) -> PreviewOut:
     _limit(request, p.employee.id)
-    if doc_type not in DOC_TYPES or doc_type == "activity":
+    if doc_type not in DOC_TYPES or doc_type in ("activity", "email"):
         raise ApiError(404, "NOT_FOUND", "Not found")
     pv = build_preview(db, p, _visible(request, p), doc_type, rid)
     return PreviewOut(
@@ -253,6 +253,8 @@ def recent(request: Request, db: DbDep, p: PrincipalDep) -> list[RecentOut]:
 
 @router.post("/recent", status_code=204)
 def add_recent(body: RecentIn, request: Request, db: DbDep, p: PrincipalDep) -> Response:
+    if body.type == "email":
+        return Response(status_code=204)  # private mail is never kept in a shared recent list
     if body.type not in DOC_TYPES or body.type == "activity":
         raise ApiError(422, "VALIDATION", "Unknown type")
     load_visible(db, p, _visible(request, p), body.type, body.id)  # 404 unless visible
