@@ -11,7 +11,7 @@ import { ConfirmDialog, EmptyState, ErrorState, PageHeader, PageSkeleton, Status
 
 const SHOW = new Set(["attachments", "pdf", "processed", "not_processed"]);
 
-/** Warehouse › Gmail Inbox: the company mailbox as stored here, with its files ready to be
+/** Warehouse › Scan Box: the company mailbox as stored here, with its files ready to be
  * sent to OCR. Reading mail never starts OCR or creates anything by itself. */
 export function GmailInboxPage() {
   const { session } = useAuth();
@@ -40,13 +40,13 @@ export function GmailInboxPage() {
   if (!has(session, "gmail.read"))
     return (
       <div className="space-y-5">
-        <PageHeader title="Gmail Inbox" />
+        <PageHeader title="Scan Box" />
         <section className="card">
-          <EmptyState icon="mail" title="Your account can't open the Gmail Inbox" hint="Ask an administrator if you need to see scanned documents that arrive by email." />
+          <EmptyState icon="scanbox" title="Your account can't open the Scan Box" hint="Ask an administrator if you need to see scanned documents that arrive by email." />
         </section>
       </div>
     );
-  if (failed && !status) return <ErrorState title="Couldn't load Gmail Inbox" detail={failed} onRetry={load} />;
+  if (failed && !status) return <ErrorState title="Couldn't load Scan Box" detail={failed} onRetry={load} />;
   if (!status) return <PageSkeleton />;
 
   const conn = connection(status);
@@ -74,7 +74,7 @@ export function GmailInboxPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Gmail Inbox"
+        title="Scan Box"
         subtitle={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             {acc && <span className="font-medium text-ink">{acc.email_address}</span>}
@@ -292,7 +292,7 @@ export function GmailCallbackPage() {
     const state = params.get("state");
     const denied = params.get("error");
     window.history.replaceState(null, "", "/gmail/oauth/callback");
-    if (denied || !code || !state) return setError(denied === "access_denied" ? "Access was not allowed, so nothing was connected." : "Google did not complete the connection. Start again from Gmail Inbox.");
+    if (denied || !code || !state) return setError(denied === "access_denied" ? "Access was not allowed, so nothing was connected." : "Google did not complete the connection. Start again from Scan Box.");
     gmail.complete(code, state).then(
       () => navigate("/gmail", { replace: true }),
       (err: unknown) => setError(gmailMessage(err)),
@@ -300,7 +300,7 @@ export function GmailCallbackPage() {
   }, [params, navigate]);
   return (
     <div className="space-y-5">
-      <PageHeader title="Gmail Inbox" />
+      <PageHeader title="Scan Box" />
       <section className="card">
         {error ? (
           <EmptyState
@@ -309,7 +309,7 @@ export function GmailCallbackPage() {
             hint={error}
             action={
               <Link className="btn-primary" to="/gmail">
-                Back to Gmail Inbox
+                Back to Scan Box
               </Link>
             }
           />

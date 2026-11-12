@@ -11,6 +11,8 @@ const PATHS = {
   vendors: "M3 21V8l9-5 9 5v13M9 21v-6h6v6",
   customers: "M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8z",
   scan: "M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4M4 12h16",
+  // Scan Box: a scanned page dropping into an inbox tray.
+  scanbox: "M7 3h10v8H7zM10 6h4M10 8.5h4M3 13h5l2 3h4l2-3h5v6a1 1 0 01-1 1H4a1 1 0 01-1-1z",
   documents: "M3 6h6l2 2h10v12H3z",
   payments: "M3 6h18v12H3zM3 10h18M7 15h3",
   reports: "M4 20V10M10 20V4M16 20v-7M22 20H2",

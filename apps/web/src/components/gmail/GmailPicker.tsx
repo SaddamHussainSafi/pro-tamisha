@@ -33,9 +33,9 @@ export function GmailPicker() {
       <CardTitle id="ni-gmail" title="Pick from Gmail" />
       <p className="text-sm text-ink-muted">Choose a scanned packing sheet that arrived by email. It is read, you check every line, and the result is saved as a draft. Nothing is invoiced and no stock moves until the usual checks.</p>
       {!allowed ? (
-        <EmptyState icon="mail" title="Your account can't open the Gmail Inbox" hint="Ask an administrator, or use a packing sheet or a direct invoice." />
+        <EmptyState icon="scanbox" title="Your account can't open the Scan Box" hint="Ask an administrator, or use a packing sheet or a direct invoice." />
       ) : error ? (
-        <ErrorState title="Couldn't reach the Gmail Inbox" detail={error} />
+        <ErrorState title="Couldn't reach the Scan Box" detail={error} />
       ) : !status ? (
         <LoadingRows rows={3} cols={3} />
       ) : status.message_count === 0 ? (
@@ -45,7 +45,7 @@ export function GmailPicker() {
           hint={status.account ? "Documents sent to the mailbox will show here." : "Until a mailbox is connected there is nothing to pick from. The other two ways of invoicing work as before."}
           action={
             <Link className="btn-ghost" to="/gmail">
-              Open Gmail Inbox
+              Open Scan Box
             </Link>
           }
         />

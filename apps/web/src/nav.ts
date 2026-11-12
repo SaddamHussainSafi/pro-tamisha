@@ -19,7 +19,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: null,
     items: [
       { label: "Overview", icon: "home", to: "/", module: null },
-      // Lark Mail; separate from the Gmail Inbox (scanned documents) under Warehouse.
+      // Lark Mail; separate from the Scan Box (the Gmail mailbox for scanned documents) under Warehouse.
       { label: "Email", icon: "mail", to: "/email", module: null, perm: "mail.use", badge: "mail" },
     ],
   },
@@ -62,7 +62,7 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { label: "Receiving", icon: "receiving", to: "/receiving", module: null },
       { label: "Scan Center", icon: "scan", to: "/scan", module: null },
-      { label: "Gmail Inbox", icon: "mail", to: "/gmail", module: null },
+      { label: "Scan Box", icon: "scanbox", to: "/gmail", module: null },
     ],
   },
   {

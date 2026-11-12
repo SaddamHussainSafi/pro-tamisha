@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-// Gmail Inbox, the document picker on Create invoice and "Use for OCR", against the real API.
+// Scan Box, the document picker on Create invoice and "Use for OCR", against the real API.
 // The inbox is a fresh synthetic company filled by scripts/gmail_ui_fixture.py: made-up emails
 // stored as the sync would store them, with each file already kept as a source document. No
 // Google call is made anywhere in this file, and the fixture's mailbox is DISCONNECTED, so the
@@ -54,12 +54,12 @@ test("the sidebar gains one entry and nothing else about it changes", async ({ p
   await signIn(page);
   const nav = page.getByRole("navigation", { name: /main|primary/i }).first();
   const labels = (await nav.getByRole("link").allTextContents()).map((s) => s.trim()).filter(Boolean);
-  const want = ["Overview", "Orders", "Invoices", "Payments", "Online Orders", "Packing", "Inventory", "Receiving", "Scan Center", "Gmail Inbox", "Products", "Customers", "Suppliers", "Reports", "Documents", "Activity"];
+  const want = ["Overview", "Orders", "Invoices", "Payments", "Online Orders", "Packing", "Inventory", "Receiving", "Scan Center", "Scan Box", "Products", "Customers", "Suppliers", "Reports", "Documents", "Activity"];
   expect(labels.filter((l) => want.includes(l))).toEqual(want);
-  await nav.getByRole("link", { name: "Gmail Inbox" }).click();
+  await nav.getByRole("link", { name: "Scan Box" }).click();
   await expect(page).toHaveURL(/\/gmail$/);
-  await expect(page.getByRole("heading", { name: "Gmail Inbox", level: 1 })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Gmail Inbox" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Scan Box", level: 1 })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Scan Box" })).toHaveAttribute("aria-current", "page");
 });
 
 test("inbox: every email is listed, filters and search run on the server, nothing claims a connection", async ({ page }) => {
@@ -260,7 +260,7 @@ test("a processed document shows its history and is not read again by accident",
 test("someone without access sees neither the inbox nor the picker", async ({ page }) => {
   await signIn(page, "warehouse");
   await page.goto("/gmail");
-  await expect(page.getByText("Your account can't open the Gmail Inbox")).toBeVisible();
+  await expect(page.getByText("Your account can't open the Scan Box")).toBeVisible();
   const r = await page.request.get("/api/v1/gmail/messages");
   expect(r.status()).toBe(403);
   const file = await page.request.get(`/api/v1/gmail/attachments/${fx.attachments.sheet}/content`);
@@ -274,7 +274,7 @@ test("returning from Google without consent connects nothing", async ({ page }) 
   await expect(page.getByText("Access was not allowed, so nothing was connected.")).toBeVisible();
   expect(page.url()).not.toContain("state=");
   // administrators are told what the server still needs; nothing looks connected
-  await page.getByRole("link", { name: "Back to Gmail Inbox" }).click();
+  await page.getByRole("link", { name: "Back to Scan Box" }).click();
   await page.getByRole("button", { name: "Settings" }).click();
   const dlg = page.getByRole("dialog", { name: "Gmail connection" });
   await expect(dlg.getByText("Read-only. Pro Trading cannot send, delete or change mail.")).toBeVisible();

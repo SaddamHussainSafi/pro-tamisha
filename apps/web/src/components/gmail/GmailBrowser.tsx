@@ -53,7 +53,7 @@ type Props = {
 };
 
 /** The stored inbox: filters, search, the email list, one email with its files, and the
- * "Use for OCR" step. The same component is the Gmail Inbox page and the document picker. */
+ * "Use for OCR" step. The same component is the Scan Box page and the document picker. */
 export function GmailBrowser({ status, mode, defaultCategory = "PICK_SHEET", initialMessage = null, initialShow = "all", reloadKey = 0, onProcessed, onSelect, selectLabel = "Select document" }: Props) {
   const picker = mode === "picker";
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, show: initialShow });

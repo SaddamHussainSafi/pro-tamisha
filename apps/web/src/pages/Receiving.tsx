@@ -577,7 +577,7 @@ function GmailDocPicker({ onClose, onPick }: { onClose: () => void; onPick: (a: 
     <Modal open title="Attach a document from Gmail" onClose={onClose} wide>
       <div className="p-5">
         {error ? (
-          <ErrorState title="Couldn't reach the Gmail Inbox" detail={error} />
+          <ErrorState title="Couldn't reach the Scan Box" detail={error} />
         ) : !status ? (
           <LoadingRows rows={4} cols={2} />
         ) : status.message_count === 0 ? (

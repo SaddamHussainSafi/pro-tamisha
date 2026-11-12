@@ -1,4 +1,4 @@
-// Gmail Inbox endpoints (apps/api/src/pro_trading/routes/gmail.py) and the small pure helpers
+// Scan Box endpoints (apps/api/src/pro_trading/routes/gmail.py) and the small pure helpers
 // the inbox screens share. Nothing here ever holds a Google token: the browser only talks to
 // our own API.
 import { ApiError, apiRequest as request, type ScanJobType } from "../api";
@@ -214,10 +214,10 @@ export function gmailMessage(err: unknown): string {
   if (!(err instanceof ApiError)) return errorText(err);
   const known: Record<string, string> = {
     GMAIL_NOT_CONFIGURED: "Gmail is not set up on this server yet. Ask an owner or admin to set up the Gmail connection.",
-    GMAIL_NOT_CONNECTED: "No mailbox is connected. Connect the company mailbox from Gmail Inbox first.",
+    GMAIL_NOT_CONNECTED: "No mailbox is connected. Connect the company mailbox from Scan Box first.",
     GMAIL_REAUTH_REQUIRED: "Google asked for the mailbox to be connected again. Press Connect Gmail and sign in to Google.",
     GMAIL_UNAVAILABLE: "Gmail did not answer. Try again in a moment.",
-    GMAIL_STATE_INVALID: "This connection attempt expired. Start again from Gmail Inbox.",
+    GMAIL_STATE_INVALID: "This connection attempt expired. Start again from Scan Box.",
     GMAIL_SCOPE_MISSING: "Read-only access to the mailbox was not granted. Start again and allow it.",
     ATTACHMENT_GONE: "This file is no longer on the email in Gmail.",
     UNSUPPORTED_FILE: "Only PDF, PNG, JPEG or TIFF files can be opened or read.",

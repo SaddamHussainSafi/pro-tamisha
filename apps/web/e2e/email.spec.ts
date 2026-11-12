@@ -45,10 +45,10 @@ async function axe(page: Page) {
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(" | ")}`)).toEqual([]);
 }
 
-test("Andy sees only Andy Mail; the Email entry sits beside Gmail Inbox, which is unchanged", async ({ page }) => {
+test("Andy sees only Andy Mail; the Email entry sits beside Scan Box, which is unchanged", async ({ page }) => {
   await signIn(page, "andy");
   await expect(nav(page).getByRole("link", { name: /^Email/ })).toBeVisible();
-  await expect(nav(page).getByRole("link", { name: "Gmail Inbox" })).toBeVisible();
+  await expect(nav(page).getByRole("link", { name: "Scan Box" })).toBeVisible();
   await expect(page.getByTestId("mail-badge")).toHaveText("10");
   await nav(page).getByRole("link", { name: /^Email/ }).click();
   await expect(page).toHaveURL(/\/email$/);
