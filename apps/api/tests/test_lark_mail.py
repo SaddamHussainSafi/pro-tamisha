@@ -694,6 +694,33 @@ def test_personal_signature_with_embedded_logo(lark, make_api, world) -> None:
 
     msg = message_from_bytes(data, policy=policy.default)
     html = msg.get_body(("html",)).get_content()
-    assert 'src="cid:tt-logo"' in html and 'href="tel:+14163328853"' in html and "<script" not in html  # noqa: E501
+    assert (
+        'src="cid:tt-logo"' in html and 'href="tel:+14163328853"' in html and "<script" not in html
+    )  # noqa: E501
     logo = next(p for p in msg.walk() if p.get("Content-ID") == "<tt-logo>")
     assert logo.get_content_type() == "image/png" and b"multipart/related" in data
+
+
+def test_mark_unread_sticks_and_starred_filter_and_draft_files(lark, make_api, world) -> None:
+    w = connect_andy(make_api, world)
+    sync(w["acc"])
+    andy = w["andy"]
+    rows = andy.get(f"/api/v1/mail/accounts/{w['acc']}/messages").json()["items"]
+    cafe = next(r for r in rows if r["subject"].startswith("Café"))
+    assert not cafe["unread"]  # Lark has it as read
+    andy.post(f"/api/v1/mail/messages/{cafe['id']}/state", json={"read": False})
+    again = andy.get(f"/api/v1/mail/accounts/{w['acc']}/messages?unread=true").json()["items"]
+    assert cafe["id"] in [r["id"] for r in again]
+    assert andy.get(f"/api/v1/mail/messages/{cafe['id']}").json()["unread"]
+    andy.post(f"/api/v1/mail/messages/{cafe['id']}/state", json={"read": True, "starred": True})
+    st = andy.get(f"/api/v1/mail/accounts/{w['acc']}/messages?folder=inbox&starred=true").json()
+    assert [r["id"] for r in st["items"]] == [cafe["id"]] and not st["items"][0]["unread"]
+    up = andy.c.post("/api/v1/mail/uploads?filename=note.pdf", content=PDF,
+                     headers={**andy._h(), "Content-Type": "application/pdf"}).json()  # fmt: skip
+    d = andy.post(
+        "/api/v1/mail/drafts", json={"account_id": w["acc"], "upload_ids": [up["id"]]}
+    ).json()
+    assert d["uploads"][0]["filename"] == "note.pdf"
+    assert andy.get(f"/api/v1/mail/accounts/{w['acc']}/drafts").json()[0]["uploads"][0][
+        "byte_size"
+    ] == len(PDF)

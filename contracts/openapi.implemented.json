@@ -4261,6 +4261,14 @@
             },
             "title": "Upload Ids",
             "type": "array"
+          },
+          "uploads": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Uploads",
+            "type": "array"
           }
         },
         "required": [
@@ -25593,6 +25601,16 @@
             "schema": {
               "default": false,
               "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "starred",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Starred",
               "type": "boolean"
             }
           },

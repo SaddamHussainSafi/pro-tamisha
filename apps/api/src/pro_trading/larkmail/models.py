@@ -275,6 +275,8 @@ class MailUserState(Base):
     message_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mail_messages.id"), primary_key=True)
     employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), primary_key=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "Mark as unread" here, even for mail Lark already has as read (migration 0032).
+    marked_unread: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     starred: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     updated_at: Mapped[datetime] = _created()
 

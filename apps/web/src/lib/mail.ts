@@ -37,6 +37,8 @@ export type MailRow = {
   attachment_count: number;
   removed_in_lark: boolean;
   highlight?: string | null;
+  /** Up to 3 file chips (the rest is attachment_count). */
+  attachments?: MailAttachment[];
 };
 export type MailPage = { items: MailRow[]; next_cursor: string | null };
 export type MailAttachment = {
@@ -104,6 +106,8 @@ export type MailDraft = {
   subject: string;
   body_html: string;
   upload_ids: string[];
+  /** Names of the files attached so far (older API answers may lack it). */
+  uploads?: Upload[];
   updated_at: string;
 };
 export type OutgoingStatus = "QUEUED" | "SENDING" | "SENT" | "FAILED" | "UNCERTAIN";
@@ -121,7 +125,7 @@ export type Outgoing = {
 };
 export type Upload = { id: string; filename: string; mime_type: string; byte_size: number };
 export type LinkTarget = { entity_type: EntityType; entity_id: string; label: string; sub: string };
-export type SearchFilters = { folder: string; date_from: string; date_to: string; has_attachments: boolean };
+export type SearchFilters = { from: string; to: string; folder: string; date_from: string; date_to: string; has_attachments: boolean };
 
 /* ------------------------------------------------------------- admin */
 export type MailUserGrant = { employee_id: string; name: string; email: string; can_send: boolean; active: boolean };
@@ -202,12 +206,12 @@ async function sendOnce(body: DraftIn & { draft_id: string | null }, key: string
 export const mail = {
   accounts: () => request<MailAccount[]>("GET", "/mail/accounts"),
   folders: (acc: string) => request<MailFolder[]>("GET", `/mail/accounts/${acc}/folders`),
-  messages: (acc: string, q: { folder: string; cursor?: string | null; limit?: number; unread?: boolean; has_attachments?: boolean }) =>
+  messages: (acc: string, q: { folder: string; cursor?: string | null; limit?: number; unread?: boolean; starred?: boolean; has_attachments?: boolean }) =>
     request<MailPage>("GET", `/mail/accounts/${acc}/messages?${qs({ ...q, limit: q.limit ?? 50 })}`),
   message: (id: string, images = false) => request<MailMessage>("GET", `/mail/messages/${id}?images=${images}`),
   setState: (id: string, s: { read?: boolean; starred?: boolean }) => request<undefined>("POST", `/mail/messages/${id}/state`, s),
   search: (acc: string, q: string, f: SearchFilters, cursor?: string | null) =>
-    request<MailPage>("GET", `/mail/search?${qs({ account_id: acc, q, folder: f.folder, date_from: f.date_from, date_to: f.date_to, has_attachments: f.has_attachments, cursor, limit: 30 })}`),
+    request<MailPage>("GET", `/mail/search?${qs({ account_id: acc, q, from: f.from, to: f.to, folder: f.folder, date_from: f.date_from, date_to: f.date_to, has_attachments: f.has_attachments, cursor, limit: 30 })}`),
   drafts: (acc: string) => request<MailDraft[]>("GET", `/mail/accounts/${acc}/drafts`),
   createDraft: (b: DraftIn) => request<MailDraft>("POST", "/mail/drafts", b),
   saveDraft: (id: string, b: DraftIn) => request<MailDraft>("PUT", `/mail/drafts/${id}`, b),
@@ -348,7 +352,9 @@ export function replySubject(subject: string, mode: ComposeMode): string {
 export function replyRecipients(m: Pick<MailMessage, "from_name" | "from_email" | "reply_to" | "to" | "cc">, mode: ComposeMode, me: string): { to: Addr[]; cc: Addr[] } {
   if (mode === "forward" || mode === "new") return { to: [], cc: [] };
   const mine = me.toLowerCase();
-  const first = m.reply_to.length ? m.reply_to : [{ name: m.from_name, email: m.from_email }];
+  // Replying to my own message goes to the people I wrote to (as mail clients do).
+  const fromMe = m.from_email.toLowerCase() === mine;
+  const first = fromMe ? m.to : m.reply_to.length ? m.reply_to : [{ name: m.from_name, email: m.from_email }];
   const seen = new Set<string>();
   const uniq = (list: Addr[]) =>
     list.filter((a) => {
@@ -375,13 +381,12 @@ export function quoteOriginal(m: Pick<MailMessage, "from_name" | "from_email" | 
   return `<p>On ${escapeHtml(when)}, ${from} wrote:</p><blockquote>${body}</blockquote>`;
 }
 
-/** "2:14 PM" today, "Yesterday", "Nov 3", or "Nov 3, 2025" for another year. */
+/** "2:14 PM" today, "Nov 3" this year, or "Nov 3, 2025" for another year. */
 export function whenShort(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((day(now) - day(d)) / 86_400_000);
   if (diff === 0) return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  if (diff === 1) return "Yesterday";
   return d.toLocaleDateString(undefined, d.getFullYear() === now.getFullYear() ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
 }
 export const whenFull = (iso: string) => new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -456,10 +461,11 @@ export function scrubHtml(html: string): string {
       const n = a.name.toLowerCase();
       const v = a.value.trim().toLowerCase();
       if (n.startsWith("on") || n === "srcset" || n === "contenteditable") el.removeAttribute(a.name);
-      else if ((n === "href" || n === "src" || n === "action" || n === "formaction") && !/^(https?:|mailto:|tel:|#|data:image\/(png|jpeg|gif);)/.test(v)) el.removeAttribute(a.name);
+      else if ((n === "href" || n === "src" || n === "action" || n === "formaction") && !/^(https?:|mailto:|tel:|#|data:image\/(png|jpeg|gif);|\/api\/v1\/mail\/signature-logo$)/.test(v)) el.removeAttribute(a.name);
     }
     // Pictures: only ones already inside the email (data:), never fetched from the internet.
-    if (el.tagName === "IMG" && !/^data:image\//i.test(el.getAttribute("src") ?? "")) el.remove();
+    // (The company logo of a signature is the one picture from our own server.)
+    if (el.tagName === "IMG" && !/^(data:image\/|\/api\/v1\/mail\/signature-logo$)/i.test(el.getAttribute("src") ?? "")) el.remove();
   });
   return doc.body.innerHTML;
 }
@@ -468,4 +474,96 @@ export function scrubHtml(html: string): string {
 export function htmlText(html: string): string {
   if (typeof DOMParser === "undefined") return html.replace(/<[^>]*>/g, "");
   return new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+}
+
+/** Run `fn` over `items`, at most `limit` at a time (bulk read/star: there is no bulk endpoint). */
+export async function pool<T>(items: T[], limit: number, fn: (t: T) => Promise<unknown>): Promise<{ ok: number; failed: number }> {
+  let i = 0;
+  let ok = 0;
+  let failed = 0;
+  const worker = async () => {
+    while (i < items.length) {
+      const t = items[i++] as T;
+      try {
+        await fn(t);
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return { ok, failed };
+}
+
+/** Initials for the avatar circle. */
+export function initials(name: string): string {
+  const parts = name.replace(/<[^>]*>|[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "?") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
+}
+
+/** Per-person screen preferences (this browser only). */
+export type MailPrefs = { pane: "none" | "right"; density: "comfortable" | "compact" };
+const PREF_KEY = "pt.mail.prefs";
+export function loadPrefs(): MailPrefs {
+  try {
+    const v = JSON.parse(localStorage.getItem(PREF_KEY) ?? "{}") as Partial<MailPrefs>;
+    return { pane: v.pane === "right" ? "right" : "none", density: v.density === "compact" ? "compact" : "comfortable" };
+  } catch {
+    return { pane: "none", density: "comfortable" };
+  }
+}
+export function savePrefs(p: MailPrefs) {
+  try {
+    localStorage.setItem(PREF_KEY, JSON.stringify(p));
+  } catch {
+    /* storage unavailable: the choice just isn't remembered */
+  }
+}
+
+/** A rough height for a sandboxed email frame (its content can't be measured from outside). */
+export function frameHeight(html: string, text: string): number {
+  const plain = text || html.replace(/<[^>]*>/g, " ");
+  const breaks = (html.match(/<(p|br|tr|li|div|h\d)\b/gi) ?? []).length;
+  const lines = Math.ceil(plain.length / 90) + breaks;
+  return Math.max(96, Math.min(900, lines * 24 + 40));
+}
+
+/** A file the server refuses to hand out (blocked type, virus scanner, not stored). */
+export const isBlocked = (a: Pick<MailAttachment, "scan_status" | "downloadable">) => ["BLOCKED", "INFECTED"].includes(a.scan_status) || !a.downloadable;
+
+/* ---------------- compose formatting (email content, not app theme) ---------------- */
+export const FONTS = [
+  { label: "Sans Serif", css: "Arial, Helvetica, sans-serif" },
+  { label: "Serif", css: "Georgia, 'Times New Roman', serif" },
+  { label: "Fixed width", css: "'Courier New', Courier, monospace" },
+  { label: "Wide", css: "'Arial Black', Arial, sans-serif" },
+  { label: "Narrow", css: "'Arial Narrow', Arial, sans-serif" },
+  { label: "Verdana", css: "Verdana, Geneva, sans-serif" },
+  { label: "Trebuchet", css: "'Trebuchet MS', sans-serif" },
+] as const;
+/** execCommand fontSize steps (with styleWithCSS they become font-size: small / x-large …). */
+export const SIZES = [
+  { label: "Small", value: "2", preview: "12px" },
+  { label: "Normal", value: "3", preview: "15px" },
+  { label: "Large", value: "5", preview: "20px" },
+  { label: "Huge", value: "7", preview: "28px" },
+] as const;
+// Text and highlight colours a writer can pick: email content the customer sees, not app theme
+// colours (written as rgb() so they pass the server's inline-CSS allow-list).
+export const SWATCHES = [
+  "rgb(0, 0, 0)", "rgb(67, 67, 67)", "rgb(102, 102, 102)", "rgb(153, 153, 153)", "rgb(183, 183, 183)", "rgb(204, 204, 204)", "rgb(239, 239, 239)", "rgb(255, 255, 255)",
+  "rgb(152, 0, 0)", "rgb(255, 0, 0)", "rgb(255, 153, 0)", "rgb(255, 255, 0)", "rgb(0, 255, 0)", "rgb(0, 255, 255)", "rgb(74, 134, 232)", "rgb(153, 0, 255)",
+  "rgb(230, 184, 175)", "rgb(244, 204, 204)", "rgb(252, 229, 205)", "rgb(255, 242, 204)", "rgb(217, 234, 211)", "rgb(208, 224, 227)", "rgb(201, 218, 248)", "rgb(217, 210, 233)",
+  "rgb(166, 28, 0)", "rgb(204, 0, 0)", "rgb(230, 145, 56)", "rgb(241, 194, 50)", "rgb(106, 168, 79)", "rgb(69, 129, 142)", "rgb(60, 120, 216)", "rgb(103, 78, 167)",
+];
+export const EMOJI = ["😀", "😊", "🙂", "😉", "😄", "😅", "😂", "🤝", "👍", "👎", "👏", "🙏", "💪", "👌", "✅", "❌", "⚠️", "❗", "❓", "📦", "🚚", "🛒", "🧾", "💰", "📅", "⏰", "📞", "📧", "📎", "📝", "🎉", "⭐", "🔥", "💡", "🍅", "🥔", "🌶️", "🍌", "🥭", "🌿"];
+
+/** Plain-text version of an HTML body, as HTML (for plain text mode). */
+export function plainHtml(html: string): string {
+  const t = htmlText(html.replace(/<(br|\/p|\/div|\/li|\/tr|\/h\d)[^>]*>/gi, "$&\n"));
+  return t
+    .split("\n")
+    .map((l) => l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+    .join("<br>");
 }

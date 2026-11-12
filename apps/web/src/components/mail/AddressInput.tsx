@@ -4,7 +4,7 @@ import { Icon } from "../../ui/Icon";
 
 /** To / Cc / Bcc: typed addresses become chips on Enter, comma, semicolon, Tab or leaving the
  * field. Pasting a list splits it. Invalid addresses stay as red chips so they can be fixed. */
-export function AddressInput({ label, value, onChange, autoFocus = false }: { label: string; value: Addr[]; onChange: (v: Addr[]) => void; autoFocus?: boolean }) {
+export function AddressInput({ label, value, onChange, autoFocus = false, suggestions = [] }: { label: string; value: Addr[]; onChange: (v: Addr[]) => void; autoFocus?: boolean; suggestions?: Addr[] }) {
   const [text, setText] = useState("");
   const id = useId();
   const commit = (raw = text) => {
@@ -45,8 +45,9 @@ export function AddressInput({ label, value, onChange, autoFocus = false }: { la
           inputMode="email"
           autoComplete="off"
           data-autofocus={autoFocus || undefined}
+          list={suggestions.length ? `${id}-sug` : undefined}
           aria-invalid={bad > 0 || undefined}
-          className="min-w-40 flex-1 bg-transparent py-1.5 text-sm outline-none"
+          className="min-w-28 flex-1 bg-transparent py-1.5 text-sm outline-none"
           value={text}
           onChange={(e) => {
             const v = e.target.value;
@@ -69,6 +70,13 @@ export function AddressInput({ label, value, onChange, autoFocus = false }: { la
           onBlur={() => text.trim() && commit()}
         />
       </div>
+      {suggestions.length > 0 && (
+        <datalist id={`${id}-sug`}>
+          {suggestions.map((a) => (
+            <option key={a.email} value={addrText(a)} />
+          ))}
+        </datalist>
+      )}
       {bad > 0 && (
         <span className="shrink-0 pt-2 text-xs text-danger" role="alert">
           {bad === 1 ? "1 address is not valid" : `${bad} addresses are not valid`}

@@ -211,6 +211,7 @@ class DraftOut(BaseModel):
     subject: str
     body_html: str
     upload_ids: list[str]
+    uploads: list[dict[str, Any]] = Field(default_factory=list)  # files attached so far
     updated_at: datetime
 
 
@@ -266,17 +267,28 @@ def _read_ids(db: Session, p: Principal, ids: list[uuid.UUID]) -> dict[uuid.UUID
 
 
 def _unread_filter(p: Principal) -> Any:
-    """Unread for this person: not read in Lark and not opened by them here."""
-    return and_(
-        MailMessage.seen.is_(False),
-        ~select(MailUserState.message_id)
-        .where(
-            MailUserState.message_id == MailMessage.id,
-            MailUserState.employee_id == p.employee.id,
-            MailUserState.read_at.is_not(None),
-        )
-        .exists(),
+    """Unread for this person: marked unread here, or not read in Lark and not opened here."""
+    mine = and_(
+        MailUserState.message_id == MailMessage.id,
+        MailUserState.employee_id == p.employee.id,
     )
+    return or_(
+        select(MailUserState.message_id)
+        .where(mine, MailUserState.marked_unread.is_(True))
+        .exists(),
+        and_(
+            MailMessage.seen.is_(False),
+            ~select(MailUserState.message_id)
+            .where(mine, MailUserState.read_at.is_not(None))
+            .exists(),
+        ),
+    )
+
+
+def _is_unread(m: MailMessage, s: MailUserState | None) -> bool:
+    if s is not None and s.marked_unread:
+        return True
+    return not m.seen and not (s is not None and s.read_at)
 
 
 def _starred_filter(p: Principal) -> Any:
@@ -335,7 +347,7 @@ def _rows(db: Session, p: Principal, msgs: list[MailMessage]) -> list[MessageRow
                 subject=m.subject,
                 snippet=m.snippet,
                 received_at=m.received_at,
-                unread=not m.seen and not (s and s.read_at),
+                unread=_is_unread(m, s),
                 starred=s.starred if s is not None else m.flagged,
                 attachment_count=m.attachment_count,
                 removed_in_lark=m.server_removed_at is not None,
@@ -525,6 +537,7 @@ def list_messages(
     cursor: Annotated[str | None, Query(max_length=200)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     unread: bool = False,
+    starred: bool = False,
     has_attachments: bool = False,
 ) -> MessagePage:
     acc = access.account(db, request, p, account_id)
@@ -545,6 +558,8 @@ def list_messages(
         q = q.where(MailMessage.folder_id == fid)
     if unread:
         q = q.where(_unread_filter(p))
+    if starred:
+        q = q.where(_starred_filter(p))
     if has_attachments:
         q = q.where(MailMessage.attachment_count > 0)
     c = _uncursor(cursor)
@@ -649,7 +664,7 @@ def get_message(
         sent_at=m.sent_at, received_at=m.received_at, body_html=html, body_text=m.body_text,
         body_truncated=m.body_truncated, has_remote_images=m.has_remote_images,
         remote_images_loaded=images and m.has_remote_images,
-        unread=not m.seen and not (st and st.read_at),
+        unread=_is_unread(m, st),
         starred=st.starred if st is not None else m.flagged,
         removed_in_lark=m.server_removed_at is not None,
         attachments=[_att_out(a) for a in atts if not (a.inline and a.content_id in m.body_html)],
@@ -666,12 +681,13 @@ def set_state(
     vals: dict[str, Any] = {"updated_at": now()}
     if body.read is not None:
         vals["read_at"] = now() if body.read else None
+        vals["marked_unread"] = not body.read
     if body.starred is not None:
         vals["starred"] = body.starred
     ins = insert(MailUserState).values(
         message_id=m.id, employee_id=p.employee.id,
         starred=body.starred if body.starred is not None else m.flagged,
-        read_at=vals.get("read_at"),
+        read_at=vals.get("read_at"), marked_unread=vals.get("marked_unread", False),
     )  # fmt: skip
     db.execute(ins.on_conflict_do_update(index_elements=["message_id", "employee_id"], set_=vals))
     db.commit()
@@ -866,11 +882,18 @@ def _highlight(m: MailMessage, ws: list[str]) -> str | None:
 # ================================================================== drafts, uploads, sending
 
 
-def _draft_out(d: MailDraft) -> DraftOut:
+def _draft_out(d: MailDraft, db: Session) -> DraftOut:
+    ids = [uuid.UUID(str(x)) for x in d.attachment_ids]
+    ups = {
+        u.id: u
+        for u in db.scalars(select(MailUpload).where(MailUpload.id.in_(ids)))
+    } if ids else {}  # fmt: skip
     return DraftOut(
         id=d.id, account_id=d.account_id, mode=d.mode, source_message_id=d.source_message_id,
         to=d.to_addrs, cc=d.cc_addrs, bcc=d.bcc_addrs, subject=d.subject, body_html=d.body_html,
         upload_ids=[str(x) for x in d.attachment_ids], updated_at=d.updated_at,
+        uploads=[{"id": str(u.id), "filename": u.filename, "mime_type": u.mime_type,
+                  "byte_size": u.byte_size} for i in ids if (u := ups.get(i))],
     )  # fmt: skip
 
 
@@ -905,7 +928,7 @@ def list_drafts(
         .order_by(MailDraft.updated_at.desc())
         .limit(200)
     )
-    return [_draft_out(d) for d in ds]
+    return [_draft_out(d, db) for d in ds]
 
 
 def _apply_draft(db: Session, d: MailDraft, body: DraftIn, p: Principal) -> None:
@@ -928,7 +951,7 @@ def create_draft(body: DraftIn, request: Request, db: DbDep, p: Principal = Use)
     _apply_draft(db, d, body, p)
     db.add(d)
     db.commit()
-    return _draft_out(d)
+    return _draft_out(d, db)
 
 
 def _own_draft(db: Session, request: Request, p: Principal, draft_id: uuid.UUID) -> MailDraft:
@@ -952,7 +975,7 @@ def save_draft(
         d.account_id = body.account_id
     _apply_draft(db, d, body, p)
     db.commit()
-    return _draft_out(d)
+    return _draft_out(d, db)
 
 
 @router.post("/drafts/{draft_id}/discard", status_code=204)
