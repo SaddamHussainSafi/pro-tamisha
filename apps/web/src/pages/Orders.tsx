@@ -14,6 +14,7 @@ import {
   type UnitCode,
 } from "../api";
 import { useAuth } from "../auth";
+import { writtenText } from "../lib/ocr";
 import { qtyText, wholeOnly } from "../lib/inventory";
 import { billable, blankLine, ensureRows, gridProblem, rowProblem, weightOf, type GridLine } from "../lib/lineGrid";
 import { AMENDMENT_LABEL, lineAmount, ORDER_STATUS, ordersMessage, PICK_STATUS } from "../lib/orders";
@@ -29,7 +30,9 @@ import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
+const when = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+
 
 export function OrderChip({ status }: { status: OrderStatus }) {
   return <StatusChip tone={ORDER_STATUS[status].tone}>{ORDER_STATUS[status].label}</StatusChip>;
@@ -486,16 +489,16 @@ export function OrderPage() {
 
   const columns: Column<OrderLine>[] = [
     { key: "n", header: "#", cell: (l) => <span className="num">{l.line_no}</span> },
-    { key: "p", header: "Product", cell: (l) => <span><span className="font-medium">{l.sku}</span> <span className="text-ink-muted">{l.product_name}</span>{l.source_line_text && <span className="block text-xs text-ink-muted">“{l.source_line_text}”</span>}</span> },
+    { key: "p", header: "Product", cell: (l) => <span><span className="font-medium">{l.sku}</span> <span className="text-ink-muted">{l.product_name}</span>{l.source_line_text && <span className="mt-0.5 block text-xs text-ink-muted">{o.source === "SCAN" ? "On the sheet: " : "As written: "}{writtenText(l.source_line_text)}</span>}</span> },
     { key: "u", header: "Unit", cell: (l) => l.unit_code },
     { key: "o", header: "Ordered", align: "right", cell: (l) => <span className="num">{qtyText(l.ordered_qty)}</span> },
     { key: "s", header: "Supplied", align: "right", cell: (l) => <span className="num">{qtyText(l.dispatched_qty)}</span> },
-    { key: "a", header: "Awaiting invoice", align: "right", cell: (l) => <span className="num">{qtyText(l.awaiting_invoice_qty)}</span> },
+    { key: "a", header: "To invoice", align: "right", cell: (l) => <span className="num">{qtyText(l.awaiting_invoice_qty)}</span> },
     { key: "pd", header: "Pending", align: "right", cell: (l) => <span className="num font-semibold" data-testid={`pending-${l.sku}`}>{qtyText(l.pending_qty)}{l.backorder && <span className="ml-1 text-xs font-normal text-ink">backorder</span>}</span> },
     { key: "c", header: "Cancelled", align: "right", cell: (l) => <span className="num text-ink-muted">{qtyText(l.cancelled_qty)}</span> },
-    { key: "r", header: "Rate (CAD)", align: "right", cell: (l) => (l.rate ? <span className="num" title={`${l.price_scope ?? ""} · ${l.price_version_code ?? ""}`}>{rateText(l.rate)}</span> : <span className="text-ink-muted">set at confirm</span>) },
+    { key: "r", header: "Rate (CAD)", align: "right", cell: (l) => (l.rate ? <span className="num whitespace-nowrap" title={`${l.price_scope ?? ""} · ${l.price_version_code ?? ""}`}>{rateText(l.rate).replace(/^CAD /, "")}</span> : <span className="text-ink-muted">set at confirm</span>) },
     ...(close && open
-      ? [{ key: "x", header: "", cell: (l: OrderLine) => (Number(l.pending_qty) > 0 ? <button className="btn-ghost py-1 text-xs" onClick={() => setLineCancel(l)}>Cancel qty</button> : null) }]
+      ? [{ key: "x", header: "", cell: (l: OrderLine) => (Number(l.pending_qty) > 0 ? <button className="btn-ghost whitespace-nowrap px-3.5 py-1.5 text-xs" onClick={() => setLineCancel(l)}>Cancel qty</button> : null) }]
       : []),
   ];
 
@@ -537,11 +540,46 @@ export function OrderPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card space-y-2 p-6" aria-labelledby="src-h">
           <h2 id="src-h" className="font-semibold">Original request</h2>
-          <p className="text-xs text-ink-muted">Kept exactly as captured ({o.source === "SCAN" ? "scanned" : o.source === "WEB" ? "sent from the website, converted" : "typed"} by {o.created_by_name ?? "system"}, {when(o.created_at)}). It never changes.</p>
-          {o.source_text ? <pre className="whitespace-pre-wrap rounded bg-canvas p-3 text-sm">{o.source_text}</pre> : <p className="text-sm text-ink-muted">No free text.</p>}
-          <ul className="text-sm">
-            {o.source_snapshot.map((s) => <li key={s.line_no}><span className="num">{s.line_no}.</span> {s.sku} — {qtyText(s.qty ?? "0")} {s.unit_code}{s.text && <span className="text-ink-muted"> (“{s.text}”)</span>}</li>)}
-          </ul>
+          <p className="text-sm text-ink-muted">
+            {o.source === "SCAN" ? "Scanned" : o.source === "WEB" ? "Sent from the website" : "Typed"} by {o.created_by_name ?? "the system"} on {when(o.created_at)}. Kept as received; it never changes.
+          </p>
+          {o.source_snapshot.length > 0 && (
+            <table className="w-full text-sm">
+              <caption className="sr-only">Lines as first received</caption>
+              <thead>
+                <tr className="border-b border-line text-left text-xs text-ink-muted">
+                  <th scope="col" className="w-8 py-1.5 font-medium">#</th>
+                  <th scope="col" className="py-1.5 font-medium">Product</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">Qty</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {o.source_snapshot.map((s) => (
+                  <tr key={s.line_no}>
+                    <td className="num py-1.5 text-ink-muted">{s.line_no}</td>
+                    <td className="py-1.5">
+                      <span className="font-medium">{s.sku}</span>
+                      {s.text && <span className="block text-xs text-ink-muted">{writtenText(s.text)}</span>}
+                    </td>
+                    <td className="num whitespace-nowrap py-1.5 text-right">
+                      {qtyText(s.qty ?? "0")} <span className="text-ink-muted">{s.unit_code}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {o.source_text &&
+            (o.source === "SCAN" ? (
+              // A scan's raw reading is noisy machine text: kept for checking, folded away by default.
+              <details className="rounded-ctl border border-line text-sm">
+                <summary className="cursor-pointer px-3 py-2 text-ink-muted hover:text-ink">Show the raw text read from the scan</summary>
+                <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-line bg-subtle px-3 py-2 text-xs">{o.source_text}</pre>
+              </details>
+            ) : (
+              <p className="whitespace-pre-wrap rounded-ctl bg-subtle px-3 py-2 text-sm">{o.source_text}</p>
+            ))}
+          {!o.source_text && o.source_snapshot.length === 0 && <p className="text-sm text-ink-muted">Nothing was written with this order.</p>}
         </section>
         <section className="card space-y-3 p-6" aria-labelledby="pk-h">
           <h2 id="pk-h" className="font-semibold">Packing sheets</h2>

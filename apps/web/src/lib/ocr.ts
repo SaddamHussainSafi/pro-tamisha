@@ -210,3 +210,11 @@ export function ocrMessage(err: unknown): string {
       return errorText(err);
   }
 }
+
+/** A scanned line as written on the sheet, in words: “BREADFRUIT” · ticked (the quantity is already in its column). */
+export function writtenText(raw: string): string {
+  const parts = raw.split("|").map((p) => p.trim()).filter(Boolean);
+  const [name, ...rest] = parts;
+  const extra = rest.filter((p) => !/^q\s*:/i.test(p)).map((p) => (/^check ?mark$/i.test(p) ? "ticked" : p.toLowerCase() === "no" ? "“NO” written" : p));
+  return [name ? `“${name}”` : "", ...extra].filter(Boolean).join(" · ");
+}

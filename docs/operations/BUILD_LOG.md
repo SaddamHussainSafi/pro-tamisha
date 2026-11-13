@@ -1143,3 +1143,10 @@ No application code has been generated or executed by this planning pack. This l
 - **Header:** even padding above and below (12 px phones, 16 px desktop) so the bar never touches the page; the page starts closer under it. Breadcrumb pill: more inner padding and spacing, same 48 px height and soft shadow as the search box; left edge lines up with the page cards.
 - Leftover page-made trails removed (Orders list and order page, New invoice, Supplier page). The product page still has one: `Products.tsx` has another session's uncommitted edits, so it was left alone.
 - Results: tsc clean; eslint clean; Playwright navigation (auto-hide test now also checks the page moves 88 → 276 px), smoke, orders, new-invoice, suppliers, order-screen, invoices, shell-scroll, inventory, pricing: 31 passed.
+
+## 2026-11-12 — Order page: readable lines and original request
+
+- **Order lines:** the scanned text under each product reads "On the sheet: “BREADFRUIT” · ticked" (no `| Q: 1 | checkmark`; the quantity is already in its column). "Awaiting invoice" is now "To invoice"; rates show without the repeated "CAD" (the header says it). "Cancel qty" stays on one line, with proper padding.
+- **Table headers never wrap** (all DataGrid tables; the grid already scrolls sideways when too narrow).
+- **Original request:** one plain sentence (who, when: "Scanned by Olivia Owner on Nov 11, 2026, 6:22 PM. Kept as received; it never changes.") and a tidy #/Product/Qty table of the lines as first received. A scan's raw machine reading (the noisy text block) is folded away under "Show the raw text read from the scan"; typed or website notes show as normal text.
+- Results: tsc clean; vitest 310 passed (+1 `writtenText` test); eslint clean; Playwright orders, order-screen, navigation, smoke, invoices, customers, grid-view: 18 passed.

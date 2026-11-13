@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api";
-import { canConfirm, confidencePct, engineText, lineNotes, needsReason, ocrMessage, openLines, pctText, selectable, trimQty, warningText } from "./ocr";
+import { canConfirm, confidencePct, engineText, lineNotes, needsReason, ocrMessage, openLines, pctText, selectable, trimQty, warningText, writtenText } from "./ocr";
 
 describe("ocr helpers", () => {
   it("only clear readings can be confirmed", () => {
@@ -82,5 +82,13 @@ describe("Gemini readings in words", () => {
     expect(engineText(undefined)).toBe("");
     expect(engineText({ provider: "gemini", model: "gemini-3.8-flash", seconds: 13.6 })).toBe("Read in 14 s.");
     expect(engineText({ provider: "tesseract", model: "gemini-3.8-flash", seconds: 6 })).toBe("Read in 6 s.");
+  });
+});
+
+describe("a scanned line in words", () => {
+  it("drops the quantity and says ticked", () => {
+    expect(writtenText("BREADFRUIT | Q: 1 | checkmark")).toBe("“BREADFRUIT” · ticked");
+    expect(writtenText("INDIAN OKRA | Q: 5")).toBe("“INDIAN OKRA”");
+    expect(writtenText("15 box cassava please")).toBe("“15 box cassava please”");
   });
 });

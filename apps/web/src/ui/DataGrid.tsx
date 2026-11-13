@@ -71,7 +71,7 @@ export function DataGrid<R>({
                 <th
                   key={c.key}
                   scope="col"
-                  className={`th ${c.align === "right" ? "text-right" : ""}`}
+                  className={`th whitespace-nowrap ${c.align === "right" ? "text-right" : ""}`}
                   style={c.width ? { width: c.width } : undefined}
                   aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : undefined}
                 >
