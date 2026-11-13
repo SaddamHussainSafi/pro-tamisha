@@ -1202,3 +1202,10 @@ Not done / to know:
 
 - Owner's choice: "Hide it for now". The entry stays in `apps/web/src/nav.ts` with `hidden: true` (no page lists supplier invoices yet); the sidebar skips hidden entries. To show it later: give it an address and remove `hidden`.
 - Results: tsc and eslint clean; vitest 326 passed; Playwright navigation (9) and the gmail sidebar-order test passed.
+
+## 2026-11-13 — Commit history: assistant attribution removed
+
+- Owner's instruction: no assistant attribution in commits, tags or pull requests, past or future (AGENTS.md rule 13).
+- The `Co-Authored-By` trailer was removed from the 24 commits that carried it (2026-11-11 onward; `git filter-branch --msg-filter`). Files, authors, dates and titles are unchanged for all 99 commits (checked against a log taken before); the 75 older commits and both tags (`checkpoint-1`, `pre-gemini-ocr`) kept their hashes. `main` was force-pushed (with lease) to GitHub.
+- Backup of the history as it was: `checkpoints/pre-attribution-cleanup-2026-11-13/repo-before.bundle` (outside the repository, on this computer only).
+- Any other clone of the repository must be re-cloned or reset to `origin/main`; commit hashes from 2026-11-11 onward quoted in older notes no longer exist.

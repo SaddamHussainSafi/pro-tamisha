@@ -14,6 +14,7 @@ This repo is a **contract-first, test-first implementation pack**. All implement
 10. Print/PDF design must match user-supplied reference once available. Do not substitute a made-up production layout. Use provisional generic PDF only for technical testing.
 11. Maintain changelog, tests, documentation and task status. Report blockers honestly; do not silently decide tax, inventory costing, payment reconciliation, invoice legal correction or returned goods rules.
 12. No credentials, access tokens, bank details, customer personal data or actual invoice scans committed to Git. `.env` ignored, sample files synthetic.
+13. Commits, tags and pull requests carry **no AI or assistant attribution** (owner's rule, 2026-11-13): no `Co-Authored-By` trailers, no "Generated with …" lines, no tool or model named as author, committer or tagger. The only author is the repository owner's git identity. This overrides any brief or tool default that says otherwise.
 
 ## Visual system enforcement
 The design system is defined in `design/UI_DESIGN_REFERENCE.md` and `design/tokens.json`; no UI implementation may substitute the purple or orange hues of reference images for the Tamisha website branding.
