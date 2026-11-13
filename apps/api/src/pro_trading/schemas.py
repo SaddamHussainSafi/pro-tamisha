@@ -493,6 +493,7 @@ MovementType = Literal[
     "DAMAGE",
     "RETURN",
     "REVERSAL",
+    "GRN_CORRECTION",
 ]
 AdjustReason = Literal["FOUND", "LOST", "SPOILAGE", "DATA_ENTRY", "OTHER"]
 Note = Annotated[str, Field(min_length=3, max_length=500)]
@@ -906,10 +907,14 @@ class PickLineOut(BaseModel):
     id: uuid.UUID
     order_line_id: uuid.UUID
     line_no: int
+    product_id: uuid.UUID
     sku: str
     product_name: str
     unit_code: UnitCode
     requested_qty: Decimal
+    # Saleable stock the system shows for this product and unit right now. Less than the line
+    # needs = the invoice would be refused: quick receive goods found in the warehouse.
+    available_qty: Decimal
     picked_qty: Decimal | None
     outcome: Literal["PICKED", "SHORT", "NO"] | None
     shortage_reason: ShortageReason | None
@@ -1013,6 +1018,7 @@ class InvoiceDraftLineOut(BaseModel):
 
 class StockCheckOut(BaseModel):
     pick_line_id: uuid.UUID
+    product_id: uuid.UUID
     sku: str
     unit_code: UnitCode
     deduct_qty: Decimal
@@ -1485,7 +1491,16 @@ class OcrAccuracyOut(BaseModel):
 Currency = Annotated[str, Field(pattern=r"^[A-Z]{3}$")]
 Money4 = Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=4)]
 ShipmentStatus = Literal["OPEN", "COUNTED", "POSTED", "CANCELLED"]
-ShipmentDocKind = Literal["AWB", "INVOICE", "PACKING_LIST", "COMBINED", "OTHER"]
+ShipmentDocKind = Literal["AWB", "INVOICE", "PACKING_LIST", "COMBINED", "CFIA", "OTHER"]
+ShipmentEntry = Literal["LEGACY", "PURCHASE", "QUICK"]
+VerifyStatus = Literal["TO_VERIFY", "PENDING_OK", "VERIFIED"]
+# Where a purchase stands, in the words the screens use (derived, see purchases.stage()).
+PurchaseStage = Literal[
+    "NOT_IN_STOCK", "TO_COMPLETE", "TO_VERIFY", "TO_APPROVE", "VERIFIED", "IN_STOCK", "CANCELLED"
+]
+CorrectionKind = Literal["SHORT", "DAMAGED", "RETURNED", "OVER"]
+CorrectionSource = Literal["VERIFY", "MANUAL", "MATCH"]
+CorrectionStatus = Literal["PENDING", "POSTED", "REJECTED"]
 LandedCostKind = Literal["FREIGHT", "DUTY", "BROKERAGE", "INSURANCE", "OTHER"]
 CompareStatus = Literal[
     "MATCH", "SHORT", "OVER", "DAMAGED", "NOT_DECLARED", "NOT_RECEIVED", "DOC_CONFLICT"
@@ -1677,15 +1692,49 @@ class CompareRow(BaseModel):
     status: CompareStatus
 
 
+class PurchaseItemOut(BaseModel):
+    """One line of a purchase, as shown on lists ("5 box Yellow yam")."""
+
+    product_id: uuid.UUID
+    sku: str
+    product_name: str
+    unit_code: UnitCode
+    qty: Decimal
+
+
 class ShipmentOut(BaseModel):
     id: uuid.UUID
     shipment_no: str
     status: ShipmentStatus
     warehouse_id: uuid.UUID
     warehouse_code: str
-    vendor_id: uuid.UUID
+    # None / "" on a quick receive whose supplier is not known yet
+    vendor_id: uuid.UUID | None
     vendor_code: str
     vendor_name: str
+    entry: ShipmentEntry
+    stage: PurchaseStage
+    invoice_date: date | None
+    is_airport: bool
+    expected_pieces: int | None
+    verify_status: VerifyStatus | None
+    verified_pieces: int | None
+    verified_by_name: str | None
+    verified_at: datetime | None
+    needs_details: bool
+    quick_reason: str | None
+    details_completed_by_name: str | None
+    details_completed_at: datetime | None
+    matched_shipment_id: uuid.UUID | None
+    matched_shipment_no: str | None
+    # Supplier bill: Σ invoice qty × unit cost (per line, to the cent). Lines without a cost
+    # are counted, never guessed.
+    total: Decimal
+    unpriced_lines: int
+    line_count: int
+    items: list[PurchaseItemOut]
+    pending_corrections: int
+    review_count: int
     vendor_invoice_no: str | None
     awb_no: str | None
     currency: str
@@ -1705,6 +1754,47 @@ class ShipmentOut(BaseModel):
     created_at: datetime
 
 
+class CorrectionOut(BaseModel):
+    id: uuid.UUID
+    grn_line_id: uuid.UUID
+    product_id: uuid.UUID
+    sku: str
+    product_name: str
+    lot_id: uuid.UUID | None
+    lot_code: str | None
+    kind: CorrectionKind
+    unit_code: UnitCode
+    qty: Decimal
+    reason: str
+    source: CorrectionSource
+    status: CorrectionStatus
+    posted_qty: Decimal | None
+    # could not be taken from stock: already invoiced or reserved (never negative, D-05)
+    uncovered_qty: Decimal
+    needs_review: bool
+    review_note: str | None
+    reviewed_by_name: str | None
+    reviewed_at: datetime | None
+    # invoices that already took stock from this line's batch (shown when needs_review)
+    invoices: list[str]
+    created_by_name: str
+    created_at: datetime
+    decided_by_name: str | None
+    decided_at: datetime | None
+    decision_note: str | None
+
+
+class AbsorbedQuickOut(BaseModel):
+    """A quick receive that was matched into this purchase's invoice."""
+
+    id: uuid.UUID
+    shipment_no: str
+    quick_reason: str | None
+    created_by_name: str
+    created_at: datetime
+    items: list[PurchaseItemOut]
+
+
 class ShipmentDetail(ShipmentOut):
     documents: list[ShipmentDocOut]
     declared: list[DeclaredLineOut]
@@ -1714,6 +1804,121 @@ class ShipmentDetail(ShipmentOut):
     cost_totals: dict[str, Decimal]
     # What an empty Batch will most likely become when the line is saved (D-37); a preview.
     next_batch_ref: str
+    corrections: list[CorrectionOut]
+    absorbed: list[AbsorbedQuickOut]
+    # Pieces the shipment should have when every line is in boxes or pieces (else None)
+    line_pieces: int | None
+
+
+# ---------- purchases (owner, 2026-11-12): saved straight to stock ----------
+
+
+class PurchaseLineIn(BaseModel):
+    product_id: uuid.UUID
+    unit_code: UnitCode
+    qty: Qty
+    unit_cost: Money4 | None = None
+    # the line as the seller's invoice prints it (optional; the product name otherwise)
+    label: str | None = Field(default=None, max_length=200)
+    batch_ref: str | None = Field(default=None, max_length=64)
+    expires_at: datetime | None = None
+
+
+class PurchaseHeader(BaseModel):
+    vendor_invoice_no: str | None = Field(default=None, max_length=64)
+    invoice_date: date | None = None
+    currency: Currency | None = None
+    # Quick receives of the same goods that this invoice covers: their stock is not added again.
+    absorb_quick_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+    # Why the invoice and what was quick-received differ (needed only when they do).
+    reason: str | None = Field(default=None, max_length=500)
+    # The same supplier + invoice number is already entered: say yes to enter it again.
+    confirm_duplicate: bool = False
+
+
+class PurchaseAirport(BaseModel):
+    is_airport: bool = False
+    awb_no: str | None = Field(default=None, max_length=64)
+    expected_on: date | None = None
+    expected_pieces: int | None = Field(default=None, ge=0, le=1_000_000)
+
+
+class PurchaseIn(PurchaseHeader, PurchaseAirport):
+    """Save a purchase and add every line to stock at once."""
+
+    warehouse_id: uuid.UUID
+    vendor_id: uuid.UUID
+    note: str | None = Field(default=None, max_length=1000)
+    lines: list[PurchaseLineIn] = Field(min_length=1, max_length=200)
+
+
+class PurchaseLinesIn(BaseModel):
+    """More lines for a purchase already in stock (each is added to stock at once)."""
+
+    version: int = Field(ge=1)
+    lines: list[PurchaseLineIn] = Field(min_length=1, max_length=200)
+
+
+class QuickReceiveIn(BaseModel):
+    """Goods already on the shelf with no purchase entered: add them to stock now; the
+    supplier, invoice and cost follow ("Details to complete")."""
+
+    warehouse_id: uuid.UUID
+    product_id: uuid.UUID
+    unit_code: UnitCode
+    qty: Qty
+    vendor_id: uuid.UUID | None = None
+    reason: Reason
+    expires_at: datetime | None = None
+    # where it was needed, for the audit trail: "Packing sheet PK-…", "Invoice for …"
+    needed_for: str | None = Field(default=None, max_length=200)
+
+
+class PurchaseCompleteIn(PurchaseHeader):
+    """Match a quick receive to the real supplier invoice. Never posts its stock again."""
+
+    version: int = Field(ge=1)
+    vendor_id: uuid.UUID
+    lines: list[PurchaseLineIn] = Field(min_length=1, max_length=200)
+
+
+class VerifyLineIn(BaseModel):
+    line_id: uuid.UUID
+    arrived_qty: QtyNonNeg
+    damaged_qty: QtyNonNeg = Decimal(0)
+
+
+class VerifyIn(BaseModel):
+    """Airport shipment: the pieces counted on arrival. `lines` says what arrived for the
+    lines that differ (the others are taken as arrived in full)."""
+
+    version: int = Field(ge=1)
+    pieces_counted: int = Field(ge=0, le=1_000_000)
+    lines: list[VerifyLineIn] = Field(default_factory=list, max_length=200)
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class CorrectionIn(BaseModel):
+    version: int = Field(ge=1)
+    line_id: uuid.UUID
+    kind: CorrectionKind
+    qty: Qty
+    reason: Reason
+
+
+class CorrectionDecisionIn(BaseModel):
+    version: int = Field(ge=1)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class OcrToPurchaseIn(PurchaseHeader, PurchaseAirport):
+    """A fully reviewed supplier document becomes a purchase in stock."""
+
+    version: int = Field(ge=1)
+    vendor_id: uuid.UUID
+    reviewed_all: Literal[True]
+    # expiry date per reviewed line (line id → date), for products that track expiry
+    expiries: dict[uuid.UUID, datetime] = Field(default_factory=dict)
 
 
 class ShipmentPage(BaseModel):
@@ -2302,6 +2507,7 @@ class DirectInvoiceIssueIn(DirectInvoiceIn):
 
 
 class DirectStockOut(BaseModel):
+    product_id: uuid.UUID
     sku: str
     unit_code: str
     deduct_qty: Decimal

@@ -70,6 +70,7 @@ export const signed = (s: string) => (s.startsWith("-") ? `−${qtyText(s.slice(
 export const MOVEMENT_LABEL: Record<MovementType, string> = {
   OPENING_BALANCE: "Opening balance",
   GRN_RECEIPT: "Goods received",
+  GRN_CORRECTION: "Purchase correction",
   INVOICE_DISPATCH: "Invoice dispatch",
   ADJUSTMENT: "Adjustment",
   COUNT_ADJUSTMENT: "Count correction",

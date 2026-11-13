@@ -10,7 +10,7 @@ export type MenuAction =
  * "⋯" button with a small menu (menu-button pattern): Enter/Space/↓ opens it on the first item,
  * ↑/↓ move, Esc or Tab or a click outside closes it, and focus returns to the button.
  */
-export function MoreMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
+export function MoreMenu({ label, actions, text }: { label: string; actions: MenuAction[]; /** A labelled primary button ("New ▾") instead of the "⋯" icon. */ text?: string }) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -69,9 +69,16 @@ export function MoreMenu({ label, actions }: { label: string; actions: MenuActio
             setOpen(true);
           }
         }}
-        className="grid size-7 cursor-pointer place-items-center rounded-full text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink aria-expanded:bg-subtle aria-expanded:text-ink"
+        className={text ? "btn-primary gap-1.5" : "grid size-7 cursor-pointer place-items-center rounded-full text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink aria-expanded:bg-subtle aria-expanded:text-ink"}
       >
-        <Icon name="more" size={18} />
+        {text ? (
+          <>
+            {text}
+            <Icon name="chevronDown" size={16} />
+          </>
+        ) : (
+          <Icon name="more" size={18} />
+        )}
       </button>
       {open && (
         <div
@@ -80,7 +87,7 @@ export function MoreMenu({ label, actions }: { label: string; actions: MenuActio
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKey}
-          className="absolute right-0 top-full z-30 mt-1.5 w-48 animate-pop rounded-ctl border border-line bg-card p-1.5 shadow-[0_8px_24px_rgb(24_24_27/0.12)]"
+          className="absolute right-0 top-full z-30 mt-1.5 w-52 animate-pop rounded-ctl border border-line bg-card p-1.5 shadow-[0_8px_24px_rgb(24_24_27/0.12)]"
         >
           {actions.map((a) =>
             "to" in a ? (

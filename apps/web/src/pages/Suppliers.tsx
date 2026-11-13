@@ -293,7 +293,7 @@ export function SupplierDetailPage() {
       header: "What",
       cell: (e) =>
         e.kind === "SHIPMENT" ? (
-          <Link className={link} to={`/receiving/${e.id}`}>
+          <Link className={link} to={`/purchases/${e.id}`}>
             Shipment {e.ref}
           </Link>
         ) : (
@@ -310,7 +310,7 @@ export function SupplierDetailPage() {
       key: "n",
       header: "Shipment",
       cell: (s) => (
-        <Link className={`${link} whitespace-nowrap`} to={`/receiving/${s.id}`}>
+        <Link className={`${link} whitespace-nowrap`} to={`/purchases/${s.id}`}>
           {s.shipment_no}
         </Link>
       ),

@@ -117,10 +117,10 @@ _LIVE = {
                '/packing/' || a.id, a.status, a.created_at::date, NULL::numeric, NULL, NULL::uuid, NULL::uuid, NULL::uuid, 1000
         FROM picking_attempts a WHERE a.company_id = :cid AND upper(a.pick_code) = ANY(:forms)""",
     "shipment": """
-        SELECT 'shipment', s.id, s.warehouse_id, s.shipment_no, v.name || ' · ' || lower(s.status),
+        SELECT 'shipment', s.id, s.warehouse_id, s.shipment_no, coalesce(v.name, 'Supplier invoice to follow') || ' · ' || lower(s.status),
                '/receiving/' || s.id, s.status, coalesce(s.expected_on, s.created_at::date), NULL::numeric, NULL,
                NULL::uuid, s.vendor_id, NULL::uuid, 1000
-        FROM shipments s JOIN vendors v ON v.id = s.vendor_id
+        FROM shipments s LEFT JOIN vendors v ON v.id = s.vendor_id
         WHERE s.company_id = :cid AND (
             upper(s.shipment_no) = ANY(:forms) OR upper(s.grn_no) = ANY(:forms)
             OR upper(s.awb_no) = ANY(:forms) OR upper(s.vendor_invoice_no) = ANY(:forms)

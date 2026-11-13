@@ -202,6 +202,7 @@ export type LotStatus = "SALEABLE" | "DAMAGED" | "QUARANTINE" | "EXPIRED";
 export type MovementType =
   | "OPENING_BALANCE"
   | "GRN_RECEIPT"
+  | "GRN_CORRECTION"
   | "INVOICE_DISPATCH"
   | "ADJUSTMENT"
   | "COUNT_ADJUSTMENT"
@@ -450,10 +451,13 @@ export type PickLine = {
   id: string;
   order_line_id: string;
   line_no: number;
+  product_id: string;
   sku: string;
   product_name: string;
   unit_code: UnitCode;
   requested_qty: string;
+  /** Saleable stock the system shows for this product and unit right now. */
+  available_qty: string;
   picked_qty: string | null;
   outcome: "PICKED" | "SHORT" | "NO" | null;
   shortage_reason: ShortageReason | null;
@@ -506,7 +510,7 @@ export type InvoiceDraftLine = {
   /** lb per unit printed on the invoice (case size); absent before the D-12 template. */
   pack_lb?: string | null;
 };
-export type StockCheck = { pick_line_id: string; sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean };
+export type StockCheck = { pick_line_id: string; product_id: string; sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean };
 export type InvoicePreview = {
   pick_id: string;
   pick_code: string;
@@ -901,7 +905,45 @@ export type Vendor = {
   version: number;
 };
 export type ShipmentStatus = "OPEN" | "COUNTED" | "POSTED" | "CANCELLED";
-export type ShipmentDocKind = "AWB" | "INVOICE" | "PACKING_LIST" | "COMBINED" | "OTHER";
+export type ShipmentDocKind = "AWB" | "INVOICE" | "PACKING_LIST" | "COMBINED" | "CFIA" | "OTHER";
+/** LEGACY = the old count-then-approve flow; PURCHASE = saved straight to stock; QUICK = quick receive. */
+export type ShipmentEntry = "LEGACY" | "PURCHASE" | "QUICK";
+export type VerifyStatus = "TO_VERIFY" | "PENDING_OK" | "VERIFIED";
+/** Where a purchase stands, in the words the screens use. */
+export type PurchaseStage = "NOT_IN_STOCK" | "TO_COMPLETE" | "TO_VERIFY" | "TO_APPROVE" | "VERIFIED" | "IN_STOCK" | "CANCELLED";
+export type CorrectionKind = "SHORT" | "DAMAGED" | "RETURNED" | "OVER";
+export type PurchaseItem = { product_id: string; sku: string; product_name: string; unit_code: UnitCode; qty: string };
+export type PurchaseCorrection = {
+  id: string;
+  grn_line_id: string;
+  product_id: string;
+  sku: string;
+  product_name: string;
+  lot_id: string | null;
+  lot_code: string | null;
+  kind: CorrectionKind;
+  unit_code: UnitCode;
+  qty: string;
+  reason: string;
+  source: "VERIFY" | "MANUAL" | "MATCH";
+  status: "PENDING" | "POSTED" | "REJECTED";
+  posted_qty: string | null;
+  /** Could not be taken from stock: already invoiced or reserved. */
+  uncovered_qty: string;
+  needs_review: boolean;
+  review_note: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  invoices: string[];
+  created_by_name: string;
+  created_at: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+};
+export type PurchaseLineIn = { product_id: string; unit_code: UnitCode; qty: string; unit_cost?: string | null; label?: string | null; batch_ref?: string | null; expires_at?: string | null };
+export type PurchaseHeaderIn = { vendor_invoice_no?: string | null; invoice_date?: string | null; currency?: string | null; absorb_quick_ids?: string[]; reason?: string | null; confirm_duplicate?: boolean };
+export type PurchaseAirportIn = { is_airport?: boolean; awb_no?: string | null; expected_on?: string | null; expected_pieces?: number | null };
 export type LandedCostKind = "FREIGHT" | "DUTY" | "BROKERAGE" | "INSURANCE" | "OTHER";
 export type CompareStatus = "MATCH" | "SHORT" | "OVER" | "DAMAGED" | "NOT_DECLARED" | "NOT_RECEIVED" | "DOC_CONFLICT";
 export type Shipment = {
@@ -910,9 +952,32 @@ export type Shipment = {
   status: ShipmentStatus;
   warehouse_id: string;
   warehouse_code: string;
-  vendor_id: string;
+  /** null / "" on a quick receive whose supplier is not known yet. */
+  vendor_id: string | null;
   vendor_code: string;
   vendor_name: string;
+  entry: ShipmentEntry;
+  stage: PurchaseStage;
+  invoice_date: string | null;
+  is_airport: boolean;
+  expected_pieces: number | null;
+  verify_status: VerifyStatus | null;
+  verified_pieces: number | null;
+  verified_by_name: string | null;
+  verified_at: string | null;
+  needs_details: boolean;
+  quick_reason: string | null;
+  details_completed_by_name: string | null;
+  details_completed_at: string | null;
+  matched_shipment_id: string | null;
+  matched_shipment_no: string | null;
+  /** Supplier bill: Σ invoice qty × cost. Lines without a cost are counted in unpriced_lines. */
+  total: string;
+  unpriced_lines: number;
+  line_count: number;
+  items: PurchaseItem[];
+  pending_corrections: number;
+  review_count: number;
   vendor_invoice_no: string | null;
   awb_no: string | null;
   currency: string;
@@ -1013,6 +1078,11 @@ export type ShipmentDetail = Shipment & {
   cost_totals: Record<string, string>;
   /** What an empty Batch will most likely be named when the line is saved (D-37). */
   next_batch_ref: string;
+  corrections: PurchaseCorrection[];
+  /** Quick receives matched into this purchase's invoice. */
+  absorbed: { id: string; shipment_no: string; quick_reason: string | null; created_by_name: string; created_at: string; items: PurchaseItem[] }[];
+  /** Pieces the shipment should have when every line is in boxes or pieces. */
+  line_pieces: number | null;
 };
 export type CountIn = {
   product_id: string;
@@ -1288,7 +1358,7 @@ export const api = {
     request<Vendor>("POST", "/vendors", b, true),
   updateVendor: (id: string, b: { name: string; country_code: string | null; email: string | null; currency: string; active: boolean; version: number }) =>
     request<Vendor>("PATCH", `/vendors/${id}`, b, true),
-  shipments: (q: { status?: string; warehouse_id?: string; vendor_id?: string; q?: string; cursor?: string; limit?: number }) =>
+  shipments: (q: { status?: string; stage?: string; airport?: boolean; warehouse_id?: string; vendor_id?: string; q?: string; cursor?: string; limit?: number }) =>
     request<Page<Shipment>>("GET", `/shipments?${qs(q)}`),
   shipment: (id: string) => request<ShipmentDetail>("GET", `/shipments/${id}`),
   createShipment: (b: { warehouse_id: string; vendor_id: string; vendor_invoice_no?: string | null; awb_no?: string | null; currency?: string | null; expected_on?: string | null; note?: string | null }) =>
@@ -1324,6 +1394,24 @@ export const api = {
     request<ShipmentDetail>("POST", `/shipments/${id}/post`, b, true),
   cancelShipment: (id: string, version: number, reason: string) =>
     request<ShipmentDetail>("POST", `/shipments/${id}/cancel`, { version, reason }, true),
+  /* Purchases (owner, 2026-11-12): saved straight to stock; the record is a shipment. */
+  createPurchase: (b: PurchaseHeaderIn & PurchaseAirportIn & { warehouse_id: string; vendor_id: string; note?: string | null; lines: PurchaseLineIn[] }) =>
+    request<ShipmentDetail>("POST", "/purchases", b, true),
+  quickReceive: (b: { warehouse_id: string; product_id: string; unit_code: UnitCode; qty: string; vendor_id?: string | null; reason: string; expires_at?: string | null; needed_for?: string | null }) =>
+    request<ShipmentDetail>("POST", "/purchases/quick", b, true),
+  completePurchase: (id: string, b: PurchaseHeaderIn & { version: number; vendor_id: string; lines: PurchaseLineIn[] }) =>
+    request<ShipmentDetail>("POST", `/purchases/${id}/complete`, b, true),
+  addPurchaseLines: (id: string, version: number, lines: PurchaseLineIn[]) =>
+    request<ShipmentDetail>("POST", `/purchases/${id}/lines`, { version, lines }, true),
+  stockOldShipment: (id: string, version: number) => request<ShipmentDetail>("POST", `/purchases/${id}/stock`, { version }, true),
+  verifyPurchase: (id: string, b: { version: number; pieces_counted: number; lines?: { line_id: string; arrived_qty: string; damaged_qty?: string }[]; reason?: string | null }) =>
+    request<ShipmentDetail>("POST", `/purchases/${id}/verify`, b, true),
+  addCorrection: (id: string, b: { version: number; line_id: string; kind: CorrectionKind; qty: string; reason: string }) =>
+    request<ShipmentDetail>("POST", `/purchases/${id}/corrections`, b, true),
+  decideCorrection: (id: string, correctionId: string, what: "approve" | "reject" | "reviewed", version: number, note?: string | null) =>
+    request<ShipmentDetail>("POST", `/purchases/${id}/corrections/${correctionId}/${what}`, { version, note: note ?? null }, true),
+  ocrToPurchase: (id: string, b: PurchaseHeaderIn & PurchaseAirportIn & { version: number; vendor_id: string; reviewed_all: true; expiries?: Record<string, string> }) =>
+    request<OcrExtractionDetail>("POST", `/ocr/extractions/${id}/to-purchase`, b, true),
   documents: (q: { kind?: DocFileKind; sync_status?: DocSyncStatus; warehouse_id?: string; invoice_id?: string; shipment_id?: string; q?: string; cursor?: string; limit?: number }) =>
     request<DocumentPage>("GET", `/documents?${qs(q)}`),
   document: (id: string) => request<DocumentFile>("GET", `/documents/${id}`),
@@ -1706,7 +1794,7 @@ export type DirectPreview = {
   tax_amount: string;
   total: string;
   /** `lots`: the batches issuing takes, in order. */
-  stock: { sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean; lots?: string[] }[];
+  stock: { product_id: string; sku: string; unit_code: UnitCode; deduct_qty: string; available_qty: string; ok: boolean; lots?: string[] }[];
   stock_ok: boolean;
 };
 

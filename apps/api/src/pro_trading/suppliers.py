@@ -25,6 +25,7 @@ from .models import (
     Employee,
     GrnLine,
     LandedCost,
+    PurchaseCorrection,
     Shipment,
     SupplierPayment,
     Vendor,
@@ -94,7 +95,12 @@ def _billed(db: Session, shipment_ids: list[uuid.UUID]) -> dict[uuid.UUID, tuple
 def _posted(
     db: Session, company_id: uuid.UUID, vendor_id: uuid.UUID | None = None
 ) -> list[Shipment]:
-    q = select(Shipment).where(Shipment.company_id == company_id, Shipment.status == "POSTED")
+    # A quick receive matched into another purchase's invoice is billed (and listed) there.
+    q = select(Shipment).where(
+        Shipment.company_id == company_id,
+        Shipment.status == "POSTED",
+        Shipment.matched_shipment_id.is_(None),
+    )
     if vendor_id:
         q = q.where(Shipment.vendor_id == vendor_id)
     return list(db.scalars(q.order_by(Shipment.posted_at, Shipment.shipment_no)))
@@ -118,6 +124,8 @@ def balances(db: Session, company_id: uuid.UUID) -> list[dict[str, Any]]:
     count: dict[uuid.UUID, int] = defaultdict(int)
     last_rx: dict[uuid.UUID, Any] = {}
     for s in ships:
+        if s.vendor_id is None:  # a quick receive whose supplier is not known yet
+            continue
         billed[s.vendor_id][s.currency] += billed_by.get(s.id, (ZERO, 0))[0]
         count[s.vendor_id] += 1
         last_rx[s.vendor_id] = s.posted_at
@@ -168,19 +176,38 @@ def ledger(db: Session, company_id: uuid.UUID, v: Vendor) -> dict[str, Any]:
             ).where(DeclaredLine.shipment_id.in_(ids), DeclaredLine.removed_at.is_(None))
         ):
             units[sid][unit]["declared"] += Decimal(q)
+        home = func.coalesce(Shipment.matched_shipment_id, Shipment.id)
         for sid, unit, a, d, r in db.execute(
             select(
-                GrnLine.shipment_id,
+                home,
                 GrnLine.unit_code,
                 GrnLine.accepted_qty,
                 GrnLine.damaged_qty,
                 GrnLine.rejected_qty,
-            ).where(GrnLine.shipment_id.in_(ids))
+            )
+            .join(Shipment, Shipment.id == GrnLine.shipment_id)
+            .where(home.in_(ids))
         ):
             row = units[sid][unit]
             row["accepted"] += Decimal(a)
             row["damaged"] += Decimal(d)
             row["rejected"] += Decimal(r)
+        # Later corrections to a purchase: short / returned = not accepted, damaged = damaged,
+        # more than invoiced = accepted. Only what was really posted to stock counts.
+        for sid, unit, kind, posted in db.execute(
+            select(
+                PurchaseCorrection.shipment_id,
+                PurchaseCorrection.unit_code,
+                PurchaseCorrection.kind,
+                PurchaseCorrection.posted_qty,
+            ).where(PurchaseCorrection.shipment_id.in_(ids), PurchaseCorrection.status == "POSTED")
+        ):
+            row, qty = units[sid][unit], Decimal(posted or 0)
+            if kind == "OVER":
+                row["accepted"] += qty
+            else:
+                row["accepted"] -= qty
+                row["damaged" if kind == "DAMAGED" else "rejected"] += qty
     costs: dict[uuid.UUID, list[dict[str, Any]]] = defaultdict(list)
     if ids:
         for sid, kind, amt, cur in db.execute(

@@ -76,7 +76,7 @@ export function OverviewPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Link to="/scan" className="btn-ghost border-transparent py-3"><Icon name="scan" />Scan</Link>
-          <Link to="/receiving" className="btn-ghost border-transparent py-3"><Icon name="receiving" />Receive</Link>
+          <Link to="/purchases/new" className="btn-ghost border-transparent py-3"><Icon name="receiving" />New purchase</Link>
           <Link to="/orders/new" className="btn-primary px-6 py-3"><Icon name="plus" />New order</Link>
         </div>
       </section>

@@ -35,8 +35,10 @@ PERMISSIONS: Final[dict[str, str]] = {
     "inventory.reserve": "Reserve/release stock for orders",
     "inventory.reverse": "Reverse a posted stock movement (compensating entry)",
     "inventory.reconcile": "Rebuild cached balances from the stock ledger",
-    "grn.record": "Record receiving counts",
-    "grn.approve": "Approve and post GRN",
+    "grn.record": "Enter purchases and quick receives (stock is added at once); verify airport "
+    "shipments; record corrections",
+    "grn.approve": "Approve or refuse purchase corrections (shortage, damage, returns); cancel "
+    "a shipment that is not in stock",
     "scan.create": "Start scans / upload documents",
     "scan.review": "Review OCR extractions",
     "scan.device.manage": "Pair, approve and revoke office scanner bridges",
@@ -164,7 +166,7 @@ DEFAULT_ROLES: Final[dict[str, tuple[str, str, frozenset[str]]]] = {
     ),
     "WAREHOUSE": (
         "Warehouse",
-        "Packing, receiving counts and stock counts.",
+        "Packing, purchases and quick receives, and stock counts.",
         frozenset(
             {
                 "warehouse.read",

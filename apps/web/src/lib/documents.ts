@@ -28,7 +28,7 @@ export function linkedTo(f: Pick<DocumentFile, "invoice_no" | "customer_name" | 
 /** In-app route for the linked record, if any. */
 export function linkedHref(f: Pick<DocumentFile, "invoice_id" | "shipment_id" | "scan_job_id">): string | null {
   if (f.invoice_id) return `/invoices/${f.invoice_id}`;
-  if (f.shipment_id) return `/receiving/${f.shipment_id}`;
+  if (f.shipment_id) return `/purchases/${f.shipment_id}`;
   if (f.scan_job_id) return `/scan/${f.scan_job_id}`;
   return null;
 }

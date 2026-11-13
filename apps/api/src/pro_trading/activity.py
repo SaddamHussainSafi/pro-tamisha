@@ -251,6 +251,50 @@ KINDS: dict[str, Kind] = {
         "received stock", "Stock Received", "success", "receiving",
         lambda lk, r: _s(r.detail.get("grn_no")) or lk.shipment(r.target_id), _to("/receiving"),
     ),
+    "shipment.purchase": Kind(
+        "saved a purchase (stock added)", "Purchase", "success", "receiving",
+        lambda lk, r: _s(r.detail.get("shipment_no")) or lk.shipment(r.target_id),
+        _to("/purchases"),
+    ),
+    "shipment.add_lines": Kind(
+        "added lines to a purchase (stock added)", "Purchase", "success", "receiving",
+        _d("shipment_no"), _to("/purchases"),
+    ),
+    "shipment.stock": Kind(
+        "added an old shipment to stock", "Purchase", "success", "receiving",
+        _d("shipment_no"), _to("/purchases"),
+    ),
+    "shipment.quick_receive": Kind(
+        "quick-received goods found in the warehouse", "Quick receive", "warning", "receiving",
+        lambda lk, r: " ".join(
+            x for x in (_s(r.detail.get("entered")), _s(r.detail.get("product"))) if x
+        ) or None,
+        _to("/purchases"), lambda lk, r: _s(r.detail.get("reason")),
+    ),
+    "shipment.complete": Kind(
+        "matched a quick receive to its invoice", "Purchase", "success", "receiving",
+        _d("shipment_no"), _to("/purchases"),
+    ),
+    "shipment.verify": Kind(
+        "verified an airport shipment", "Purchase", "info", "receiving",
+        _d("shipment_no"), _to("/purchases"), lambda lk, r: _s(r.detail.get("reason")),
+    ),
+    "shipment.correction": Kind(
+        "recorded a correction on a purchase", "Purchase", "warning", "receiving",
+        _d("shipment_no"), _to("/purchases"),
+    ),
+    "shipment.correction_approve": Kind(
+        "approved a purchase correction", "Purchase", "warning", "receiving",
+        _d("shipment_no"), _to("/purchases"),
+    ),
+    "shipment.correction_reject": Kind(
+        "refused a purchase correction", "Purchase", "info", "receiving",
+        _d("shipment_no"), _to("/purchases"), lambda lk, r: _s(r.detail.get("note")),
+    ),
+    "shipment.correction_reviewed": Kind(
+        "reviewed a flagged shortage", "Purchase", "info", "receiving",
+        _d("shipment_no"), _to("/purchases"), lambda lk, r: _s(r.detail.get("note")),
+    ),
     # scans & website orders
     "ocr_extraction.accept": Kind(
         "approved a scanned order", "Scan Approved", "success", "scan", _d("order_no"),

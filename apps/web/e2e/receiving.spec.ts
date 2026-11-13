@@ -5,9 +5,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type Fixture = { password: string; users: { owner: string; warehouse: string; sales: string } };
 
-// Fresh synthetic company with seeded vendors (V-ACC Accra Roots Exports …) and catalog.
+// Fresh synthetic company with seeded vendors (V-ACC Accra Roots Exports …), catalog and prices, no stock.
 const fx: Fixture = JSON.parse(
-  execFileSync("uv", ["run", "python", "scripts/e2e_fixture.py"], {
+  execFileSync("uv", ["run", "python", "scripts/purchases_fixture.py"], {
     cwd: resolve(import.meta.dirname, "../../api"),
     encoding: "utf8",
     env: { ...process.env, PYTHONPATH: "src" },
@@ -21,7 +21,7 @@ const invoice = Buffer.from(
 );
 
 test.describe.configure({ mode: "serial" });
-let shipmentUrl = "";
+let purchaseUrl = "";
 
 async function signIn(page: Page, email: string) {
   await page.goto("/login");
@@ -42,119 +42,122 @@ async function pick(select: Locator, text: string) {
   await select.selectOption(value ?? "");
 }
 
-test("warehouse counts a shipment: 25 declared, 23 good + 2 damaged, sent for approval", async ({ page }) => {
+// "Receiving" became "Purchases" (owner, 2026-11-12): one purchase, in stock the moment it is
+// saved. There is no count and no approval step any more.
+test("warehouse enters a purchase by hand: it is in stock at once, with no approval", async ({ page }) => {
   await signIn(page, fx.users.warehouse);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await page.getByRole("link", { name: /^Receiving/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Receiving" })).toBeVisible();
+  await page.goto("/purchases"); // by address: the sidebar has its own spec
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Purchases" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Sales orders" })).toBeVisible(); // warehouse staff may read orders
 
-  await page.getByRole("button", { name: "New shipment" }).click();
-  const form = page.getByRole("form", { name: "New shipment" });
-  // The arrival date starts as today and can be changed.
+  await page.getByRole("button", { name: "New" }).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["New purchase", "Quick receive"]); // no sales orders for the warehouse
+  await page.getByRole("menuitem", { name: "New purchase" }).click();
+  const form = page.getByRole("form", { name: "New purchase" });
   const d = new Date();
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  await expect(form.getByLabel("Arrives on")).toHaveValue(today);
+  await expect(form.getByLabel("Invoice date")).toHaveValue(today);
   await pick(form.getByLabel("Supplier", { exact: true }), "V-ACC");
-  await form.getByLabel("Supplier invoice no.").fill("ARX-5521");
-  await form.getByLabel("Airway bill no.").fill("176-55512345");
-  await page.screenshot({ path: "screenshots/receiving-new-1440.png", fullPage: true });
-  await form.getByRole("button", { name: "Create shipment" }).click();
-  await expect(page.getByRole("heading", { name: /^Receive SHP-/ })).toBeVisible();
-  shipmentUrl = page.url();
-  await expect(page.getByText("Optional — you can count by hand without any document.")).toBeVisible();
-  // Warehouse staff can't open Gmail files, so only Upload and the Scan Center are offered.
-  const add = page.getByRole("group", { name: "Add a document" });
-  await expect(add.getByRole("button", { name: "From Gmail" })).toHaveCount(0);
-  await expect(add.getByRole("button", { name: "From Scan Center" })).toBeVisible();
-  await page.screenshot({ path: "screenshots/receiving-empty-1440.png", fullPage: true });
+  await form.getByLabel("Invoice no.").fill("ARX-5521");
+  // The keyboard path: product, Enter, quantity, Enter, cost, Enter → next line.
+  await form.getByLabel("Product, line 1", { exact: true }).fill("CFZ");
+  await form.getByLabel("Product, line 1", { exact: true }).press("Enter");
+  await expect(form.getByLabel("Quantity, line 1", { exact: true })).toBeFocused();
+  await form.getByLabel("Unit, line 1", { exact: true }).selectOption("BOX");
+  await form.getByLabel("Quantity, line 1", { exact: true }).fill("2.5");
+  await expect(form.getByRole("list", { name: "Lines to fix" })).toContainText("Line 1: Boxes and pieces are whole numbers.");
+  await form.getByLabel("Quantity, line 1", { exact: true }).fill("25");
+  await form.getByLabel("Quantity, line 1", { exact: true }).press("Enter");
+  await expect(form.getByLabel("Cost per unit, line 1", { exact: true })).toBeFocused();
+  await form.getByLabel("Cost per unit, line 1", { exact: true }).fill("18.50");
+  await form.getByLabel("Cost per unit, line 1", { exact: true }).press("Enter");
+  await expect(form.getByLabel("Product, line 2", { exact: true })).toBeFocused();
+  // Cassava tracks expiry: the grid asks for its date (the column shows only when needed).
+  await expect(form.getByRole("list", { name: "Lines to fix" })).toContainText("Line 1: This product needs its expiry date.");
+  await form.getByLabel("Expiry date, line 1", { exact: true }).fill("2027-06-30");
+  await form.getByLabel("Product, line 2", { exact: true }).fill("PLG");
+  await form.getByLabel("Product, line 2", { exact: true }).press("Enter");
+  await form.getByLabel("Unit, line 2", { exact: true }).selectOption("BOX");
+  await form.getByLabel("Quantity, line 2", { exact: true }).fill("4"); // cost not known yet
+  await expect(form.getByRole("status")).toContainText("2 lines · Invoice total USD 462.50 · 1 without a cost");
+  await axe(page);
+  await page.screenshot({ path: "screenshots/purchase-new-1440.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(form.getByLabel("Invoice no.")).toBeVisible();
+  await axe(page);
+  await page.screenshot({ path: "screenshots/purchase-new-390.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
 
-  // Vendor invoice, kept unaltered.
+  await form.getByRole("button", { name: "Save & add to stock" }).click();
+  await expect(page.getByRole("heading", { name: /^Purchase SHP-/ })).toBeVisible();
+  purchaseUrl = page.url();
+  await expect(page.getByRole("status").filter({ hasText: "Saved. Every line is in stock now." })).toBeVisible();
+  await expect(page.getByText("In stock", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("line-CFZ")).toContainText("25 boxes");
+  await expect(page.getByTestId("line-PLG")).toContainText("Cost to follow");
+  await expect(page.getByRole("region", { name: "Invoice lines" })).toContainText("USD 462.50");
+  await expect(page.getByTestId("stock-CFZ")).toContainText("ARE-"); // batch named after the supplier
+
+  // The seller's invoice can be attached afterwards and is kept as received.
+  const add = page.getByRole("group", { name: "Add a document" });
+  await expect(add.getByRole("button", { name: "From Gmail" })).toHaveCount(0); // warehouse can't open Gmail files
   await add.getByLabel("Document type").selectOption("INVOICE");
   await add.getByLabel("Number on it").fill("ARX-5521");
   await page.getByTestId("doc-upload").setInputFiles({ name: "vendor-invoice.png", mimeType: "image/png", buffer: invoice });
   await expect(page.getByRole("status").filter({ hasText: "Supplier invoice added" })).toBeVisible();
   await expect(page.getByRole("img", { name: /^Original Supplier invoice/ })).toBeVisible();
-  await page.getByRole("button", { name: "Supplier invoice ARX-5521" }).click(); // fold the viewer away
-  await expect(page.getByRole("img", { name: /^Original Supplier invoice/ })).toHaveCount(0);
+  // A local purchase has no freight / duty section.
+  await expect(page.getByText("Freight, duty and other costs")).toHaveCount(0);
 
-  // What physically arrived: one grid row, batch left empty → named from the supplier.
-  const cl = page.getByRole("form", { name: "Add count line" });
-  await cl.getByLabel("Batch").focus();
-  await expect(cl.getByLabel("Batch")).toHaveAttribute("placeholder", "ARE-0001");
-  // Unit: box, lb and kg are offered; lb unless the documents are in kg.
-  await expect(cl.getByLabel("Unit", { exact: true })).toHaveValue("LB");
-  await expect(cl.getByLabel("Unit", { exact: true }).locator("option")).toHaveText(["box", "lb", "kg"]);
-  await cl.getByLabel("Product").fill("CFZ");
-  await cl.getByLabel("Unit", { exact: true }).selectOption("BOX");
-  await cl.getByLabel("Good").fill("23");
-  await cl.getByLabel("Damaged", { exact: true }).fill("2");
-  await cl.getByLabel(/^Expiry/).fill("2027-06-30");
-  await cl.getByLabel("Good").press("Enter");
-  await expect(page.getByRole("status").filter({ hasText: "Count line saved" })).toBeVisible();
-  const lines = page.getByRole("list", { name: "Counted lines" });
-  await expect(lines.getByRole("listitem").filter({ hasText: "CFZ" })).toContainText("ARE-0001");
-  await expect(cl.getByLabel("Product")).toBeFocused(); // ready for the next row
-  await expect(cl.getByLabel("Batch")).toHaveAttribute("placeholder", "ARE-0002");
-
-  // What the invoice says — optional, folded away until used; the vendor's own wording maps
-  // through the remembered alias.
-  await page.getByText("Check against the documents").click();
-  await page.getByRole("button", { name: "Add document line" }).click();
-  const dl = page.getByRole("form", { name: "Add document line" });
-  await dl.getByLabel("Description as printed").fill("MANIOC FROZEN 40LB CTN");
-  await dl.getByLabel("Unit", { exact: true }).selectOption("BOX");
-  await dl.getByLabel("Quantity on document").fill("25");
-  await dl.getByLabel(/Unit cost/).fill("18.50");
-  await dl.getByRole("button", { name: "Add line" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Document line added" })).toBeVisible();
-  await expect(page.getByText("“MANIOC FROZEN 40LB CTN”")).toBeVisible();
-
-  const cmp = page.getByRole("region", { name: "Documents vs. what arrived" });
-  await expect(cmp.getByRole("row").filter({ hasText: "CFZ" })).toContainText("Damaged");
+  // Later: 2 boxes turn out crushed. A correction with a reason; the warehouse can't post it.
+  await page.getByRole("button", { name: "Correct Cassava frozen" }).click();
+  const dlg = page.getByRole("dialog", { name: "Correct Cassava frozen" });
+  await dlg.getByLabel(/^Damaged/).check();
+  await dlg.getByLabel("How many").fill("2");
+  await dlg.getByRole("button", { name: "Send for approval" }).click();
+  await expect(dlg.getByRole("alert")).toContainText("Give a reason");
+  await dlg.getByLabel("Reason (required)").fill("Two cartons crushed in the cooler");
+  await dlg.getByRole("button", { name: "Send for approval" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "A manager must approve it" })).toBeVisible();
+  await expect(page.getByTestId("correction-DAMAGED")).toContainText("waiting for a manager's OK. Stock is unchanged.");
+  await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
   await axe(page);
-  await page.screenshot({ path: "screenshots/receiving-count-1440.png", fullPage: true });
+  await page.screenshot({ path: "screenshots/purchase-detail-1440.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(cl.getByLabel("Product")).toBeVisible();
   await axe(page);
-  await page.screenshot({ path: "screenshots/receiving-count-390.png", fullPage: true });
+  await page.screenshot({ path: "screenshots/purchase-detail-390.png", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  // Warehouse can't approve; it sends the count on.
-  await expect(page.getByRole("button", { name: "Approve & post stock" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Send count for approval" }).click();
-  await expect(page.getByText("Waiting for approval").first()).toBeVisible();
-  await expect(page.getByRole("form", { name: "Add count line" })).toHaveCount(0);
+  // The stock is there right away.
+  await page.goto("/inventory");
+  await page.getByRole("searchbox").first().fill("CFZ");
+  await expect(page.getByRole("row").filter({ hasText: /CFZ-/ }).first()).toContainText("25");
 });
 
-test("manager approves: only the 23 good boxes become saleable, and posting twice is impossible", async ({ page }) => {
+test("manager approves the correction: damaged boxes are put aside, and old Receiving links still open", async ({ page }) => {
   await signIn(page, fx.users.owner);
-  // Two-step sign-in is optional (2026-11-09): the owner lands on Overview.
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  await page.getByRole("link", { name: /^Receiving/ }).first().click();
-  const row = page.getByRole("row").filter({ hasText: "Waiting for approval" }).first();
-  await expect(row).toBeVisible();
+  // A bookmark from before the rename.
+  await page.goto("/receiving");
+  await expect(page).toHaveURL(/\/purchases$/);
+  const row = page.getByRole("row").filter({ hasText: "ARX-5521" }).first();
+  await expect(row).toContainText("1 correction to approve");
+  await expect(row).toContainText("USD 462.50");
   await axe(page);
-  await page.screenshot({ path: "screenshots/receiving-list-1440.png", fullPage: true });
-  await row.getByRole("link").first().click();
-  await expect(page).toHaveURL(shipmentUrl);
+  await page.screenshot({ path: "screenshots/purchases-list-1440.png", fullPage: true });
+  await page.goto(purchaseUrl.replace("/purchases/", "/receiving/"));
+  await expect(page).toHaveURL(purchaseUrl);
 
-  await page.getByRole("button", { name: "Approve & post stock" }).click();
-  const dlg = page.getByRole("dialog", { name: "Approve and post stock?" });
-  await expect(dlg).toContainText("23 box");
-  // Differences must be acknowledged with a note.
-  await dlg.getByRole("button", { name: "Approve & post" }).click();
-  await expect(dlg.getByRole("alert")).toBeVisible();
-  await dlg.getByLabel(/I checked the differences/).check();
-  await dlg.getByLabel("What happened? (required)").fill("2 cartons crushed in transit; photos sent to vendor.");
-  await axe(page);
-  await dlg.getByRole("button", { name: "Approve & post" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Approved." })).toBeVisible();
-  await expect(page.getByText(/GRN-\d{8}-\d{4} posted/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Approve & post stock" })).toHaveCount(0);
-  await page.screenshot({ path: "screenshots/receiving-posted-1440.png", fullPage: true });
+  await page.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Approved. Stock was corrected." })).toBeVisible();
+  await expect(page.getByTestId("correction-DAMAGED")).toContainText("moved out of saleable stock");
+  await expect(page.getByTestId("stock-CFZ")).toContainText("25 boxes");
+  await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0); // once
 
-  // Stock: CFZ now has the 23 saleable boxes plus a separate damaged lot of 2.
+  // Stock: 23 saleable boxes plus a separate damaged lot of 2.
   await page.goto("/inventory");
   await page.getByRole("searchbox").first().fill("CFZ");
   await expect(page.getByRole("row").filter({ hasText: /-DMG/ }).first()).toBeVisible();

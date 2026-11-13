@@ -398,6 +398,134 @@ def shipment_posted(db: Session, ev: AuditInfo) -> None:
     )
 
 
+def _qty(v: Any) -> str:
+    """ "1.0000" -> "1", "2.5000" -> "2.5"."""
+    try:
+        return f"{Decimal(str(v)).normalize():f}"
+    except (ArithmeticError, ValueError):
+        return "?"
+
+
+def _goods(ev: AuditInfo) -> str:
+    added = ev.detail.get("added_to_stock") or []
+    return _plural(len(added), "line") if added else "no new stock"
+
+
+def _purchase_alerts(db: Session, ev: AuditInfo, s: Shipment) -> None:
+    """Shared by every purchase command: a correction waiting for a manager's OK goes to the
+    people who can give it; one that hit stock already invoiced or reserved goes to the owner
+    (Super Admin), the actor included, because it is a to-do and not a courtesy note."""
+    pending = int(ev.detail.get("pending") or 0)
+    flagged = [str(x) for x in ev.detail.get("flagged") or []]
+    vendor = _name(db, Vendor, s.vendor_id) or "Supplier invoice to follow"
+    if pending:
+        notify_safely(
+            db,
+            s.company_id,
+            "purchase.correction_pending",
+            event_id=f"purchase.correction_pending:{s.id}:{ev.request_id or s.version}",
+            target_type="shipment",
+            target_id=s.id,
+            category="receiving",
+            severity="warning",
+            source_module="Purchases",
+            title=f"Purchase {s.shipment_no}: {_plural(pending, 'difference')} need your OK",
+            body=f"{vendor} · nothing is changed in stock until you approve or refuse",
+            link=f"/purchases/{s.id}",
+            permission="grn.approve",
+            warehouse_id=s.warehouse_id,
+            actor_id=ev.actor_id,
+        )
+    for cid in flagged:
+        c: dict[str, Any] = next(
+            (x for x in ev.detail.get("corrections") or [] if str(x.get("id")) == cid), {}
+        )
+        notify_safely(
+            db,
+            s.company_id,
+            "purchase.review",
+            event_id=f"purchase.review:{cid}",
+            target_type="shipment",
+            target_id=s.id,
+            category="receiving",
+            severity="critical",
+            source_module="Purchases",
+            title=f"Review: shortage on stock already invoiced ({s.shipment_no})",
+            body=(
+                f"{vendor} · {_qty(c.get('uncovered'))} {str(c.get('unit', '')).lower()} could "
+                "not be taken from stock because it was already invoiced or reserved. Stock was "
+                "not forced below zero; check the invoices and the shelf."
+            ),
+            link=f"/purchases/{s.id}",
+            permission="company.manage",
+            warehouse_id=s.warehouse_id,
+            actor_id=ev.actor_id,
+            include_actor=True,
+        )
+
+
+@rule("shipment.purchase", "shipment.add_lines", "shipment.stock")
+def purchase_saved(db: Session, ev: AuditInfo) -> None:
+    s: Shipment | None = _get(db, Shipment, ev.target_id)
+    if s is None:
+        return
+    notify_safely(
+        db,
+        s.company_id,
+        "purchase.in_stock",
+        event_id=f"purchase.in_stock:{s.id}:{ev.request_id or s.version}",
+        target_type="shipment",
+        target_id=s.id,
+        category="receiving",
+        severity="success",
+        source_module="Purchases",
+        title=f"Stock added: purchase {s.shipment_no}",
+        body=f"{_name(db, Vendor, s.vendor_id)} · {_goods(ev)} now in stock"
+        + (" · airport shipment, to verify on arrival" if s.verify_status == "TO_VERIFY" else ""),
+        link=f"/purchases/{s.id}",
+        permission="sales_order.manage",
+        warehouse_id=s.warehouse_id,
+        actor_id=ev.actor_id,
+    )
+    _purchase_alerts(db, ev, s)
+
+
+@rule("shipment.quick_receive")
+def quick_received(db: Session, ev: AuditInfo) -> None:
+    s: Shipment | None = _get(db, Shipment, ev.target_id)
+    if s is None:
+        return
+    d = ev.detail
+    notify_safely(
+        db,
+        s.company_id,
+        "purchase.quick_receive",
+        target_type="shipment",
+        target_id=s.id,
+        category="receiving",
+        severity="warning",
+        source_module="Purchases",
+        title=f"Quick receive: {d.get('entered', '')} {d.get('product', '')} added to stock",
+        body=f"Reason: {d.get('reason', '')} · details to complete (supplier, invoice, cost)",
+        link=f"/purchases/{s.id}",
+        permission="grn.approve",
+        warehouse_id=s.warehouse_id,
+        actor_id=ev.actor_id,
+    )
+
+
+@rule(
+    "shipment.complete",
+    "shipment.verify",
+    "shipment.correction",
+    "shipment.correction_approve",
+)
+def purchase_followed_up(db: Session, ev: AuditInfo) -> None:
+    s: Shipment | None = _get(db, Shipment, ev.target_id)
+    if s is not None:
+        _purchase_alerts(db, ev, s)
+
+
 # ------------------------------------------------------------------ scans & OCR
 
 

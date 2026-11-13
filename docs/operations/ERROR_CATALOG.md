@@ -114,10 +114,12 @@ rephrase some of them) and adds "Nothing was saved." when a change was refused. 
 | `CUSTOMER_CHOICE` | 422 | order_connect | Pick an existing customer or create a new one | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `CUSTOMER_INACTIVE` | 422 | orders | {…} is inactive | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `CUSTOMER_REF_REQUIRED` | 422 | pricing | Give the customer a reference code first (needed for CSV import/export) | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `DAMAGED_OVER_ARRIVED` | 422 | purchases | Damaged can't be more than what arrived | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `DEVICE_AUTH_FAILED` | 401 | scanning | Scanner bridge is not paired or was revoked | Nothing saved (refused before any change) | Sign in again (dialog over the page) |
 | `DEVICE_NOT_ACTIVE` | 409 | scans | This scanner is not approved | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `DISCREPANCY_ACK_REQUIRED` | 422 | receiving | {…} line(s) differ from the vendor documents. Acknowledge them with a note. | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `DISPATCH_NOT_CONFIRMED` | 422 | invoices | Confirm the goods were dispatched before issuing the invoice (D-01) / Confirm the goods were handed over before issuing the invoice (D-01) | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `DOC_CONFLICT` | 409 | purchases | The supplier documents list different quantities. Withdraw the wrong line first. | Nothing saved (refused before any change) | Withdraw the wrong document line on the old shipment, then add it to stock |
 | `DRAFT_EXISTS` | 409 | gmail/processing | A draft was already created from this document. Confirm to read it again. | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `DRIVE_DISABLED` | 409 | documents | Drive copying is turned off for this installation | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `DUPLICATE` | 409 | _common, inventory, warehouses | duplicate_msg / Lot code {…} already exists | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
@@ -137,7 +139,7 @@ rephrase some of them) and adds "Nothing was saved." when a change was refused. 
 | `EXCEEDS_INVOICE_BALANCE` | 409 | payments | Invoice {…} has only CAD {…} open | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `EXCEEDS_PAYMENT` | 409 | payments | Only CAD {…} of this payment is unapplied | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `EXCEEDS_PENDING` | 409 | orders | Only {…} {…} is pending on line {…} | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
-| `EXPIRY_REQUIRED` | 422 | inventory, receiving | {…} requires an expiry date | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `EXPIRY_REQUIRED` | 422 | inventory, receiving, purchases | {…} requires an expiry date / (asked only for goods going into stock now) | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `EXTRACTION_FINAL` | 409 | ocr | This scan was already {…} | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `FIELDS_UNRESOLVED` | 409 | ocr | {…} line(s) still need review | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `FILE_TYPE_MISMATCH` | 415 | scanning | The file contents do not match its type | Nothing saved (refused before any change) | Use a PDF, JPEG or PNG |
@@ -179,35 +181,42 @@ rephrase some of them) and adds "Nothing was saved." when a change was refused. 
 | `INVALID_PRODUCT` | 422 | line_preview, orders, inventory, ocr | Line {…}: product not found / Product not found | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_PROFILE` | 422 | catalog | {…} is a base unit and takes no conversion factors / Only one default unit profile is allowed | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_QUANTITY` | 422 | catalog, ocr | str(e) / The quantity must be more than zero | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `INVALID_QUICK_RECEIVE` | 422 | purchases | Quick receive not found | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `INVALID_RANGE` | 422 | reports | The start date is after the end date | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_ROLE` | 422 | employees | Unknown role | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_SCAN` | 422 | receiving | Scan not found | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_SCOPE` | 422 | order_connect/forms, pricing | Pick at least one category or product / Some categories or products were not found | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_SHIPMENT` | 422 | ocr, suppliers | That shipment is not from this supplier | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `INVALID_STAGE` | 422 | receiving | Unknown stage: {…} | Nothing saved (refused before any change) | Nothing to do: the list falls back to All |
 | `INVALID_STATE` | 409 | documents, inventory, payments, ocr | Only failed copies can be retried / Reservation is not active | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `INVALID_THEME` | 422 | order_connect/forms | Accent must be a colour like #1B7A30 / Corner style must be none, small or large | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_TRANSITION` | 409 | order_connect/review | A {…} submission can't become {…} | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `INVALID_UNIT` | 422 | inventory, pricing | {…} is not stocked in {…} / {…} has no active {…} unit profile | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_VENDOR` | 422 | ocr, receiving | Supplier not found / Vendor not found | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVALID_WAREHOUSE` | 422 | inventory, ocr, order_connect, orders | Warehouse not found / Unknown warehouse | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `INVOICE_ALREADY_ENTERED` | 409 | purchases, ocr | Invoice {…} from {…} was already entered as {…}. Entering it again adds its goods to stock a second time. | Nothing saved (refused before any change) | Open the purchase it names; or confirm “Enter it again” if it really is a second delivery |
 | `INVOICE_CUSTOMER_MISMATCH` | 422 | payments | The invoice belongs to another customer / Invoice {…} belongs to another customer | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `INVOICE_NOT_OPEN` | 409 | payments | Invoice {…} is {…} | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `IN_USE` | 409 | trash | f"{label} can't be deleted: it is used by {_ref_text(refs)}. {hint}".strip() / Something new started using this record while it was being deleted. Try again. | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `LAST_OWNER` | 422 | employees, trash | Keep at least one active Owner / Admin / Keep at least one active Super Admin | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `LINE_NOT_IN_STOCK` | 409 | purchases | That line is not in stock (yet) | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `LOGO_DIMENSIONS` | 422 | order_connect/forms | That image is too large in pixels | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `LOGO_TOO_LARGE` | 413 | order_connect/forms | Logos must be 1 MB or smaller / That logo is still over 512 KB as a PNG | Nothing saved (refused before any change) | Use a smaller file |
 | `LOGO_TYPE` | 415 | order_connect/forms, order_connect | That file is not a readable PNG, JPEG or WebP / Use a PNG, JPEG or WebP logo | Nothing saved (refused before any change) | Use a PDF, JPEG or PNG |
 | `LOT_NOT_SALEABLE` | 409 | inventory, orders | Lot {…} is not saleable | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `LOT_RESERVED` | 409 | inventory | Release reservations on this lot first | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
+| `MATCH_REASON_REQUIRED` | 422 | purchases, ocr | The invoice and what was already added to stock differ. Say why. | Nothing saved (refused before any change) | The screen lists each difference and opens a reason field; give the reason and save again |
 | `MFA_ALREADY_ENROLLED` | 409 | auth | Two-step sign-in is already on | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `MFA_INVALID` | 400 | auth | That code is wrong or was already used / That code is wrong. Check the time on your phone. | Nothing saved (refused before any change) | Fix the entry / ask for a new link |
 | `MFA_NOT_ENROLLED` | 409 | auth | Two-step sign-in is not turned on | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `MFA_NOT_STARTED` | 409 | auth | Start the setup first | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
+| `MORE_THAN_RECEIVED` | 422 | purchases | Only {…} {…} were received on this line | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NEEDS_CORRECTION` | 422 | ocr | Line {…} was not read clearly. Correct it or remove it. | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NOTHING_COUNTED` | 422 | receiving | Count at least one line first | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NOTHING_TO_INVOICE` | 422 | invoicing | Nothing was packed on this sheet; there is nothing to bill | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NOTHING_TO_PICK` | 409 | orders | Nothing is pending on this order | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `NOTHING_TO_PUBLISH` | 409 | order_connect | There are no unpublished changes | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
+| `NOT_AIRPORT` | 409 / 422 | purchases, receiving | Only airport shipments are verified on arrival / Freight, duty and other landed costs are recorded for airport shipments only | Nothing saved (refused before any change) | Nothing to do for a local purchase |
 | `NOT_APPROVED` | 409 | order_connect | Approve the submission before converting it | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `NOT_DELETABLE` | 409 | trash | message | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `NOT_PAIRED` | 409 | scans | The bridge has not used the pairing code yet | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
@@ -219,7 +228,7 @@ rephrase some of them) and adds "Nothing was saved." when a change was refused. 
 | `NO_CHANGES` | 422 | pricing | Prices are identical to {…}; nothing to publish | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NO_EMAIL_ADDRESS` | 422 | invoicing | The customer has no email address; add one first | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NO_HEADER` | 409 | ocr | Only supplier documents have header values | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
-| `NO_LINES` | 422 | ocr | There are no lines to put on an order / There are no lines to declare | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `NO_LINES` | 422 | ocr, purchases | There are no lines to put on an order / There are no lines to declare / There are no lines to add to stock / This shipment has no lines to add to stock | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `NO_PRICE` | 404 | pricing | e.reason | Nothing saved (refused before any change) | Go back to the list; it may be deleted or in Trash |
 | `NO_PRICE` | 409 | invoicing | {…} has no confirmed rate | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `NO_PRICE` | 422 | invoicing, orders | No per-lb price for {…} on the order's confirmation date / msg | Nothing saved (refused before any change) | Fix what the message names and try again |
@@ -229,13 +238,16 @@ rephrase some of them) and adds "Nothing was saved." when a change was refused. 
 | `PAIRING_CODE_INVALID` | 403 | scans | Pairing code is wrong, used or expired | Nothing saved (refused before any change) | Ask an owner or admin |
 | `PASSWORD_REQUIRED` | 422 | auth | Enter your password to turn this on | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `PICK_INCOMPLETE` | 422 | orders | {…} line(s) have no packed quantity | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `PIECES_DIFFER` | 422 | purchases | {…} pieces counted, {…} expected. Enter what arrived for the lines that differ. | Nothing saved (refused before any change) | The dialog opens the lines: enter what arrived and why |
 | `POSTING_KEY_CONFLICT` | 409 | inventory | This event was already posted differently | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `PRODUCT_INACTIVE` | 409 | inventory, receiving | {…} is inactive | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `PRODUCT_INACTIVE` | 422 | orders, ocr | Line {…}: {…} is inactive / {…} is inactive | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `PUSH_NOT_CONFIGURED` | 401 | gmail | Push is not set up on this server | Nothing saved (refused before any change) | Sign in again (dialog over the page) |
 | `PUSH_REJECTED` | 401 | gmail | This push could not be verified | Nothing saved (refused before any change) | Sign in again (dialog over the page) |
+| `QUICK_ALREADY_MATCHED` | 409 | purchases | {…} was already matched to an invoice | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
+| `QUICK_NOT_ON_INVOICE` | 422 | purchases, ocr | The goods already added to stock are not on this invoice: {…}. Add them as lines, or leave that quick receive out. | Nothing saved (refused before any change) | Choose “Different goods” for that quick receive, or add the missing line |
 | `RANGE_TOO_LONG` | 422 | reports | Choose a range of at most {…} days | Nothing saved (refused before any change) | Fix what the message names and try again |
-| `REASON_REQUIRED` | 422 | ocr, orders | Say why this line should be removed / Give a reason for cancelling the shortfall | Nothing saved (refused before any change) | Fix what the message names and try again |
+| `REASON_REQUIRED` | 422 | ocr, orders, purchases | Say why this line should be removed / Give a reason for cancelling the shortfall / Say why the count differs / Say why it is refused / Say what was done about it | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `REBUILD_CONFLICT` | 409 | inventory | Ledger for lot {…} {…} cannot satisfy its reservations | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `RESTORE_CONFLICT` | 409 | trash | {…} can't be restored. / {…} can't be restored: something it belongs to no longer exists (restore that first if it is in the Trash). | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `SAME_PASSWORD` | 422 | employees | Choose a new password | Nothing saved (refused before any change) | Fix what the message names and try again |
@@ -247,6 +259,7 @@ rephrase some of them) and adds "Nothing was saved." when a change was refused. 
 | `SHORTAGE_REASON_REQUIRED` | 422 | orders | Line {…}: say why less was packed | Nothing saved (refused before any change) | Fix what the message names and try again |
 | `SOURCE_DOCUMENT_REQUIRED` | 409 | inventory | {…} is corrected through its source document | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `STALE_COUNT` | 409 | inventory | Stock moved after counting; recount these lots | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
+| `SUPPLIER_NEEDED` | 409 | receiving | Choose the supplier (complete the details) before adding documents | Nothing saved (refused before any change) | Open the quick receive and choose Complete details |
 | `SUSPENDED` | 409 | employees | Reactivate them first | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `TAX_RULES_UNVERIFIED` | 409 | invoicing | Invoices cannot be issued until tax rules are verified by the accountant (D-03) | Nothing saved (refused before any change) | Reload to see the current state, then do what the message says |
 | `TOKEN_INVALID` | 400 | account | This link is invalid, already used or expired. Ask for a new one. | Nothing saved (refused before any change) | Fix the entry / ask for a new link |

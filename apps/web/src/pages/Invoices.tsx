@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, canInWarehouse, has, invoicePdfUrl, type Invoice, type InvoicePreview, type InvoiceSummary, type Pick } from "../api";
+import { api, ApiError, canInWarehouse, has, invoicePdfUrl, type Invoice, type InvoicePreview, type InvoiceSummary, type Pick, type ShipmentDetail } from "../api";
 import { useAuth } from "../auth";
 import { defaultCaseWeight } from "../lib/caseSizes";
 import { cad, dec, qty, toFixed } from "../lib/decimal";
 import { qtyText } from "../lib/inventory";
 import { INVOICE_STATE } from "../lib/payments";
+import { shortfall } from "../lib/purchases";
 import { EMAIL_STATUS, invoiceMessage, toWeightRows, weightTotals, type WeightDraft } from "../lib/invoices";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { NumericInput } from "../ui/NumericInput";
 import { InvoiceFiles } from "./Documents";
+import { AddedNotice, AddFoundStock } from "./Purchases";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
@@ -291,6 +293,7 @@ export function IssueInvoicePage() {
   const [note, setNote] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [added, setAdded] = useState<ShipmentDetail | null>(null);
 
   const enteredWeights = useCallback(
     () => Object.fromEntries(Object.entries(weights).filter(([k]) => byWeight[k]).map(([k, rows]) => [k, toWeightRows(rows)])),
@@ -435,13 +438,28 @@ export function IssueInvoicePage() {
         </div>
       </section>
 
+      <AddedNotice added={added} />
       <section className="card space-y-3 p-6" aria-labelledby="st-h">
         <h2 id="st-h" className="font-semibold">Stock check</h2>
         <ul className="space-y-1 text-sm">
           {pv.stock.map((s) => (
-            <li key={s.pick_line_id} data-testid={`stock-${s.sku}`}>
-              <StatusChip tone={s.ok ? "success" : "danger"}>{s.ok ? "In stock" : "Short"}</StatusChip>{" "}
-              {s.sku}: deduct {qtyText(s.deduct_qty)} {s.unit_code}, {qtyText(s.available_qty)} available
+            <li key={s.pick_line_id} data-testid={`stock-${s.sku}`} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <StatusChip tone={s.ok ? "success" : "danger"}>{s.ok ? "In stock" : "Short"}</StatusChip>
+              <span>{s.sku}: deduct {qtyText(s.deduct_qty)} {s.unit_code}, {qtyText(s.available_qty)} available</span>
+              {!s.ok && shortfall(s.deduct_qty, s.available_qty) && (
+                <AddFoundStock
+                  warehouseId={pick.warehouse_id}
+                  productId={s.product_id}
+                  productName={pick.lines.find((l) => l.id === s.pick_line_id)?.product_name ?? s.sku}
+                  unit={s.unit_code}
+                  qty={shortfall(s.deduct_qty, s.available_qty) as string}
+                  neededFor={`Invoice for packing sheet ${pick.pick_code}`}
+                  onAdded={(x) => {
+                    setAdded(x);
+                    void refresh(enteredWeights());
+                  }}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -461,7 +479,7 @@ export function IssueInvoicePage() {
           <button className="btn-primary" disabled={!dispatched || !pv.can_issue || !weightsReady || busy} onClick={() => setConfirm(true)}>
             Issue invoice
           </button>
-          {!pv.can_issue && <p className="text-sm text-danger">Not enough stock to issue. Check the shelf or count the stock.</p>}
+          {!pv.can_issue && <p className="text-sm text-danger">Not enough stock in the system to issue. If the goods are on the shelf, add them above with “found in the warehouse”; otherwise count the stock.</p>}
         </section>
       ) : (
         <p className="alert-warning" role="note">A manager issues this invoice. You can check the preview.</p>

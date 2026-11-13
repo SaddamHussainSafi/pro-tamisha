@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   ApiError,
@@ -26,8 +26,11 @@ import { figureColumns, useGridProducts, useLinePreview } from "../lib/gridData"
 import { GridProblems, TotalsBar } from "../ui/gridParts";
 import { Icon } from "../ui/Icon";
 import { LineGrid, type GridColumn, type LineGridHandle } from "../ui/LineGrid";
+import { MoreMenu, type MenuAction } from "../ui/MoreMenu";
 import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
+import { usePurchaseWarehouse } from "../lib/purchaseWarehouse";
+import { PurchasesTab, QuickReceiveDialog } from "./Purchases";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const when = (iso: string | null) =>
@@ -56,11 +59,67 @@ const VIEW_STATUS: Record<View, string | undefined> = {
   all: undefined,
 };
 
+/** One Orders page: "Sales orders" (what customers ask for) and "Purchases" (what the company
+ * buys), each with its own address (/orders, /purchases), the same search and filter bar. */
 export function OrdersPage() {
   const { session } = useAuth();
   const nav = useNavigate();
-  const [view, setView] = useState<View>("open");
+  const loc = useLocation();
   const [search, setSearch] = useState("");
+  const [quick, setQuick] = useState(false);
+  const wh = usePurchaseWarehouse(session);
+  // Old address of the Purchases tab: /orders?tab=purchases
+  const legacyTab = loc.pathname === "/orders" && new URLSearchParams(loc.search).get("tab") === "purchases";
+  useEffect(() => {
+    if (!legacyTab) return;
+    const rest = new URLSearchParams(loc.search);
+    rest.delete("tab");
+    nav(`/purchases${rest.size ? `?${rest}` : ""}`, { replace: true });
+  }, [legacyTab, loc.search, nav]);
+
+  if (!session) return null;
+  const canSell = has(session, "sales_order.read") || has(session, "sales_order.manage");
+  const canBuy = has(session, "grn.record") || has(session, "grn.approve");
+  const tab: "sales" | "purchases" = loc.pathname.startsWith("/purchases") || legacyTab ? "purchases" : "sales";
+  const actions: MenuAction[] = [
+    ...(has(session, "sales_order.manage") ? [{ label: "New sales order", icon: "cart" as const, to: "/orders/new" }] : []),
+    ...(wh ? [{ label: "New purchase", icon: "receiving" as const, to: "/purchases/new" }, { label: "Quick receive", icon: "plus" as const, onSelect: () => setQuick(true) }] : []),
+  ];
+  const tabs = [
+    { id: "sales" as const, label: "Sales orders", to: "/orders", show: canSell },
+    { id: "purchases" as const, label: "Purchases", to: "/purchases", show: canBuy },
+  ].filter((t) => t.show || t.id === tab);
+  const tabCls = (on: boolean) => `-mb-px border-b-2 px-3 py-2 text-sm font-medium ${on ? "border-brand-primary text-ink" : "border-transparent text-ink-muted hover:text-ink"}`;
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Orders"
+        subtitle={tab === "sales" ? "Sales orders: customer requests as written. Invoices are numbered only when goods are actually supplied." : "Purchases: what was bought from suppliers. Stock is added the moment a purchase is saved."}
+        actions={actions.length > 0 && <MoreMenu label="New" text="New" actions={actions} />}
+      />
+      <div role="tablist" aria-label="Orders" className="flex gap-1 border-b border-line">
+        {tabs.map((t) => (
+          <Link key={t.id} role="tab" aria-selected={tab === t.id} to={t.to} className={tabCls(tab === t.id)}>
+            {t.label}
+          </Link>
+        ))}
+      </div>
+      {tab === "sales" ? (
+        canSell ? <SalesOrdersTab search={search} onSearch={setSearch} /> : <EmptyState title="No access to sales orders" hint="Ask a manager if you need it." />
+      ) : canBuy ? (
+        <PurchasesTab search={search} onSearch={setSearch} />
+      ) : (
+        <EmptyState title="No access to purchases" hint="Purchases are entered by the warehouse and managers." />
+      )}
+      <QuickReceiveDialog open={quick} warehouseId={wh} onClose={() => setQuick(false)} onDone={(p) => nav(`/purchases/${p.id}`, { state: { saved: "quick" } })} />
+    </div>
+  );
+}
+
+function SalesOrdersTab({ search, onSearch }: { search: string; onSearch: (s: string) => void }) {
+  const nav = useNavigate();
+  const [view, setView] = useState<View>("open");
   const [rows, setRows] = useState<OrderSummary[] | null>(null);
   const [total, setTotal] = useState(0);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -89,7 +148,6 @@ export function OrdersPage() {
   }, [load]);
   useTrashChanges(load);
 
-  if (!session) return null;
   const columns: Column<OrderSummary>[] = [
     { key: "no", header: "Order", cell: (r) => <Link className={link} to={`/orders/${r.id}`}>{r.order_no}</Link>, sort: (r) => r.order_no },
     { key: "cust", header: "Customer", cell: (r) => r.customer_name, sort: (r) => r.customer_name },
@@ -101,13 +159,8 @@ export function OrdersPage() {
     { key: "delete", header: "", align: "right", cell: (r) => (r.status === "DRAFT" ? <DeleteAction kind="sales_order" id={r.id} label={`Order ${r.order_no}`} compact /> : null) },
   ];
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Sales orders"
-        subtitle="Customer requests as written. Invoices are numbered only when goods are actually supplied."
-        actions={has(session, "sales_order.manage") && <Link className="btn-primary" to="/orders/new">New order</Link>}
-      />
-      <FilterBar search={search} onSearch={setSearch} options={VIEWS} value={view} onChange={setView} placeholder="Search order or customer" />
+    <>
+      <FilterBar search={search} onSearch={onSearch} options={VIEWS} value={view} onChange={setView} placeholder="Search order or customer" />
       <section className="card overflow-clip">
         {error ? (
           <ErrorState title="Couldn't load orders" onRetry={() => void load()} />
@@ -131,7 +184,7 @@ export function OrdersPage() {
           </>
         )}
       </section>
-    </div>
+    </>
   );
 }
 

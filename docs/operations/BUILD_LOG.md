@@ -1161,3 +1161,39 @@ No application code has been generated or executed by this planning pack. This l
 - **Mappings to know:** Purchase Orders → `/purchases` and Warehouse › Receiving → `/purchases?view=verify` (both from the Purchases session's uncommitted work: until that lands in git these two entries only work in the shared working tree). **Purchase Invoices has no page** (shown as "Soon"). Integrations → Settings › Email services (Super Admin, `mail.manage`). The "Online" tab on the Orders page itself belongs to the Purchases session's `Orders.tsx` (requested).
 - Role visibility as before: Email needs `mail.use`; Users & Roles needs company-wide `employee.manage`; ERP Trash needs the Trash permission.
 - **Results:** `tsc` clean; eslint clean; vitest 326 passed (menu order, current entry, breadcrumbs, ⌘K list). Playwright: navigation 9 (Scan label vs chevron, deep link / refresh / Back, rail by keyboard and by touch, roles, phone drawer) and the specs updated for the new labels (smoke, settings, trash, suppliers, documents, activity, products, pricing, reports, scans, ocr, new-invoice, gmail sidebar, catalog), plus email, search, order-connect, packing-sheet, shell-scroll, customers, inventory, payments, errors: all pass. Not from this change: `gmail.spec` inbox "Today" count fails when run just after midnight (seeded emails fall on yesterday); documents (Drive copy) and the live-OCR scan specs as before; the Purchases session's own specs are still in progress (`receiving.spec` clicks a `Purchases` link that is now the `Purchase Orders` entry).
+
+## 2026-11-13 — Purchases: one flow, in stock on save, airport verification, quick receive
+
+Owner decisions of 2026-11-12 (D-48 … D-55, `docs/modules/08-receiving.md`).
+
+- **Receiving is now Purchases.** One record for every supplier (no purchase types): supplier, invoice no. and date, lines (product, qty, unit, cost). Entered by hand in the keyboard grid, from a scanned / uploaded invoice that a person has checked line by line ("Save & add to stock" on the review screen), or both.
+- **Stock on save.** `POST /purchases` creates the purchase, its invoice lines, one batch + one ledger row per line (posting key `grn:{line}:accepted`) in one transaction. No count, no approval. Same key → replay; the same supplier + invoice number again → refused unless confirmed.
+- **Later fixes are corrections** (`purchase_corrections`, ledger type `GRN_CORRECTION`): short, damaged, returned, more than invoiced, always with a reason. A manager (`grn.approve`) posts at once; anyone else's waits for the manager's OK. Stock never goes below zero: what was already invoiced or reserved is left, the rest is flagged **To review** and the owner is alerted. Invoicing is not blocked.
+- **Airport shipments:** tick box + airway bill, expected arrival, pieces, CFIA documents, landed costs (airport only). In stock before pickup; **Verify pieces** on arrival → Verified, or corrections for the difference.
+- **Quick receive:** goods on the shelf with no purchase. Product + qty, supplier if known, reason required; in stock at once; offered on a short packing line and on both invoice screens ("Add 5 BOX found in the warehouse"). Marked **Details to complete** until matched to the supplier's invoice (by hand, or by answering "Same goods" when the invoice is entered or scanned). Matching never posts the stock again; only a quantity difference becomes a correction. Daily reminder while any are open.
+- **Orders page:** tabs Sales orders / Purchases (`/purchases`), same search and filters, badges "Airport · to verify", "Details to complete", "N corrections to approve", "To review". **New** → New sales order / New purchase / Quick receive. `/receiving…` links redirect.
+- **Database:** migration `0033_purchases` (additive; existing shipments get `entry = LEGACY`, nothing posted is changed; rollback notes in its header). Dev database backed up first: `checkpoints/pre-purchases-2026-11-12/tami.dump`, then `alembic upgrade head` → `0033`.
+- **Also:** packing lines and both invoice stock checks now return the product and the stock the system shows; supplier page folds a matched quick receive into its invoice and shows posted corrections; search copes with a purchase that has no supplier yet; the supplier-document header's list markup was fixed (axe); the worker has a `purchases_to_complete` beat task (hourly check, one reminder a day).
+
+Commands and results (from `apps/api` and `apps/web`):
+
+| Command | Result |
+|---|---|
+| `uv run ruff check src` · `uv run ruff format --check` (touched files) | clean |
+| `uv run mypy src/pro_trading` | 2 errors, both in `ocr.py` and there before this change |
+| `PYTHONPATH=src uv run python scripts/export_openapi.py` | `contracts/openapi.implemented.json` regenerated (12 new paths) |
+| `DATABASE_URL=…/tami_test_purch uv run pytest tests/test_purchases.py -q` | 23 passed (retry, 4-way concurrency for save / duplicate invoice / approval / quick receive, shortage on invoiced stock, matching, guards) |
+| `DATABASE_URL=…/tami_test_purch uv run pytest -q` | 694 passed, 1 skipped, 0 failed (whole suite, incl. the contract test); the reminder test added afterwards passed in `tests/test_purchases.py` on a second database (23 passed) |
+| `npx tsc -b --noEmit` · `npx eslint` (touched files) | clean |
+| `npx vitest run` | 326 passed (`lib/purchases.test.ts` +12) |
+| `npx playwright test receiving purchases-scan purchases-airport purchases-quick orders packing-sheet invoices new-invoice ocr-review-grid inventory order-screen` | 29 passed, axe clean at 1440 and 390 px |
+
+Screenshots (`apps/web/screenshots/`): `purchase-new-{1440,390}`, `purchase-detail-{1440,390}`, `purchases-list-{1440,390}`, `purchases-list-airport-1440`, `purchase-airport-new-1440`, `purchase-airport-to-verify-1440`, `purchase-verify-dialog-{1440,390}`, `purchase-verified-flagged-{1440,390}`, `purchase-scan-review-{1440,390}`, `purchase-from-scan-1440`, `purchase-scan-match-quick-1440`, `purchase-matched-{1440,390}`, `purchase-complete-details-1440`, `purchases-to-complete-{1440,390}`, `packing-short-line-{1440,390}`, `quick-receive-dialog-{1440,390}`, `invoice-short-line-1440`.
+
+Not done / to know:
+- The reading in the scan specs comes from the in-process test reader (a typed synthetic invoice); a real paper invoice was not scanned in these tests.
+- `e2e/navigation.spec.ts` and `e2e/gmail.spec.ts` name sidebar entries; they are being changed by the menu work in progress and were left to it. The purchase specs open screens by address.
+- The Orders page draws its own Sales orders / Purchases tab strip; `components/OrdersTabs.tsx` (menu work, not yet committed) has the same strip plus "Online" and can replace it.
+- Old helpers for the count screen remain in `lib/receiving.ts` (unused now, still unit-tested).
+- Open questions recorded: D-50 (propose a credit note / count for flagged stock?), D-51 (should Sales quick receive?), D-54 (do shortages reduce what the supplier is owed?).
+

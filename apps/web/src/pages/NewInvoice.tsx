@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, ApiError, canInWarehouse, type Customer, type DirectInvoiceIn, type DirectPreview, type PickSummary, type UnitCode } from "../api";
+import { api, ApiError, canInWarehouse, type Customer, type DirectInvoiceIn, type DirectPreview, type PickSummary, type ShipmentDetail, type UnitCode } from "../api";
 import { termsLabel } from "../lib/customers";
 import { useAuth } from "../auth";
 import { GmailPicker } from "../components/gmail/GmailPicker";
@@ -9,6 +9,7 @@ import { cad, dec } from "../lib/decimal";
 import { productsFromInvoice } from "../lib/directInvoice";
 import { qtyText } from "../lib/inventory";
 import { invoiceMessage } from "../lib/invoices";
+import { shortfall } from "../lib/purchases";
 import { billable, blankLine, ensureRows, gridProblem, isFilled, nextKey, pickProduct, rowProblem, untouched, weightOf, withPrefill, type GridLine } from "../lib/lineGrid";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { batchColumn, figureColumns, useGridProducts, useLinePreview } from "../lib/gridData";
@@ -16,6 +17,7 @@ import { GridProblems, TotalsBar } from "../ui/gridParts";
 import { Icon } from "../ui/Icon";
 import { LineGrid, type GridColumn, type LineGridHandle } from "../ui/LineGrid";
 import { CardTitle, ConfirmDialog, EmptyState, LoadingRows, PageHeader } from "../ui/primitives";
+import { AddedNotice, AddFoundStock } from "./Purchases";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const tabs = [
@@ -157,7 +159,9 @@ function Direct() {
     }
   }, [storeKey]);
 
-  const lp = useLinePreview(customer, wh, lines);
+  const [stockTick, setStockTick] = useState(0);
+  const [added, setAdded] = useState<ShipmentDetail | null>(null);
+  const lp = useLinePreview(customer, wh, lines, stockTick);
   if (!session) return null;
   const canIssue = !!wh && canInWarehouse(session, "invoice.issue", wh);
   const used = billable(lines);
@@ -420,6 +424,39 @@ function Direct() {
             </p>
           )}
           <GridProblems items={problems} />
+          {(() => {
+            // Lines the system has too little stock for. If the goods are on the shelf, they can
+            // be added right here (quick receive); a line tied to one batch is fixed in the grid.
+            const short = lines.flatMap((l) => {
+              const e = lp.entry(l);
+              const miss = e && l.qty.trim() && !e.stock_ok && !l.lot_id ? shortfall(e.qty, e.available_qty) : null;
+              return e && miss ? [{ l, e, miss }] : [];
+            });
+            if (!short.length || !wh) return null;
+            return (
+              <ul className="space-y-1.5 text-sm" aria-label="Not enough stock in the system">
+                {short.map(({ l, e, miss }) => (
+                  <li key={l.key} className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid={`short-${e.sku}`}>
+                    <span className="text-danger">{l.text || e.sku}: the system shows only {qtyText(e.available_qty)} {UNIT_SHORT[e.unit_code]}.</span>
+                    <AddFoundStock
+                      warehouseId={wh}
+                      productId={e.product_id}
+                      productName={l.text || e.sku}
+                      unit={e.unit_code}
+                      qty={miss}
+                      neededFor="New invoice"
+                      onAdded={(x) => {
+                        setAdded(x);
+                        setPv(null);
+                        setStockTick((n) => n + 1);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+          <AddedNotice added={added} />
         </div>
         {error && (
           <p role="alert" className="alert-danger">
@@ -428,7 +465,7 @@ function Direct() {
         )}
         {checked && !checked.data.stock_ok && (
           <p role="alert" className="alert-warning">
-            Not enough stock for every line. Lower the quantities, choose another batch, or count the stock first.
+            Not enough stock in the system for every line. If the goods are on the shelf, add them with “found in the warehouse” above; otherwise lower the quantities or choose another batch.
           </p>
         )}
         <TotalsBar

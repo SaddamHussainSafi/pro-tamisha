@@ -18,6 +18,10 @@ export type GridLine = {
   prefilled?: boolean;
   /** Pounds the whole line weighs (boxes; e.g. the WEIGHT on the order sheet): priced per lb. */
   weight?: string;
+  /** Purchases: what one unit costs on the supplier's invoice (empty = cost to follow). */
+  cost?: string;
+  /** Purchases: expiry date (YYYY-MM-DD) of a product that tracks expiry. */
+  expires?: string;
 };
 
 export const MIN_ROWS = 20;

@@ -1,18 +1,21 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, ApiError, canInWarehouse, type Disposition, type Pick, type PickStatus, type PickSummary, type ShortageReason } from "../api";
+import { api, ApiError, canInWarehouse, type Disposition, type Pick, type PickStatus, type PickSummary, type ShipmentDetail, type ShortageReason } from "../api";
 import { useAuth } from "../auth";
 import { PackingPaper, PackingPrintCopies } from "../components/packing/PackingPaper";
+import { isDecimal } from "../lib/decimal";
 import { qtyText, wholeOnly } from "../lib/inventory";
 import { ordersMessage, PICK_STATUS, pickOutcome, SHORTAGE_LABEL } from "../lib/orders";
 import { PACKING_COPIES, printPackingSheet } from "../lib/packing";
+import { shortfall } from "../lib/purchases";
 import { useTrashChanges } from "../lib/trash";
 import { DataGrid, type Column } from "../ui/DataGrid";
 import { DeleteAction } from "../ui/DeleteAction";
 import { NumericInput } from "../ui/NumericInput";
 import { ConfirmDialog, EmptyState, ErrorState, FilterBar, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 import { ReasonDialog } from "./Orders";
+import { AddedNotice, AddFoundStock } from "./Purchases";
 
 const link = "font-medium text-brand-primary-hover underline-offset-2 hover:underline";
 const PickChip = ({ status }: { status: PickStatus }) => <StatusChip tone={PICK_STATUS[status].tone}>{PICK_STATUS[status].label}</StatusChip>;
@@ -108,6 +111,7 @@ export function PickSheetPage() {
   const [search, setSearch] = useSearchParams();
   const view: View = search.get("view") === "paper" ? "paper" : "record";
   const [printing, setPrinting] = useState(false);
+  const [added, setAdded] = useState<ShipmentDetail | null>(null);
 
   const apply = (x: Pick) => {
     setP(x);
@@ -138,6 +142,16 @@ export function PickSheetPage() {
     };
   }, [id]);
 
+  /** After a quick receive: show the new stock figures, keep what the picker has typed. */
+  const stockAdded = async (x: ShipmentDetail) => {
+    setAdded(x);
+    try {
+      setP(await api.pick(id));
+    } catch {
+      /* the figures refresh on the next load */
+    }
+  };
+
   const run = async (fn: () => Promise<Pick>, msg: string) => {
     setError(null);
     setSaved(null);
@@ -161,6 +175,8 @@ export function PickSheetPage() {
   const canVerify = canInWarehouse(session, "pick.verify", p.warehouse_id) && p.status === "SUBMITTED";
   const canClose = canInWarehouse(session, "sales_order.close", p.warehouse_id);
   const canAbort = canInWarehouse(session, "sales_order.manage", p.warehouse_id) && ["CREATED", "IN_PROGRESS", "SUBMITTED", "NEEDS_CORRECTION"].includes(p.status);
+  // Until the sheet is invoiced, a line the system has no stock for can be quick-received.
+  const stockOpen = !["INVOICED", "ABORTED"].includes(p.status);
   const complete = p.lines.every((l) => l.picked_qty !== null);
   const shortLines = p.lines.filter((l) => l.outcome && l.outcome !== "PICKED");
   const cancelling = shortLines.some((l) => disp[l.id] === "CANCEL");
@@ -230,6 +246,7 @@ export function PickSheetPage() {
       {p.status === "NEEDS_CORRECTION" && p.status_note && <p className="alert-warning" role="status">Sent back: {p.status_note}</p>}
       {error && <p className="alert-danger" role="alert">{error}</p>}
       {saved && <p className="alert-success" role="status">{saved}</p>}
+      <AddedNotice added={added} />
       <PackingPrintCopies p={p} />
       <div role="group" aria-label="Sheet view" className="inline-flex rounded-full border border-line bg-card p-1">
         {VIEWS.map((o) => (
@@ -278,7 +295,20 @@ export function PickSheetPage() {
                 return (
                   <tr key={l.id} data-testid={`pick-${l.sku}`}>
                     <td className="td num">{l.line_no}</td>
-                    <td className="td"><span className="font-medium">{l.sku}</span> <span className="text-ink-muted">{l.product_name}</span></td>
+                    <td className="td">
+                      <span className="font-medium">{l.sku}</span> <span className="text-ink-muted">{l.product_name}</span>
+                      {(() => {
+                        // What the invoice will take: the packed quantity once typed, else what is requested.
+                        const need = e.qty.trim() && isDecimal(e.qty) ? e.qty.trim() : l.requested_qty;
+                        const missing = stockOpen ? shortfall(need, l.available_qty) : null;
+                        return missing ? (
+                          <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 print:hidden" data-testid={`short-${l.sku}`}>
+                            <span className="text-xs text-danger">The system shows only {qtyText(l.available_qty)} {l.unit_code} in stock.</span>
+                            <AddFoundStock warehouseId={p.warehouse_id} productId={l.product_id} productName={l.product_name} unit={l.unit_code} qty={missing} neededFor={`Packing sheet ${p.pick_code}`} onAdded={(x) => void stockAdded(x)} />
+                          </span>
+                        ) : null;
+                      })()}
+                    </td>
                     <td className="td num text-right">{qtyText(l.requested_qty)} {l.unit_code}</td>
                     <td className="td">
                       {canRecord ? (

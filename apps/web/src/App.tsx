@@ -28,6 +28,7 @@ const chunks = {
   picking: () => import("./pages/Picking"),
   pricing: () => import("./pages/Pricing"),
   products: () => import("./pages/Products"),
+  purchases: () => import("./pages/Purchases"),
   receiving: () => import("./pages/Receiving"),
   reports: () => import("./pages/Reports"),
   scans: () => import("./pages/Scans"),
@@ -77,8 +78,8 @@ const PricingPage = page(chunks.pricing, (m) => m.PricingPage);
 const PriceVersionPage = page(chunks.pricing, (m) => m.PriceVersionPage);
 const ProductsPage = page(chunks.products, (m) => m.ProductsPage);
 const ProductDetailPage = page(chunks.products, (m) => m.ProductDetailPage);
-const ReceivingPage = page(chunks.receiving, (m) => m.ReceivingPage);
-const ShipmentPage = page(chunks.receiving, (m) => m.ShipmentPage);
+const NewPurchasePage = page(chunks.purchases, (m) => m.NewPurchasePage);
+const PurchasePage = page(chunks.purchases, (m) => m.PurchasePage);
 const SuppliersPage = page(chunks.receiving, (m) => m.SuppliersPage);
 const ReportsPage = page(chunks.reports, (m) => m.ReportsPage);
 const ScansPage = page(chunks.scans, (m) => m.ScansPage);
@@ -173,8 +174,12 @@ export function App() {
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="payments/:id" element={<PaymentDetailPage />} />
           <Route path="receivables" element={<ReceivablesPage />} />
-          <Route path="receiving" element={<ReceivingPage />} />
-          <Route path="receiving/:id" element={<ShipmentPage />} />
+          {/* Purchases: the second tab of the Orders page, with its own address */}
+          <Route path="purchases" element={<OrdersPage />} />
+          <Route path="purchases/new" element={<NewPurchasePage />} />
+          <Route path="purchases/:id" element={<PurchasePage />} />
+          {/* "Receiving" became "Purchases" (2026-11-12): old links and bookmarks keep working */}
+          <Route path="receiving/*" element={<OldReceivingLink />} />
           <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="suppliers/payments" element={<SupplierPaymentsPage />} />
           <Route path="suppliers/:id" element={<SupplierDetailPage />} />
@@ -211,6 +216,12 @@ function OldOnlineOrdersLink() {
   const { pathname, search } = useLocation();
   const rest = pathname.replace(/^\/order-connect/, "").replace(/^\/submissions/, "/requests");
   return <Navigate to={`/online-orders${rest}${search}`} replace />;
+}
+
+/** "Receiving" was renamed "Purchases": /receiving → /purchases, /receiving/x → /purchases/x. */
+function OldReceivingLink() {
+  const { pathname, search } = useLocation();
+  return <Navigate to={`${pathname.replace(/^\/receiving/, "/purchases")}${search}`} replace />;
 }
 
 /** "Picking sheet" was renamed "Packing sheet": /picking/x → /packing/x. */

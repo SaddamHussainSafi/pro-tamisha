@@ -20,7 +20,7 @@ describe("linkedTo / linkedHref", () => {
     expect(linkedTo({ ...none, scan_job_no: "SC-1" })).toBe("SC-1");
     expect(linkedTo(none)).toBe("—");
     expect(linkedHref({ invoice_id: "a", shipment_id: null, scan_job_id: null })).toBe("/invoices/a");
-    expect(linkedHref({ invoice_id: null, shipment_id: "b", scan_job_id: null })).toBe("/receiving/b");
+    expect(linkedHref({ invoice_id: null, shipment_id: "b", scan_job_id: null })).toBe("/purchases/b");
     expect(linkedHref({ invoice_id: null, shipment_id: null, scan_job_id: "c" })).toBe("/scan/c");
     expect(linkedHref({ invoice_id: null, shipment_id: null, scan_job_id: null })).toBeNull();
   });

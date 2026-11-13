@@ -50,14 +50,17 @@ from ..schemas import (
     OcrManualLineIn,
     OcrQueueIn,
     OcrResolveIn,
+    OcrToPurchaseIn,
     OcrToReceivingIn,
     OrderIn,
     OrderLineIn,
+    PurchaseLineIn,
     ReasonIn,
     ShipmentDocKind,
 )
 from ._common import content_disposition, esc, mutate
 from .orders import insert_order
+from .purchases import check_duplicate, new_purchase, spec_from, stock_lines, vendor_for
 from .receiving import _attach
 
 router = APIRouter(tags=["ocr"])
@@ -825,4 +828,94 @@ def to_receiving(
     return mutate(
         db, request, p, key, f"ocr.to_receiving:{extraction_id}", body, 200,
         "ocr_extraction.to_receiving", fn,
+    )  # fmt: skip
+
+
+@router.post("/ocr/extractions/{extraction_id}/to-purchase", response_model=OcrExtractionDetail)
+def to_purchase(
+    extraction_id: uuid.UUID,
+    body: OcrToPurchaseIn,
+    request: Request,
+    db: DbDep,
+    key: idempotency.IdemKey,
+    p: PrincipalDep,
+) -> JSONResponse:
+    """Every line reviewed by a person → the scanned supplier invoice becomes a purchase and its
+    lines are added to stock at once (owner, 2026-11-12). The file is kept unaltered on the
+    purchase. Quick receives the invoice covers (`absorb_quick_ids`) are matched to it and
+    their stock is not posted again. Nothing is taken from the reading alone: unreviewed lines
+    refuse the request."""
+    ex0 = get_extraction(db, request, p, extraction_id)
+    authorize(request, p, "grn.record", ex0.warehouse_id)
+
+    def fn() -> Result:
+        ex = get_extraction(db, request, p, extraction_id, lock=True)
+        _reviewable(ex, body.version)
+        if not ex.header:
+            raise ApiError(409, "NOT_SUPPLIER_DOC", "This scan is not a supplier document")
+        fields = db.scalars(
+            select(OcrField).where(OcrField.extraction_id == ex.id).order_by(OcrField.seq)
+        ).all()
+        if open_ := [f.seq for f in fields if f.resolution == "NONE"]:
+            raise ApiError(
+                409, "FIELDS_UNRESOLVED", f"{len(open_)} line(s) still need review",
+                open_lines=open_,
+            )  # fmt: skip
+        keep = [f for f in fields if f.resolution in ("CONFIRMED", "CORRECTED")]
+        if not keep:
+            raise ApiError(422, "NO_LINES", "There are no lines to add to stock")
+        v = vendor_for(db, p, body.vendor_id)
+        hdr = ex.header or {}
+        packet = (hdr.get("kind") or {}).get("value") == "AIR_PACKET"
+        check_duplicate(db, p, v, body)
+        airport = body
+        if body.is_airport and not (body.awb_no or "").strip():
+            # the airway bill read from an airport packet (or corrected by the reviewer)
+            cell = hdr.get("awb_no") or {}
+            awb = cell.get("corrected", cell.get("value"))
+            airport = body.model_copy(update={"awb_no": str(awb)[:64] if awb else None})
+        s = new_purchase(db, p, ex.warehouse_id, v, body, airport, "From scanned document")
+        job = db.get(ScanJob, ex.scan_job_id)
+        assert job is not None
+        kind = "COMBINED" if packet else _DOC_KIND.get(job.job_type, "OTHER")
+        link = _attach(db, s, p, ex.document_id, job.id, kind, s.vendor_invoice_no)
+        specs = []
+        for f in keep:
+            assert f.final_product_id and f.final_unit_code and f.final_qty
+            specs.append(
+                spec_from(
+                    db,
+                    p,
+                    PurchaseLineIn(
+                        product_id=f.final_product_id,
+                        unit_code=f.final_unit_code,
+                        qty=inv.q4(f.final_qty),
+                        # a price is taken only from a line the reviewer confirmed as read
+                        unit_cost=f.read_unit_price if f.resolution == "CONFIRMED" else None,
+                        label=(f.raw_text or f.label or "")[:200] or None,
+                        expires_at=body.expiries.get(f.id),
+                    ),
+                    link.id,
+                )
+            )
+        detail = stock_lines(db, p, s, specs, body.absorb_quick_ids, body.reason)
+        ex.status, ex.shipment_id, ex.vendor_id = "ACCEPTED", s.id, v.id
+        ex.reviewed_by, ex.reviewed_at = p.employee.id, _now()
+        ex.version += 1
+        db.flush()
+        return (
+            extraction_out(db, ex, True),
+            str(s.id),
+            {
+                **detail,
+                "vendor": v.code,
+                "scan": job.job_no,
+                "extraction_id": str(ex.id),
+                "removed": len(fields) - len(keep),
+            },
+        )
+
+    return mutate(
+        db, request, p, key, f"ocr.to_purchase:{extraction_id}", body, 200,
+        "shipment.purchase", fn,
     )  # fmt: skip

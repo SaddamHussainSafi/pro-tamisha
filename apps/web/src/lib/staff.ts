@@ -8,7 +8,7 @@ export const ROLES: { code: RoleCode; label: string; hint: string }[] = [
   { code: "OWNER_ADMIN", label: "Super Admin", hint: "Full access, including users, roles, sessions and security settings." },
   { code: "MANAGER", label: "Admin", hint: "Day-to-day operations: products, prices, orders, stock, receiving and reports. No user management." },
   { code: "SALES_OPERATOR", label: "Sales", hint: "Sales orders, invoice drafts and customer records; records payments customers report." },
-  { code: "WAREHOUSE", label: "Warehouse", hint: "Packing, receiving counts and stock counts." },
+  { code: "WAREHOUSE", label: "Warehouse", hint: "Packing, purchases and quick receives, and stock counts." },
   { code: "FINANCE", label: "Accounting", hint: "Payments, receivables, supplier ledgers and financial reports." },
   { code: "VIEWER", label: "Viewer", hint: "Read-only: products, customers, orders and stock." },
 ];

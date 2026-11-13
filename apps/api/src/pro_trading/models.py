@@ -523,6 +523,7 @@ MOVEMENT_TYPES = (
     "DAMAGE",
     "RETURN",
     "REVERSAL",
+    "GRN_CORRECTION",
 )
 
 
@@ -1380,7 +1381,14 @@ class OcrCorrection(Base):
 # ------------------------------------------------------------------ Module 08: receiving
 
 SHIPMENT_STATUSES = ("OPEN", "COUNTED", "POSTED", "CANCELLED")
-SHIPMENT_DOC_KINDS = ("AWB", "INVOICE", "PACKING_LIST", "COMBINED", "OTHER")
+SHIPMENT_DOC_KINDS = ("AWB", "INVOICE", "PACKING_LIST", "COMBINED", "CFIA", "OTHER")
+# How a shipment row came to be: LEGACY = the old count-then-approve flow; PURCHASE = one
+# purchase saved straight to stock; QUICK = goods found on the shelf, details to follow.
+SHIPMENT_ENTRIES = ("LEGACY", "PURCHASE", "QUICK")
+VERIFY_STATUSES = ("TO_VERIFY", "PENDING_OK", "VERIFIED")
+CORRECTION_KINDS = ("SHORT", "DAMAGED", "RETURNED", "OVER")
+CORRECTION_SOURCES = ("VERIFY", "MANUAL", "MATCH")
+CORRECTION_STATUSES = ("PENDING", "POSTED", "REJECTED")
 LANDED_COST_KINDS = ("FREIGHT", "DUTY", "BROKERAGE", "INSURANCE", "OTHER")
 _CURRENCY = "~ '^[A-Z]{3}$'"
 
@@ -1409,8 +1417,11 @@ class Vendor(Base):
 
 
 class Shipment(Base):
-    """One vendor delivery: its documents, what they declare, and what was physically counted.
-    The count becomes stock only when the GRN is posted (POSTED is final; DB trigger)."""
+    """One purchase from a supplier (owner, 2026-11-12): saved straight to stock (status POSTED
+    with a GRN number at once). Airport shipments are verified later (verify_status); a quick
+    receive is a purchase whose supplier / invoice / cost are still to complete (needs_details).
+    Rows from the old count-then-approve flow have entry LEGACY. Once POSTED only the follow-up
+    columns may change (DB trigger)."""
 
     __tablename__ = "shipments"
     __table_args__ = (
@@ -1423,12 +1434,31 @@ class Shipment(Base):
             name="posted_has_grn",
         ),
         CheckConstraint("status <> 'CANCELLED' OR cancel_reason IS NOT NULL", name="cancel_reason"),
+        CheckConstraint(f"entry {_in(SHIPMENT_ENTRIES)}", name="entry_valid"),
+        CheckConstraint(
+            f"verify_status IS NULL OR verify_status {_in(VERIFY_STATUSES)}", name="verify_valid"
+        ),
+        CheckConstraint("verify_status IS NULL OR is_airport", name="verify_airport_only"),
+        CheckConstraint("vendor_id IS NOT NULL OR entry = 'QUICK'", name="vendor_known"),
+        CheckConstraint("entry <> 'QUICK' OR quick_reason IS NOT NULL", name="quick_reason"),
+        CheckConstraint("NOT needs_details OR entry = 'QUICK'", name="details_quick_only"),
+        CheckConstraint(
+            "(expected_pieces IS NULL OR expected_pieces >= 0) AND "
+            "(verified_pieces IS NULL OR verified_pieces >= 0)",
+            name="pieces_nonneg",
+        ),
         Index("ix_shipments_company_status", "company_id", "status"),
+        Index(
+            "ix_shipments_to_complete",
+            "company_id",
+            postgresql_where=text("needs_details"),
+        ),
     )
     id: Mapped[uuid.UUID] = _pk()
     company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)
     warehouse_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
-    vendor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("vendors.id"), nullable=False)
+    # NULL only on a quick receive whose supplier is not known yet ("Supplier invoice to follow")
+    vendor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vendors.id"))
     shipment_no: Mapped[str] = mapped_column(String(32), nullable=False)
     vendor_invoice_no: Mapped[str | None] = mapped_column(String(64))
     awb_no: Mapped[str | None] = mapped_column(String(64))
@@ -1444,9 +1474,78 @@ class Shipment(Base):
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     discrepancy_note: Mapped[str | None] = mapped_column(Text)
     cancel_reason: Mapped[str | None] = mapped_column(Text)
+    entry: Mapped[str] = mapped_column(String(8), nullable=False, server_default="LEGACY")
+    invoice_date: Mapped[date | None] = mapped_column(Date)
+    is_airport: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    expected_pieces: Mapped[int | None] = mapped_column(Integer)
+    verify_status: Mapped[str | None] = mapped_column(String(16))
+    verified_pieces: Mapped[int | None] = mapped_column(Integer)
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    needs_details: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    quick_reason: Mapped[str | None] = mapped_column(Text)
+    details_completed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
+    details_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # a quick receive that turned out to be part of another purchase's invoice
+    matched_shipment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shipments.id"))
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = _created()
+
+
+class PurchaseCorrection(Base):
+    """A later fix to a purchase line that is already in stock: short, damaged, returned to
+    the supplier, or more than the invoice said. Posted rows of the stock ledger are never
+    edited; an approved correction posts new GRN_CORRECTION movements against the line's lot.
+    Stock never goes negative (D-05): what could not be taken because it was already invoiced
+    or reserved is kept as `uncovered_qty` and flagged for the owner (`needs_review`)."""
+
+    __tablename__ = "purchase_corrections"
+    __table_args__ = (
+        CheckConstraint(f"kind {_in(CORRECTION_KINDS)}", name="kind_valid"),
+        CheckConstraint(f"source {_in(CORRECTION_SOURCES)}", name="source_valid"),
+        CheckConstraint(f"status {_in(CORRECTION_STATUSES)}", name="status_valid"),
+        CheckConstraint(f"unit_code {_UNIT_CHECK}", name="unit_code_valid"),
+        CheckConstraint("qty > 0", name="qty_positive"),
+        CheckConstraint("(status = 'POSTED') = (posted_qty IS NOT NULL)", name="posted_has_qty"),
+        CheckConstraint(
+            "uncovered_qty >= 0 AND (posted_qty IS NULL OR posted_qty >= 0)", name="qty_nonneg"
+        ),
+        CheckConstraint("status = 'PENDING' OR decided_at IS NOT NULL", name="decided"),
+        Index("ix_purchase_corrections_shipment", "shipment_id"),
+        Index(
+            "ix_purchase_corrections_review",
+            "company_id",
+            postgresql_where=text("needs_review"),
+        ),
+    )
+    id: Mapped[uuid.UUID] = _pk()
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    shipment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shipments.id"), nullable=False)
+    grn_line_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("grn_lines.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    unit_code: Mapped[str] = mapped_column(String(8), nullable=False)
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(8), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="PENDING")
+    posted_qty: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    uncovered_qty: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, server_default="0"
+    )
+    needs_review: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=False)
+    created_at: Mapped[datetime] = _created()
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("employees.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str | None] = mapped_column(Text)
 
 
 class ShipmentDocument(Base):

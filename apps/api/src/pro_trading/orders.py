@@ -28,6 +28,7 @@ from .models import (
     Company,
     Customer,
     Employee,
+    InventoryBalance,
     InventoryLot,
     PickingAttempt,
     PickingLine,
@@ -367,6 +368,29 @@ def _remarks(*notes: str) -> str:
     return " · ".join(dict.fromkeys(n.strip() for n in notes if n.strip()))
 
 
+def free_stock(
+    db: Session, warehouse_id: uuid.UUID, keys: set[tuple[uuid.UUID, str]]
+) -> dict[tuple[uuid.UUID, str], Decimal]:
+    """Saleable stock the system shows for each product + unit in a warehouse (on hand minus
+    reserved, expired batches left out): what an invoice could take right now."""
+    if not keys:
+        return {}
+    out: dict[tuple[uuid.UUID, str], Decimal] = {}
+    for lot, bal in db.execute(
+        select(InventoryLot, InventoryBalance)
+        .join(InventoryBalance, InventoryBalance.lot_id == InventoryLot.id)
+        .where(
+            InventoryLot.warehouse_id == warehouse_id,
+            InventoryLot.status == "SALEABLE",
+            InventoryLot.product_id.in_({k[0] for k in keys}),
+        )
+    ):
+        k = (lot.product_id, bal.unit_code)
+        if k in keys and inv.is_sellable(lot):
+            out[k] = out.get(k, Decimal(0)) + (bal.qty - bal.reserved_qty)
+    return out
+
+
 def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
     o = db.get(SalesOrder, a.order_id)
     wh = db.get(Warehouse, a.warehouse_id)
@@ -388,6 +412,7 @@ def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
 
     packs = _pack_weights(db, {ol.product_id for _, ol, *_ in rows})
     ordered = o.confirmed_at or o.created_at
+    free = free_stock(db, a.warehouse_id, {(ol.product_id, ol.unit_code) for _, ol, *_ in rows})
     return {
         "id": str(a.id),
         "order_id": str(o.id),
@@ -412,10 +437,12 @@ def pick_out(db: Session, a: PickingAttempt) -> dict[str, Any]:
                 "id": str(pl.id),
                 "order_line_id": str(ol.id),
                 "line_no": ol.line_no,
+                "product_id": str(ol.product_id),
                 "sku": sku,
                 "product_name": pname,
                 "unit_code": ol.unit_code,
                 "requested_qty": d(pl.requested_qty),
+                "available_qty": d(free.get((ol.product_id, ol.unit_code), Decimal(0))),
                 "picked_qty": d(pl.picked_qty) if pl.picked_qty is not None else None,
                 "outcome": pl.outcome,
                 "shortage_reason": pl.shortage_reason,

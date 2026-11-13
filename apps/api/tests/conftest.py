@@ -9,6 +9,9 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://tami@127.0.0.1:5432/tami_test")
+# The suite rebuilds its schema from nothing each run: migration 0033 may roll back over
+# leftover rows of the last run (it refuses on a real database).
+os.environ.setdefault("PT_FORCE_DOWNGRADE", "1")
 os.environ["APP_ENV"] = "test"
 os.environ["OCR_PROVIDER"] = "fake"  # tests that use Tesseract switch it on themselves
 os.environ.setdefault("MFA_ENCRYPTION_KEY", "q0f5L2m9ZPZ0g3W9H3nmVvG7Pq0V8k1oJ5sQ0yYy7Uk=")

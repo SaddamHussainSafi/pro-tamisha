@@ -315,6 +315,7 @@ def stock_check(db: Session, order: SalesOrder, draft: Draft) -> list[dict[str, 
         res.append(
             {
                 "pick_line_id": str(dd.pick_line.id),
+                "product_id": str(dd.product.id),
                 "sku": dd.product.sku,
                 "unit_code": dd.unit_code,
                 "deduct_qty": str(inv.q4(dd.qty)),

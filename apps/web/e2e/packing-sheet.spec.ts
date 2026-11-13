@@ -122,6 +122,9 @@ test("the warehouse still records packed quantities", async ({ page }) => {
   await page.getByRole("group", { name: "Sheet view" }).getByRole("button", { name: "Record packing" }).click();
   await expect(page).not.toHaveURL(/view=paper/);
   const row = page.getByTestId("pick-BFR");
+  // Nothing is in stock in this fixture: the line says so and offers a quick receive.
+  await expect(row).toContainText("The system shows only 0 BOX in stock.");
+  await expect(row.getByRole("button", { name: "Add 2 BOX found in the warehouse" })).toBeVisible();
   await row.getByLabel("Packed BFR").fill("2");
   await expect(row.getByText("Packed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Save quantities" }).click();

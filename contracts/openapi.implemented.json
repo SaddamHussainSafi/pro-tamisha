@@ -1,6 +1,57 @@
 {
   "components": {
     "schemas": {
+      "AbsorbedQuickOut": {
+        "description": "A quick receive that was matched into this purchase's invoice.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_name": {
+            "title": "Created By Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "quick_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quick Reason"
+          },
+          "shipment_no": {
+            "title": "Shipment No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "shipment_no",
+          "quick_reason",
+          "created_by_name",
+          "created_at",
+          "items"
+        ],
+        "title": "AbsorbedQuickOut",
+        "type": "object"
+      },
       "AccessIn": {
         "properties": {
           "grants": {
@@ -2166,6 +2217,311 @@
         "title": "ConvertLineIn",
         "type": "object"
       },
+      "CorrectionDecisionIn": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "CorrectionDecisionIn",
+        "type": "object"
+      },
+      "CorrectionIn": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "SHORT",
+              "DAMAGED",
+              "RETURNED",
+              "OVER"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "line_id": {
+            "format": "uuid",
+            "title": "Line Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Qty"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "line_id",
+          "kind",
+          "qty",
+          "reason"
+        ],
+        "title": "CorrectionIn",
+        "type": "object"
+      },
+      "CorrectionOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_name": {
+            "title": "Created By Name",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "grn_line_id": {
+            "format": "uuid",
+            "title": "Grn Line Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "SHORT",
+              "DAMAGED",
+              "RETURNED",
+              "OVER"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lot_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lot Code"
+          },
+          "lot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lot Id"
+          },
+          "needs_review": {
+            "title": "Needs Review",
+            "type": "boolean"
+          },
+          "posted_qty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted Qty"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "product_name": {
+            "title": "Product Name",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By Name"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "VERIFY",
+              "MANUAL",
+              "MATCH"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "POSTED",
+              "REJECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "uncovered_qty": {
+            "title": "Uncovered Qty",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "grn_line_id",
+          "product_id",
+          "sku",
+          "product_name",
+          "lot_id",
+          "lot_code",
+          "kind",
+          "unit_code",
+          "qty",
+          "reason",
+          "source",
+          "status",
+          "posted_qty",
+          "uncovered_qty",
+          "needs_review",
+          "review_note",
+          "reviewed_by_name",
+          "reviewed_at",
+          "invoices",
+          "created_by_name",
+          "created_at",
+          "decided_by_name",
+          "decided_at",
+          "decision_note"
+        ],
+        "title": "CorrectionOut",
+        "type": "object"
+      },
       "CountDecisionIn": {
         "properties": {
           "reason": {
@@ -3753,6 +4109,11 @@
             "title": "Ok",
             "type": "boolean"
           },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
           "sku": {
             "title": "Sku",
             "type": "string"
@@ -3763,6 +4124,7 @@
           }
         },
         "required": [
+          "product_id",
           "sku",
           "unit_code",
           "deduct_qty",
@@ -8447,7 +8809,8 @@
               "COUNT_ADJUSTMENT",
               "DAMAGE",
               "RETURN",
-              "REVERSAL"
+              "REVERSAL",
+              "GRN_CORRECTION"
             ],
             "title": "Movement Type",
             "type": "string"
@@ -10379,6 +10742,148 @@
         "title": "OcrResolveIn",
         "type": "object"
       },
+      "OcrToPurchaseIn": {
+        "description": "A fully reviewed supplier document becomes a purchase in stock.",
+        "properties": {
+          "absorb_quick_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Absorb Quick Ids",
+            "type": "array"
+          },
+          "awb_no": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awb No"
+          },
+          "confirm_duplicate": {
+            "default": false,
+            "title": "Confirm Duplicate",
+            "type": "boolean"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "expected_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected On"
+          },
+          "expected_pieces": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Pieces"
+          },
+          "expiries": {
+            "additionalProperties": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "propertyNames": {
+              "format": "uuid"
+            },
+            "title": "Expiries",
+            "type": "object"
+          },
+          "invoice_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Date"
+          },
+          "is_airport": {
+            "default": false,
+            "title": "Is Airport",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reviewed_all": {
+            "const": true,
+            "title": "Reviewed All",
+            "type": "boolean"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          },
+          "vendor_invoice_no": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Invoice No"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "vendor_id",
+          "reviewed_all"
+        ],
+        "title": "OcrToPurchaseIn",
+        "type": "object"
+      },
       "OcrToReceivingIn": {
         "description": "Approve a reviewed supplier document into Receiving (declared lines only).",
         "properties": {
@@ -12196,6 +12701,10 @@
       },
       "PickLineOut": {
         "properties": {
+          "available_qty": {
+            "title": "Available Qty",
+            "type": "string"
+          },
           "disposition": {
             "anyOf": [
               {
@@ -12279,6 +12788,11 @@
             ],
             "title": "Picked Qty"
           },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
           "product_name": {
             "title": "Product Name",
             "type": "string"
@@ -12342,10 +12856,12 @@
           "id",
           "order_line_id",
           "line_no",
+          "product_id",
           "sku",
           "product_name",
           "unit_code",
           "requested_qty",
+          "available_qty",
           "picked_qty",
           "outcome",
           "shortage_reason",
@@ -14373,6 +14889,401 @@
         "title": "PublishIn",
         "type": "object"
       },
+      "PurchaseCompleteIn": {
+        "description": "Match a quick receive to the real supplier invoice. Never posts its stock again.",
+        "properties": {
+          "absorb_quick_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Absorb Quick Ids",
+            "type": "array"
+          },
+          "confirm_duplicate": {
+            "default": false,
+            "title": "Confirm Duplicate",
+            "type": "boolean"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "invoice_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Date"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseLineIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          },
+          "vendor_invoice_no": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Invoice No"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "vendor_id",
+          "lines"
+        ],
+        "title": "PurchaseCompleteIn",
+        "type": "object"
+      },
+      "PurchaseIn": {
+        "description": "Save a purchase and add every line to stock at once.",
+        "properties": {
+          "absorb_quick_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Absorb Quick Ids",
+            "type": "array"
+          },
+          "awb_no": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awb No"
+          },
+          "confirm_duplicate": {
+            "default": false,
+            "title": "Confirm Duplicate",
+            "type": "boolean"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "expected_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected On"
+          },
+          "expected_pieces": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Pieces"
+          },
+          "invoice_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Date"
+          },
+          "is_airport": {
+            "default": false,
+            "title": "Is Airport",
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseLineIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          },
+          "vendor_invoice_no": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Invoice No"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouse_id",
+          "vendor_id",
+          "lines"
+        ],
+        "title": "PurchaseIn",
+        "type": "object"
+      },
+      "PurchaseItemOut": {
+        "description": "One line of a purchase, as shown on lists (\"5 box Yellow yam\").",
+        "properties": {
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "product_name": {
+            "title": "Product Name",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "sku",
+          "product_name",
+          "unit_code",
+          "qty"
+        ],
+        "title": "PurchaseItemOut",
+        "type": "object"
+      },
+      "PurchaseLineIn": {
+        "properties": {
+          "batch_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Ref"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Qty"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          },
+          "unit_cost": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost"
+          }
+        },
+        "required": [
+          "product_id",
+          "unit_code",
+          "qty"
+        ],
+        "title": "PurchaseLineIn",
+        "type": "object"
+      },
+      "PurchaseLinesIn": {
+        "description": "More lines for a purchase already in stock (each is added to stock at once).",
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseLineIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "lines"
+        ],
+        "title": "PurchaseLinesIn",
+        "type": "object"
+      },
       "PurgedOut": {
         "properties": {
           "purged": {
@@ -14416,6 +15327,94 @@
           "qty"
         ],
         "title": "QtyLineIn",
+        "type": "object"
+      },
+      "QuickReceiveIn": {
+        "description": "Goods already on the shelf with no purchase entered: add them to stock now; the\nsupplier, invoice and cost follow (\"Details to complete\").",
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "needed_for": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needed For"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Qty"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "unit_code": {
+            "enum": [
+              "BOX",
+              "PIECE",
+              "LB",
+              "KG"
+            ],
+            "title": "Unit Code",
+            "type": "string"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
+          },
+          "warehouse_id": {
+            "format": "uuid",
+            "title": "Warehouse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "unit_code",
+          "qty",
+          "reason"
+        ],
+        "title": "QuickReceiveIn",
         "type": "object"
       },
       "ReadAllIn": {
@@ -16914,6 +17913,13 @@
       },
       "ShipmentDetail": {
         "properties": {
+          "absorbed": {
+            "items": {
+              "$ref": "#/components/schemas/AbsorbedQuickOut"
+            },
+            "title": "Absorbed",
+            "type": "array"
+          },
           "awb_no": {
             "anyOf": [
               {
@@ -16941,6 +17947,13 @@
               "$ref": "#/components/schemas/CompareRow"
             },
             "title": "Comparison",
+            "type": "array"
+          },
+          "corrections": {
+            "items": {
+              "$ref": "#/components/schemas/CorrectionOut"
+            },
+            "title": "Corrections",
             "type": "array"
           },
           "cost_totals": {
@@ -17007,6 +18020,29 @@
             "title": "Declared",
             "type": "array"
           },
+          "details_completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Completed At"
+          },
+          "details_completed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Completed By Name"
+          },
           "discrepancy_count": {
             "title": "Discrepancy Count",
             "type": "integer"
@@ -17033,6 +18069,15 @@
             "title": "Documents",
             "type": "array"
           },
+          "entry": {
+            "enum": [
+              "LEGACY",
+              "PURCHASE",
+              "QUICK"
+            ],
+            "title": "Entry",
+            "type": "string"
+          },
           "expected_on": {
             "anyOf": [
               {
@@ -17044,6 +18089,17 @@
               }
             ],
             "title": "Expected On"
+          },
+          "expected_pieces": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Pieces"
           },
           "grn_no": {
             "anyOf": [
@@ -17061,6 +18117,71 @@
             "title": "Id",
             "type": "string"
           },
+          "invoice_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Date"
+          },
+          "is_airport": {
+            "title": "Is Airport",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "line_pieces": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Pieces"
+          },
+          "matched_shipment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Shipment Id"
+          },
+          "matched_shipment_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Shipment No"
+          },
+          "needs_details": {
+            "title": "Needs Details",
+            "type": "boolean"
+          },
           "next_batch_ref": {
             "title": "Next Batch Ref",
             "type": "string"
@@ -17075,6 +18196,10 @@
               }
             ],
             "title": "Note"
+          },
+          "pending_corrections": {
+            "title": "Pending Corrections",
+            "type": "integer"
           },
           "posted_at": {
             "anyOf": [
@@ -17099,8 +18224,36 @@
             ],
             "title": "Posted By Name"
           },
+          "quick_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quick Reason"
+          },
+          "review_count": {
+            "title": "Review Count",
+            "type": "integer"
+          },
           "shipment_no": {
             "title": "Shipment No",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "NOT_IN_STOCK",
+              "TO_COMPLETE",
+              "TO_VERIFY",
+              "TO_APPROVE",
+              "VERIFIED",
+              "IN_STOCK",
+              "CANCELLED"
+            ],
+            "title": "Stage",
             "type": "string"
           },
           "status": {
@@ -17113,14 +18266,29 @@
             "title": "Status",
             "type": "string"
           },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          },
+          "unpriced_lines": {
+            "title": "Unpriced Lines",
+            "type": "integer"
+          },
           "vendor_code": {
             "title": "Vendor Code",
             "type": "string"
           },
           "vendor_id": {
-            "format": "uuid",
-            "title": "Vendor Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
           },
           "vendor_invoice_no": {
             "anyOf": [
@@ -17136,6 +18304,56 @@
           "vendor_name": {
             "title": "Vendor Name",
             "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "verified_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Name"
+          },
+          "verified_pieces": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Pieces"
+          },
+          "verify_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "TO_VERIFY",
+                  "PENDING_OK",
+                  "VERIFIED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Status"
           },
           "version": {
             "title": "Version",
@@ -17160,6 +18378,27 @@
           "vendor_id",
           "vendor_code",
           "vendor_name",
+          "entry",
+          "stage",
+          "invoice_date",
+          "is_airport",
+          "expected_pieces",
+          "verify_status",
+          "verified_pieces",
+          "verified_by_name",
+          "verified_at",
+          "needs_details",
+          "quick_reason",
+          "details_completed_by_name",
+          "details_completed_at",
+          "matched_shipment_id",
+          "matched_shipment_no",
+          "total",
+          "unpriced_lines",
+          "line_count",
+          "items",
+          "pending_corrections",
+          "review_count",
           "vendor_invoice_no",
           "awb_no",
           "currency",
@@ -17183,7 +18422,10 @@
           "costs",
           "comparison",
           "cost_totals",
-          "next_batch_ref"
+          "next_batch_ref",
+          "corrections",
+          "absorbed",
+          "line_pieces"
         ],
         "title": "ShipmentDetail",
         "type": "object"
@@ -17208,6 +18450,7 @@
               "INVOICE",
               "PACKING_LIST",
               "COMBINED",
+              "CFIA",
               "OTHER"
             ],
             "title": "Kind",
@@ -17278,6 +18521,7 @@
               "INVOICE",
               "PACKING_LIST",
               "COMBINED",
+              "CFIA",
               "OTHER"
             ],
             "title": "Kind",
@@ -17358,6 +18602,7 @@
               "INVOICE",
               "PACKING_LIST",
               "COMBINED",
+              "CFIA",
               "OTHER"
             ],
             "title": "Kind",
@@ -17517,6 +18762,29 @@
             "title": "Currency",
             "type": "string"
           },
+          "details_completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Completed At"
+          },
+          "details_completed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Completed By Name"
+          },
           "discrepancy_count": {
             "title": "Discrepancy Count",
             "type": "integer"
@@ -17536,6 +18804,15 @@
             "title": "Document Count",
             "type": "integer"
           },
+          "entry": {
+            "enum": [
+              "LEGACY",
+              "PURCHASE",
+              "QUICK"
+            ],
+            "title": "Entry",
+            "type": "string"
+          },
           "expected_on": {
             "anyOf": [
               {
@@ -17547,6 +18824,17 @@
               }
             ],
             "title": "Expected On"
+          },
+          "expected_pieces": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Pieces"
           },
           "grn_no": {
             "anyOf": [
@@ -17564,6 +18852,60 @@
             "title": "Id",
             "type": "string"
           },
+          "invoice_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Date"
+          },
+          "is_airport": {
+            "title": "Is Airport",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "matched_shipment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Shipment Id"
+          },
+          "matched_shipment_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Shipment No"
+          },
+          "needs_details": {
+            "title": "Needs Details",
+            "type": "boolean"
+          },
           "note": {
             "anyOf": [
               {
@@ -17574,6 +18916,10 @@
               }
             ],
             "title": "Note"
+          },
+          "pending_corrections": {
+            "title": "Pending Corrections",
+            "type": "integer"
           },
           "posted_at": {
             "anyOf": [
@@ -17598,8 +18944,36 @@
             ],
             "title": "Posted By Name"
           },
+          "quick_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quick Reason"
+          },
+          "review_count": {
+            "title": "Review Count",
+            "type": "integer"
+          },
           "shipment_no": {
             "title": "Shipment No",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "NOT_IN_STOCK",
+              "TO_COMPLETE",
+              "TO_VERIFY",
+              "TO_APPROVE",
+              "VERIFIED",
+              "IN_STOCK",
+              "CANCELLED"
+            ],
+            "title": "Stage",
             "type": "string"
           },
           "status": {
@@ -17612,14 +18986,29 @@
             "title": "Status",
             "type": "string"
           },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          },
+          "unpriced_lines": {
+            "title": "Unpriced Lines",
+            "type": "integer"
+          },
           "vendor_code": {
             "title": "Vendor Code",
             "type": "string"
           },
           "vendor_id": {
-            "format": "uuid",
-            "title": "Vendor Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
           },
           "vendor_invoice_no": {
             "anyOf": [
@@ -17635,6 +19024,56 @@
           "vendor_name": {
             "title": "Vendor Name",
             "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "verified_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Name"
+          },
+          "verified_pieces": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Pieces"
+          },
+          "verify_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "TO_VERIFY",
+                  "PENDING_OK",
+                  "VERIFIED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Status"
           },
           "version": {
             "title": "Version",
@@ -17659,6 +19098,27 @@
           "vendor_id",
           "vendor_code",
           "vendor_name",
+          "entry",
+          "stage",
+          "invoice_date",
+          "is_airport",
+          "expected_pieces",
+          "verify_status",
+          "verified_pieces",
+          "verified_by_name",
+          "verified_at",
+          "needs_details",
+          "quick_reason",
+          "details_completed_by_name",
+          "details_completed_at",
+          "matched_shipment_id",
+          "matched_shipment_no",
+          "total",
+          "unpriced_lines",
+          "line_count",
+          "items",
+          "pending_corrections",
+          "review_count",
           "vendor_invoice_no",
           "awb_no",
           "currency",
@@ -18086,6 +19546,11 @@
             "title": "Pick Line Id",
             "type": "string"
           },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
           "sku": {
             "title": "Sku",
             "type": "string"
@@ -18103,6 +19568,7 @@
         },
         "required": [
           "pick_line_id",
+          "product_id",
           "sku",
           "unit_code",
           "deduct_qty",
@@ -19408,6 +20874,88 @@
           "rejected"
         ],
         "title": "VendorReceivingRowOut",
+        "type": "object"
+      },
+      "VerifyIn": {
+        "description": "Airport shipment: the pieces counted on arrival. `lines` says what arrived for the\nlines that differ (the others are taken as arrived in full).",
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/VerifyLineIn"
+            },
+            "maxItems": 200,
+            "title": "Lines",
+            "type": "array"
+          },
+          "pieces_counted": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Pieces Counted",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "pieces_counted"
+        ],
+        "title": "VerifyIn",
+        "type": "object"
+      },
+      "VerifyLineIn": {
+        "properties": {
+          "arrived_qty": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Arrived Qty"
+          },
+          "damaged_qty": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Damaged Qty"
+          },
+          "line_id": {
+            "format": "uuid",
+            "title": "Line Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line_id",
+          "arrived_qty"
+        ],
+        "title": "VerifyLineIn",
         "type": "object"
       },
       "VersionIn": {
@@ -28459,6 +30007,71 @@
         ]
       }
     },
+    "/api/v1/ocr/extractions/{extraction_id}/to-purchase": {
+      "post": {
+        "description": "Every line reviewed by a person \u2192 the scanned supplier invoice becomes a purchase and its\nlines are added to stock at once (owner, 2026-11-12). The file is kept unaltered on the\npurchase. Quick receives the invoice covers (`absorb_quick_ids`) are matched to it and\ntheir stock is not posted again. Nothing is taken from the reading alone: unreviewed lines\nrefuse the request.",
+        "operationId": "to_purchase_api_v1_ocr_extractions__extraction_id__to_purchase_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extraction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Extraction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrToPurchaseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrExtractionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "To Purchase",
+        "tags": [
+          "ocr"
+        ]
+      }
+    },
     "/api/v1/ocr/extractions/{extraction_id}/to-receiving": {
       "post": {
         "description": "Every line reviewed \u2192 the document is attached to a shipment (an OPEN one, or a new one)\nand the kept lines become its declared lines. Never stock, never a cost or liability: the\ncount and the GRN posting stay the warehouse/manager steps they always were.",
@@ -33100,6 +34713,666 @@
         ]
       }
     },
+    "/api/v1/purchases": {
+      "post": {
+        "description": "Save a purchase and add every line to stock at once (no count, no approval). One\ntransaction: the purchase, its invoice lines, one batch + ledger row per line.",
+        "operationId": "create_purchase_api_v1_purchases_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Purchase",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/quick": {
+      "post": {
+        "description": "Goods that are on the shelf but were never entered: add them to stock now. The record\nis a purchase marked \"Details to complete\" until it is matched to the supplier's invoice.",
+        "operationId": "quick_receive_api_v1_purchases_quick_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickReceiveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quick Receive",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/complete": {
+      "post": {
+        "description": "Match a quick receive to the real supplier invoice: supplier, invoice number and date,\nand the invoice lines with their costs. Its stock is never posted again; a difference in\nquantity becomes a correction. Other invoice lines are new goods and go to stock now.",
+        "operationId": "complete_purchase_api_v1_purchases__shipment_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseCompleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Purchase",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/corrections": {
+      "post": {
+        "description": "A later fix to a line in stock: short, damaged, returned to the supplier, or more than\ninvoiced. Always with a reason. Posted at once by someone holding `grn.approve`; otherwise\nit waits for a manager's OK. The saved line and its ledger rows are never edited.",
+        "operationId": "add_correction_api_v1_purchases__shipment_id__corrections_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Correction",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/corrections/{correction_id}/approve": {
+      "post": {
+        "description": "The manager's OK: post the correction to stock. Exactly once (row locks + posting keys).\nStock already invoiced or reserved is left alone and the rest is flagged for review.",
+        "operationId": "approve_correction_api_v1_purchases__shipment_id__corrections__correction_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionDecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Correction",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/corrections/{correction_id}/reject": {
+      "post": {
+        "description": "Refuse a correction that is waiting: nothing is posted. A refused difference from an\nairport verification sends the shipment back to be counted again.",
+        "operationId": "reject_correction_api_v1_purchases__shipment_id__corrections__correction_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionDecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Correction",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/corrections/{correction_id}/reviewed": {
+      "post": {
+        "description": "A shortage on stock that was already invoiced has been looked at (customer credited,\nstock counted, \u2026): clear the flag, with a note on what was done.",
+        "operationId": "mark_reviewed_api_v1_purchases__shipment_id__corrections__correction_id__reviewed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionDecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Reviewed",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/lines": {
+      "post": {
+        "description": "More lines of the same invoice (typed by hand after a scan, or missed the first time).\nEach is added to stock at once; lines already saved are never changed.",
+        "operationId": "add_lines_api_v1_purchases__shipment_id__lines_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseLinesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Lines",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/stock": {
+      "post": {
+        "description": "A shipment started in the old flow that never reached stock: add it now, without the\ncount-approval step. Its count is posted as counted (good \u2192 stock, damaged \u2192 put aside);\nwith no count, what its documents say is taken as arrived.",
+        "operationId": "stock_old_shipment_api_v1_purchases__shipment_id__stock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stock Old Shipment",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
+    "/api/v1/purchases/{shipment_id}/verify": {
+      "post": {
+        "description": "Airport shipment: record the pieces counted on arrival. A match marks it Verified. A\ndifference becomes shortage / damage / extra corrections with the reason given: posted at\nonce when the person holds `grn.approve`, otherwise waiting for a manager's OK.",
+        "operationId": "verify_pieces_api_v1_purchases__shipment_id__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shipment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shipment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Pieces",
+        "tags": [
+          "purchases"
+        ]
+      }
+    },
     "/api/v1/receivables": {
       "get": {
         "description": "Aging of open invoices (warehouse-scoped by invoice.read) with confirmed-but-unapplied\nand reported-but-unconfirmed payment totals per customer.",
@@ -36288,6 +38561,41 @@
             }
           },
           {
+            "description": "Comma-separated purchase stages: NOT_IN_STOCK, TO_COMPLETE, TO_VERIFY, TO_APPROVE, VERIFIED, IN_STOCK, CANCELLED",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated purchase stages: NOT_IN_STOCK, TO_COMPLETE, TO_VERIFY, TO_APPROVE, VERIFIED, IN_STOCK, CANCELLED",
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "airport",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Airport"
+            }
+          },
+          {
             "in": "query",
             "name": "warehouse_id",
             "required": false,
@@ -37202,6 +39510,7 @@
                 "INVOICE",
                 "PACKING_LIST",
                 "COMBINED",
+                "CFIA",
                 "OTHER"
               ],
               "title": "Kind",

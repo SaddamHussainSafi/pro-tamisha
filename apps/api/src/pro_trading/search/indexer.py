@@ -221,7 +221,7 @@ def build_lot(db: Session, lid: uuid.UUID) -> Doc | None:
     src = db.execute(
         select(Shipment.id, Shipment.shipment_no, Shipment.grn_no, Vendor.id, Vendor.name)
         .join(GrnLine, GrnLine.shipment_id == Shipment.id)
-        .join(Vendor, Vendor.id == Shipment.vendor_id)
+        .outerjoin(Vendor, Vendor.id == Shipment.vendor_id)  # a quick receive may have none
         .where(GrnLine.lot_id == lot.id)
         .limit(1)
     ).first()
@@ -376,7 +376,7 @@ def build_shipment(db: Session, sid: uuid.UUID) -> Doc | None:
     s = db.get(Shipment, sid)
     if s is None:
         return None
-    v = db.get(Vendor, s.vendor_id)
+    v = db.get(Vendor, s.vendor_id) if s.vendor_id else None
     refs = db.scalars(
         select(ShipmentDocument.doc_ref).where(ShipmentDocument.shipment_id == s.id)
     ).all()

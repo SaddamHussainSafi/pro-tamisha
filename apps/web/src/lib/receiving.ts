@@ -16,6 +16,7 @@ export const DOC_KIND: Record<ShipmentDocKind, string> = {
   AWB: "Airway bill",
   PACKING_LIST: "Packing list",
   COMBINED: "Invoice + packing list",
+  CFIA: "CFIA document",
   OTHER: "Other document",
 };
 

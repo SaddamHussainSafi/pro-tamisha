@@ -19,9 +19,10 @@ export function useGridProducts(): { products: GridProduct[]; details: Map<strin
 
 /** Live prices, pounds, batches and stock for every row with a product, from the server
  * (POST /sales-orders/preview), a moment after typing stops. Provisional until checked. */
-export function useLinePreview(customer: string, warehouse: string, lines: GridLine[]) {
+export function useLinePreview(customer: string, warehouse: string, lines: GridLine[], refresh = 0) {
   const req = previewRows(lines);
-  const sig = warehouse && req.lines.length ? JSON.stringify({ customer, warehouse, lines: req.lines }) : "";
+  // `refresh`: bump it to ask again for the same rows (stock was just added).
+  const sig = warehouse && req.lines.length ? JSON.stringify({ customer, warehouse, lines: req.lines, refresh }) : "";
   const settled = useDebounced(sig, 300);
   const [res, setRes] = useState<{ sig: string; keys: number[]; data: LinePreview } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);

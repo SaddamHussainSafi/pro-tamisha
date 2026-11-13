@@ -39,9 +39,15 @@ async function optionValue(page: Page, select: string, text: string) {
 
 test("sales captures 15 boxes, confirms (price frozen) and prints a packing sheet", async ({ page }) => {
   await signIn(page, fx.users.sales);
-  await page.getByRole("link", { name: /Orders/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Sales orders" })).toBeVisible();
-  await page.getByRole("link", { name: "New order" }).click();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible(); // signed in
+  await page.goto("/orders"); // by address: the sidebar has its own spec
+  // One Orders page: sales orders and purchases side by side (owner, 2026-11-12).
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Sales orders" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Purchases" })).toHaveCount(0); // sales staff don't enter purchases
+  await page.getByRole("button", { name: "New" }).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["New sales order"]);
+  await page.getByRole("menuitem", { name: "New sales order" }).click();
 
   const form = page.getByRole("form", { name: "New sales order" });
   await form.getByLabel("Customer", { exact: true }).selectOption(await optionValue(page, "#so-cust", "Island Grocers"));

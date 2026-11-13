@@ -28,7 +28,7 @@ import { ProductThumb } from "./ProductThumb";
 export type GridColumn = {
   key: string;
   header: ReactNode;
-  kind: "sn" | "item" | "qty" | "unit" | "lot" | "note" | "weight" | "display";
+  kind: "sn" | "item" | "qty" | "unit" | "lot" | "note" | "weight" | "cost" | "date" | "display";
   /** CSS width for the <col>; the Item column takes the rest. */
   width?: string;
   align?: "right";
@@ -49,7 +49,7 @@ export type GridColumn = {
 export type LineGridHandle = { focusFirstEmpty: () => void; focusRow: (row: number) => void };
 
 const UNIT_LABEL: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB: "lb", KG: "kg" };
-const PASTE: Record<GridColumn["kind"], PasteField> = { sn: null, item: "item", qty: "qty", unit: "unit", lot: null, note: "note", weight: null, display: null };
+const PASTE: Record<GridColumn["kind"], PasteField> = { sn: null, item: "item", qty: "qty", unit: "unit", lot: null, note: "note", weight: null, cost: null, date: null, display: null };
 const editable = (c: GridColumn) => !["sn", "display"].includes(c.kind);
 /** Dropdown cells show their chevron only on the row being worked on (hover / cursor). */
 const CHEVRON = (
@@ -371,6 +371,39 @@ export function LineGrid({
                         </td>
                       );
                     }
+                    case "cost":
+                      return (
+                        <td key={c.key} className={td}>
+                          <input
+                            {...common}
+                            inputMode="decimal"
+                            autoComplete="off"
+                            className={`${cellCls} num text-right`}
+                            placeholder={c.placeholder?.(l)}
+                            value={l.cost ?? ""}
+                            onChange={(e) => update(row, (x) => ({ ...x, cost: e.target.value.replace(/[^\d.]/g, "") }))}
+                          />
+                        </td>
+                      );
+                    case "date":
+                      // a date field keeps its own arrow keys; Enter moves on like the other cells
+                      return (
+                        <td key={c.key} className={td}>
+                          <input
+                            ref={ref(row, col)}
+                            aria-label={name}
+                            type="date"
+                            className={`${cellCls} num`}
+                            value={l.expires ?? ""}
+                            onChange={(e) => update(row, (x) => ({ ...x, expires: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key !== "Enter" || e.shiftKey) return;
+                              e.preventDefault();
+                              go({ row, col }, "enter");
+                            }}
+                          />
+                        </td>
+                      );
                     case "note":
                       return (
                         <td key={c.key} className={td}>

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from .. import documents, idempotency, scanning, units
 from .. import inventory as inv
+from .. import purchases as pur
 from .. import receiving as svc
 from ..deps import DbDep, Principal, PrincipalDep, authorize, deny, require_permission
 from ..errors import ApiError
@@ -31,6 +32,7 @@ from ..models import (
     LandedCost,
     Product,
     ProductAlias,
+    PurchaseCorrection,
     ScanJob,
     Shipment,
     ShipmentDocument,
@@ -128,14 +130,16 @@ def lock_for(
     p: Principal,
     sid: uuid.UUID,
     perm: str,
-    version: int,
+    version: int | None,
     *allowed: str,
 ) -> Shipment:
-    """Load + authorize (404 before 403 is fine: ids are unguessable) + lock + version + state."""
+    """Load + authorize (404 before 403 is fine: ids are unguessable) + lock + version + state.
+    `version=None`: the caller's own record carries the version check (a scan review)."""
     s = get_shipment(db, p, sid)
     authorize(request, p, perm, s.warehouse_id)
     s = get_shipment(db, p, sid, lock=True)
-    check_version(s.version, version)
+    if version is not None:
+        check_version(s.version, version)
     need_status(s, *allowed)
     return s
 
@@ -165,28 +169,104 @@ def vendor_alias_label(v: Vendor) -> str:
     return f"vendor:{v.code}"
 
 
+def _items(
+    declared: list[DeclaredLine], counted: list[GrnLine], prods: dict[uuid.UUID, Product]
+) -> list[dict[str, Any]]:
+    """The goods of a purchase for lists: its invoice lines, or (a quick receive, an old
+    shipment with a count only) what was added to stock."""
+    live = [d for d in declared if d.removed_at is None]
+    rows = (
+        [(d.product_id, d.unit_code, d.declared_qty) for d in live]
+        if live
+        else [(c.product_id, c.unit_code, c.accepted_qty) for c in counted]
+    )
+    return [
+        {
+            "product_id": str(pid),
+            "sku": prods[pid].sku,
+            "product_name": prods[pid].name,
+            "unit_code": unit,
+            "qty": _d(qty),
+        }
+        for pid, unit, qty in rows
+        if pid in prods
+    ]
+
+
+def _products(db: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, Product]:
+    return {x.id: x for x in db.scalars(select(Product).where(Product.id.in_(ids)))} if ids else {}
+
+
 def _summary(
-    db: Session, s: Shipment, names: dict[uuid.UUID, str], docs: int, discrepancies: int
+    db: Session,
+    s: Shipment,
+    names: dict[uuid.UUID, str],
+    docs: int,
+    declared: list[DeclaredLine],
+    counted: list[GrnLine],
+    prods: dict[uuid.UUID, Product] | None = None,
 ) -> dict[str, Any]:
     w = db.get(Warehouse, s.warehouse_id)
-    v = db.get(Vendor, s.vendor_id)
-    assert w is not None and v is not None
+    v = db.get(Vendor, s.vendor_id) if s.vendor_id else None
+    assert w is not None
+    if prods is None:
+        prods = _products(db, {d.product_id for d in declared} | {c.product_id for c in counted})
+    # The old flow compares documents with the count; a purchase has nothing to compare.
+    diffs = len(discrepancies(svc.compare(declared, counted))) if s.entry == "LEGACY" else 0
+    total, unpriced = pur.bill(declared)
+    items = _items(declared, counted, prods)
+    pending, review = (
+        db.execute(
+            select(
+                func.count().filter(PurchaseCorrection.status == "PENDING"),
+                func.count().filter(PurchaseCorrection.needs_review.is_(True)),
+            ).where(PurchaseCorrection.shipment_id == s.id)
+        ).one()
+        if s.status == "POSTED" and s.entry != "LEGACY"
+        else (0, 0)
+    )
+    matched = db.get(Shipment, s.matched_shipment_id) if s.matched_shipment_id else None
     return {
         "id": str(s.id),
         "shipment_no": s.shipment_no,
         "status": s.status,
         "warehouse_id": str(s.warehouse_id),
         "warehouse_code": w.code,
-        "vendor_id": str(v.id),
-        "vendor_code": v.code,
-        "vendor_name": v.name,
+        "vendor_id": str(v.id) if v else None,
+        "vendor_code": v.code if v else "",
+        "vendor_name": v.name if v else "",
+        "entry": s.entry,
+        "stage": pur.stage(s),
+        "invoice_date": s.invoice_date.isoformat() if s.invoice_date else None,
+        "is_airport": s.is_airport,
+        "expected_pieces": s.expected_pieces,
+        "verify_status": s.verify_status,
+        "verified_pieces": s.verified_pieces,
+        "verified_by_name": names.get(s.verified_by) if s.verified_by else None,
+        "verified_at": s.verified_at.isoformat() if s.verified_at else None,
+        "needs_details": s.needs_details,
+        "quick_reason": s.quick_reason,
+        "details_completed_by_name": (
+            names.get(s.details_completed_by) if s.details_completed_by else None
+        ),
+        "details_completed_at": (
+            s.details_completed_at.isoformat() if s.details_completed_at else None
+        ),
+        "matched_shipment_id": str(matched.id) if matched else None,
+        "matched_shipment_no": matched.shipment_no if matched else None,
+        "total": str(total),
+        "unpriced_lines": unpriced,
+        "line_count": len(items),
+        "items": items[:3],
+        "pending_corrections": pending,
+        "review_count": review,
         "vendor_invoice_no": s.vendor_invoice_no,
         "awb_no": s.awb_no,
         "currency": s.currency,
         "expected_on": s.expected_on.isoformat() if s.expected_on else None,
         "note": s.note,
         "document_count": docs,
-        "discrepancy_count": discrepancies,
+        "discrepancy_count": diffs,
         "grn_no": s.grn_no,
         "created_by_name": names.get(s.created_by, ""),
         "counted_by_name": names.get(s.counted_by) if s.counted_by else None,
@@ -233,30 +313,66 @@ def discrepancies(rows: list[svc.Row]) -> list[svc.Row]:
 
 
 def batch_prefix(db: Session, s: Shipment) -> str:
-    v = db.get(Vendor, s.vendor_id)
-    return svc.supplier_initials(v.name, v.code) if v else "B"
+    return pur.batch_prefix(db, s)
+
+
+def _corrections(db: Session, s: Shipment) -> list[PurchaseCorrection]:
+    return list(
+        db.scalars(
+            select(PurchaseCorrection)
+            .where(PurchaseCorrection.shipment_id == s.id)
+            .order_by(PurchaseCorrection.created_at, PurchaseCorrection.id)
+        )
+    )
+
+
+def _absorbed(db: Session, s: Shipment) -> list[Shipment]:
+    return list(
+        db.scalars(
+            select(Shipment)
+            .where(Shipment.matched_shipment_id == s.id)
+            .order_by(Shipment.created_at, Shipment.id)
+        )
+    )
 
 
 def detail_out(db: Session, s: Shipment) -> dict[str, Any]:
     docs, declared, counted, costs = _load(db, s)
     rows = svc.compare(declared, counted)
+    corrections = _corrections(db, s)
+    absorbed = _absorbed(db, s)
+    fix_lines = {
+        ln.id: ln
+        for ln in db.scalars(
+            select(GrnLine).where(GrnLine.id.in_([c.grn_line_id for c in corrections]))
+        )
+    }
+    absorbed_lines = {
+        q.id: list(db.scalars(select(GrnLine).where(GrnLine.shipment_id == q.id))) for q in absorbed
+    }
     names = _names(
         db,
-        {s.created_by, s.counted_by, s.posted_by}
+        {s.created_by, s.counted_by, s.posted_by, s.verified_by, s.details_completed_by}
         | {d.added_by for d in docs}
         | {d.created_by for d in declared}
         | {c.counted_by for c in counted}
-        | {c.created_by for c in costs},
+        | {c.created_by for c in costs}
+        | {x for c in corrections for x in (c.created_by, c.decided_by, c.reviewed_by)}
+        | {q.created_by for q in absorbed},
     )
-    pids = {d.product_id for d in declared} | {c.product_id for c in counted}
-    prods = (
-        {x.id: x for x in db.scalars(select(Product).where(Product.id.in_(pids)))} if pids else {}
+    prods = _products(
+        db,
+        {d.product_id for d in declared}
+        | {c.product_id for c in counted}
+        | {ln.product_id for ln in fix_lines.values()}
+        | {ln.product_id for lines in absorbed_lines.values() for ln in lines},
     )
+    lot_ids = [c.lot_id for c in counted if c.lot_id] + [
+        ln.lot_id for ln in fix_lines.values() if ln.lot_id
+    ]
     lot_codes = {
         lot.id: lot.lot_code
-        for lot in db.scalars(
-            select(InventoryLot).where(InventoryLot.id.in_([c.lot_id for c in counted if c.lot_id]))
-        )
+        for lot in db.scalars(select(InventoryLot).where(InventoryLot.id.in_(lot_ids)))
     }
     src = {d.id: db.get(SourceDocument, d.document_id) for d in docs}
     jobs = {d.id: db.get(ScanJob, d.scan_job_id) if d.scan_job_id else None for d in docs}
@@ -264,7 +380,7 @@ def detail_out(db: Session, s: Shipment) -> dict[str, Any]:
     for c in costs:
         if c.removed_at is None:
             totals[c.currency] += c.amount
-    out = _summary(db, s, names, len(docs), len(discrepancies(rows)))
+    out = _summary(db, s, names, len(docs), declared, counted, prods)
     out["documents"] = [_doc_out(d, src[d.id], jobs[d.id], names) for d in docs]
     out["declared"] = [
         {
@@ -324,7 +440,62 @@ def detail_out(db: Session, s: Shipment) -> dict[str, Any]:
     out["comparison"] = [_row(r, prods) for r in rows]
     out["next_batch_ref"] = svc.peek_batch_ref(db, s.company_id, batch_prefix(db, s))
     out["cost_totals"] = {k: str(v) for k, v in sorted(totals.items())}
+    out["corrections"] = [
+        _correction_out(db, c, fix_lines[c.grn_line_id], prods, lot_codes, names)
+        for c in corrections
+    ]
+    out["absorbed"] = [
+        {
+            "id": str(q.id),
+            "shipment_no": q.shipment_no,
+            "quick_reason": q.quick_reason,
+            "created_by_name": names.get(q.created_by, ""),
+            "created_at": q.created_at.isoformat(),
+            "items": _items([], absorbed_lines[q.id], prods),
+        }
+        for q in absorbed
+    ]
+    out["line_pieces"] = pur.line_pieces(counted)
     return out
+
+
+def _correction_out(
+    db: Session,
+    c: PurchaseCorrection,
+    ln: GrnLine,
+    prods: dict[uuid.UUID, Product],
+    lot_codes: dict[uuid.UUID, str],
+    names: dict[uuid.UUID, str],
+) -> dict[str, Any]:
+    return {
+        "id": str(c.id),
+        "grn_line_id": str(ln.id),
+        "product_id": str(ln.product_id),
+        "sku": prods[ln.product_id].sku,
+        "product_name": prods[ln.product_id].name,
+        "lot_id": str(ln.lot_id) if ln.lot_id else None,
+        "lot_code": lot_codes.get(ln.lot_id) if ln.lot_id else None,
+        "kind": c.kind,
+        "unit_code": c.unit_code,
+        "qty": _d(c.qty),
+        "reason": c.reason,
+        "source": c.source,
+        "status": c.status,
+        "posted_qty": _d(c.posted_qty),
+        "uncovered_qty": _d(c.uncovered_qty),
+        "needs_review": c.needs_review,
+        "review_note": c.review_note,
+        "reviewed_by_name": names.get(c.reviewed_by) if c.reviewed_by else None,
+        "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None,
+        "invoices": (
+            pur.invoices_using(db, ln.lot_id) if c.uncovered_qty > 0 and ln.lot_id else []
+        ),
+        "created_by_name": names.get(c.created_by, ""),
+        "created_at": c.created_at.isoformat(),
+        "decided_by_name": names.get(c.decided_by) if c.decided_by else None,
+        "decided_at": c.decided_at.isoformat() if c.decided_at else None,
+        "decision_note": c.decision_note,
+    }
 
 
 def _doc_out(
@@ -468,6 +639,13 @@ def list_shipments(
     db: DbDep,
     p: PrincipalDep,
     status: str | None = Query(None, max_length=60, description="Comma-separated statuses"),
+    stage: str | None = Query(
+        None,
+        max_length=120,
+        description="Comma-separated purchase stages: NOT_IN_STOCK, TO_COMPLETE, TO_VERIFY, "
+        "TO_APPROVE, VERIFIED, IN_STOCK, CANCELLED",
+    ),
+    airport: bool | None = None,
     warehouse_id: uuid.UUID | None = None,
     vendor_id: uuid.UUID | None = None,
     q: str | None = Query(None, max_length=100),
@@ -486,11 +664,18 @@ def list_shipments(
     )
     if status:
         stmt = stmt.where(Shipment.status.in_([x.strip().upper() for x in status.split(",")]))
+    if stage:
+        wanted = [x.strip().upper() for x in stage.split(",") if x.strip()]
+        if bad := [x for x in wanted if x not in pur.STAGES]:
+            raise ApiError(422, "INVALID_STAGE", f"Unknown stage: {', '.join(bad)}")
+        stmt = stmt.where(or_(*[pur.stage_filter(x) for x in wanted]))
+    if airport is not None:
+        stmt = stmt.where(Shipment.is_airport.is_(airport))
     if vendor_id:
         stmt = stmt.where(Shipment.vendor_id == vendor_id)
     if q and q.strip():
         like = f"%{esc(q.strip())}%"
-        stmt = stmt.join(Vendor, Vendor.id == Shipment.vendor_id).where(
+        stmt = stmt.outerjoin(Vendor, Vendor.id == Shipment.vendor_id).where(
             or_(
                 Shipment.shipment_no.ilike(like),
                 Shipment.vendor_invoice_no.ilike(like),
@@ -507,15 +692,18 @@ def list_shipments(
     )
     names = _names(
         db,
-        {s.created_by for s in rows} | {s.counted_by for s in rows} | {s.posted_by for s in rows},
-    )
+        {
+            x
+            for s in rows
+            for x in (
+                s.created_by, s.counted_by, s.posted_by, s.verified_by, s.details_completed_by
+            )
+        },
+    )  # fmt: skip
     items = []
     for s in rows:
         _, declared, counted, _c = _load(db, s)
-        ndocs = db.scalar(select(func.count()).where(ShipmentDocument.shipment_id == s.id)) or 0
-        items.append(
-            _summary(db, s, names, ndocs, len(discrepancies(svc.compare(declared, counted))))
-        )
+        items.append(_summary(db, s, names, pur.doc_count(db, s.id), declared, counted))
     nxt = off + len(rows)
     return {"items": items, "total": total, "next_cursor": str(nxt) if nxt < total else None}
 
@@ -582,6 +770,13 @@ def _attach(
         )
     ):
         raise ApiError(409, "ALREADY_ATTACHED", "This document is already on the shipment")
+    if s.vendor_id is None:
+        # documents are filed in the supplier's folder
+        raise ApiError(
+            409,
+            "SUPPLIER_NEEDED",
+            "Choose the supplier (complete the details) before adding documents",
+        )
     link = ShipmentDocument(
         shipment_id=s.id,
         document_id=doc_id,
@@ -611,7 +806,9 @@ def attach_scan(
     """Attach a document already brought in through the Scan Center (bridge or upload)."""
 
     def fn() -> Result:
-        s = lock_for(db, request, p, shipment_id, "grn.record", body.version, "OPEN", "COUNTED")
+        s = lock_for(
+            db, request, p, shipment_id, "grn.record", body.version, "OPEN", "COUNTED", "POSTED"
+        )
         j = db.get(ScanJob, body.scan_job_id)
         if j is None or j.company_id != p.company_id or not can_read_scan(p, j.warehouse_id):
             raise ApiError(422, "INVALID_SCAN", "Scan not found")
@@ -675,7 +872,9 @@ def upload_document(
     )
 
     def fn() -> Result:
-        s = lock_for(db, request, p, shipment_id, "grn.record", version, "OPEN", "COUNTED")
+        s = lock_for(
+            db, request, p, shipment_id, "grn.record", version, "OPEN", "COUNTED", "POSTED"
+        )
         doc, existed = scanning.store_document(
             db, p.company_id, data, mime, filename, p.employee.id, "MANUAL"
         )
@@ -768,7 +967,9 @@ def attach_gmail(
     data, mime = gmail_files.load(db, a, m)  # may call Gmail; holds no transaction meanwhile
 
     def fn() -> Result:
-        s = lock_for(db, request, p, shipment_id, "grn.record", body.version, "OPEN", "COUNTED")
+        s = lock_for(
+            db, request, p, shipment_id, "grn.record", body.version, "OPEN", "COUNTED", "POSTED"
+        )
         doc, existed = scanning.store_document(
             db, p.company_id, data, mime, a.filename, p.employee.id, "GMAIL"
         )
@@ -1188,6 +1389,12 @@ def add_cost(
         need_status(s, "OPEN", "COUNTED", "POSTED")
         if s.status != "POSTED":
             check_version(s.version, body.version)
+        if s.entry != "LEGACY" and not s.is_airport:
+            raise ApiError(
+                422,
+                "NOT_AIRPORT",
+                "Freight, duty and other landed costs are recorded for airport shipments only",
+            )
         link = get_doc_link(db, s, body.shipment_document_id)
         c = LandedCost(
             shipment_id=s.id,

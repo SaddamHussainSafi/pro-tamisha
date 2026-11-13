@@ -16,7 +16,7 @@ import {
   type Warehouse,
 } from "../api";
 import { useAuth } from "../auth";
-import { PriceList, SupplierHeader, ToReceiving } from "./OcrSupplier";
+import { PriceList, SupplierHeader, ToPurchase } from "./OcrSupplier";
 import { ScanProcessing } from "../components/scanner/ScanProcessing";
 import { ScanLens } from "../components/scanner/ScanLens";
 import { lensBox } from "../lib/scanLens";
@@ -659,7 +659,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
             )}
           </section>
 
-          {supplierDoc && (reviewing || ex.shipment_id) && <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} vendor={vendorChoice ?? ex.vendor_id ?? ""} />}
+          {supplierDoc && (reviewing || ex.shipment_id) && <ToPurchase ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} vendor={vendorChoice ?? ex.vendor_id ?? ""} />}
           <p className="text-sm">
             <Link className={link} to={`/scan/${ex.scan_job_id}`}>Scan details</Link>
             {" · "}

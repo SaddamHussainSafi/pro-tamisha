@@ -314,7 +314,7 @@ def _lot(c: _Ctx, lot: InventoryLot) -> None:
     src = db.execute(
         select(Shipment, Vendor)
         .join(GrnLine, GrnLine.shipment_id == Shipment.id)
-        .join(Vendor, Vendor.id == Shipment.vendor_id)
+        .outerjoin(Vendor, Vendor.id == Shipment.vendor_id)  # a quick receive may have none
         .where(GrnLine.lot_id == lot.id)
         .limit(1)
     ).first()
@@ -328,7 +328,8 @@ def _lot(c: _Ctx, lot: InventoryLot) -> None:
             (s.grn_no or s.status).lower(),
             f"/receiving/{s.id}",
         )
-        c.rel("vendor", v.id, None, v.name, v.code, f"/suppliers/{v.id}")
+        if v is not None:
+            c.rel("vendor", v.id, None, v.name, v.code, f"/suppliers/{v.id}")
     n = db.scalar(
         select(func.count()).select_from(StockMovement).where(StockMovement.lot_id == lot.id)
     )
@@ -380,8 +381,8 @@ def _lot(c: _Ctx, lot: InventoryLot) -> None:
 
 def _shipment(c: _Ctx, s: Shipment) -> None:
     db, pv = c.db, c.pv
-    v = db.get(Vendor, s.vendor_id)
-    pv.f("Supplier", v.name if v else "")
+    v = db.get(Vendor, s.vendor_id) if s.vendor_id else None
+    pv.f("Supplier", v.name if v else "Supplier invoice to follow")
     pv.f("Status", s.status.lower())
     pv.f("GRN", s.grn_no)
     pv.f("Airway bill", s.awb_no)

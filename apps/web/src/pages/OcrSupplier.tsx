@@ -1,9 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { errorText } from "../lib/errors";
 import { Link } from "react-router-dom";
-import { api, has, type OcrExtractionDetail as OcrExtraction, type OcrField, type Vendor } from "../api";
+import { api, ApiError, has, type OcrExtractionDetail as OcrExtraction, type OcrField, type Shipment, type Vendor } from "../api";
 import { useAuth } from "../auth";
+import { todayIso } from "../lib/format";
 import { warningText } from "../lib/ocr";
+import { useGridProducts } from "../lib/gridData";
+import { expiryIso, goodsText, matchingQuick, purchaseMessage } from "../lib/purchases";
 import { Icon } from "../ui/Icon";
 
 type Box = { page: number; x0: string; y0: string; x1: string; y1: string } | null;
@@ -195,7 +198,8 @@ export function SupplierHeader({ ex, threshold, editable, onFixed, vendor, onVen
           return (
             <div key={k} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
               <dt className="w-36 text-ink-muted">{LABEL[k]}</dt>
-              <dd className="min-w-0 flex-1">
+              <dd className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1">
                 {editing === k ? (
                   <span className="flex gap-2">
                     <label className="sr-only" htmlFor={`hdr-${k}`}>{LABEL[k]}</label>
@@ -210,7 +214,7 @@ export function SupplierHeader({ ex, threshold, editable, onFixed, vendor, onVen
                   </span>
                 )}
                 {c?.corrected !== undefined && <span className="ml-2 text-xs text-ink-muted">(read: {c.value ?? "nothing"})</span>}
-              </dd>
+                </span>
               {low && c?.corrected === undefined && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium">Check · {Math.round(Number(c.confidence) * 100)}%</span>}
               {c?.ambiguous && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium">Day/month unclear</span>}
               {editable && editing !== k && (
@@ -226,6 +230,7 @@ export function SupplierHeader({ ex, threshold, editable, onFixed, vendor, onVen
                   Correct
                 </button>
               )}
+              </dd>
             </div>
           );
         })}
@@ -363,20 +368,70 @@ export function PriceList({ fields }: { fields: OcrField[] }) {
   );
 }
 
-/** Reviewed supplier document → declared lines on a shipment. Never stock or costs. */
-export function ToReceiving({ ex, ready, canReceive, onDone, vendor }: { ex: OcrExtraction; ready: boolean; canReceive: boolean; onDone: (e: OcrExtraction) => void; vendor: string }) {
+/** Reviewed supplier document → a purchase, in stock at once (owner, 2026-11-12). Every line
+ * was checked by a person first; the original file stays on the purchase unaltered. */
+export function ToPurchase({ ex, ready, canReceive, onDone, vendor }: { ex: OcrExtraction; ready: boolean; canReceive: boolean; onDone: (e: OcrExtraction) => void; vendor: string }) {
   const [checked, setChecked] = useState(false);
+  const [airport, setAirport] = useState(false);
+  const [pieces, setPieces] = useState("");
+  const [expected, setExpected] = useState(todayIso());
+  const [openQuick, setOpenQuick] = useState<Shipment[]>([]);
+  const [same, setSame] = useState<Record<string, boolean | undefined>>({});
+  const [reason, setReason] = useState("");
+  const [needReason, setNeedReason] = useState(false);
+  const [dup, setDup] = useState<string | null>(null);
+  const [expiries, setExpiries] = useState<Record<string, string>>({});
+  const { details } = useGridProducts();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const h = ex.header ?? {};
   const pick = (k: string) => (h[k]?.corrected !== undefined ? h[k]?.corrected : h[k]?.value) ?? null;
-  async function go() {
+  const isPacket = h.kind?.value === "AIR_PACKET" || !!pick("awb_no");
+  useEffect(() => {
+    if (ex.shipment_id || !canReceive) return;
+    api.shipments({ stage: "TO_COMPLETE", warehouse_id: ex.warehouse_id, limit: 200 }).then((p) => setOpenQuick(p.items), () => setOpenQuick([]));
+  }, [ex.shipment_id, ex.warehouse_id, canReceive]);
+  useEffect(() => {
+    if (isPacket) setAirport(true);
+  }, [isPacket]);
+  const kept = ex.fields.filter((f) => (f.resolution === "CONFIRMED" || f.resolution === "CORRECTED") && f.final_product_id && f.final_unit_code);
+  const quick = matchingQuick(openQuick, kept.map((f) => ({ product_id: f.final_product_id as string, unit_code: f.final_unit_code as string })));
+  const undecided = quick.filter((q) => same[q.id] === undefined);
+  const date = pick("document_date");
+  // Products that track expiry need their date before they can go to stock.
+  // (Goods a quick receive already put on the shelf have theirs.)
+  const shelved = new Set(quick.filter((q) => same[q.id]).flatMap((q) => q.items.map((i) => `${i.product_id}:${i.unit_code}`)));
+  const dated = kept.filter((f) => details.get(f.final_product_id as string)?.tracks_expiry && !shelved.has(`${f.final_product_id}:${f.final_unit_code}`));
+  const missingExpiry = dated.some((f) => !expiries[f.id]);
+
+  async function go(confirmDuplicate = false) {
     setError(null);
     setBusy(true);
     try {
-      onDone(await api.ocrToReceiving(ex.id, { version: ex.version, vendor_id: vendor, document_no: pick("document_no"), currency: pick("currency"), reviewed_all: true }));
+      onDone(
+        await api.ocrToPurchase(ex.id, {
+          version: ex.version,
+          vendor_id: vendor,
+          vendor_invoice_no: pick("document_no"),
+          invoice_date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
+          currency: pick("currency"),
+          reviewed_all: true,
+          is_airport: airport,
+          awb_no: airport ? pick("awb_no") : null,
+          expected_on: airport ? expected || null : null,
+          expected_pieces: airport && pieces ? Number(pieces) : null,
+          absorb_quick_ids: quick.filter((q) => same[q.id]).map((q) => q.id),
+          reason: reason.trim() || null,
+          confirm_duplicate: confirmDuplicate,
+          expiries: Object.fromEntries(dated.flatMap((f) => (expiries[f.id] ? [[f.id, expiryIso(expiries[f.id]) as string]] : []))),
+        }),
+      );
     } catch (e) {
-      setError(errorText(e));
+      if (e instanceof ApiError && e.code === "INVOICE_ALREADY_ENTERED") setDup(String(e.extra.shipment_no ?? ""));
+      else {
+        if (e instanceof ApiError && e.code === "MATCH_REASON_REQUIRED") setNeedReason(true);
+        setError(purchaseMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -384,16 +439,83 @@ export function ToReceiving({ ex, ready, canReceive, onDone, vendor }: { ex: Ocr
   if (ex.shipment_id)
     return (
       <p role="status" className="alert-success">
-        Filed to Receiving. <Link className="font-medium underline" to={`/receiving/${ex.shipment_id}`}>Open the shipment</Link> to count and post it.
+        Saved as a purchase. Its goods are in stock now. <Link className="font-medium underline" to={`/purchases/${ex.shipment_id}`}>Open the purchase</Link>
       </p>
     );
   return (
-    <section aria-labelledby="rcv-h" className="card space-y-3 p-6">
-      <h2 id="rcv-h" className="font-semibold">Send to Receiving</h2>
-      <p className="text-sm text-ink-muted">The document is attached to a new shipment and the kept lines become what the supplier declared. Nothing is added to stock and nothing is owed until the goods are counted and posted.</p>
+    <section aria-labelledby="rcv-h" className="card space-y-4 p-6">
+      <div>
+        <h2 id="rcv-h" className="font-semibold">Save &amp; add to stock</h2>
+        <p className="mt-1 text-sm text-ink-muted">The kept lines become a purchase from this supplier and go into stock at once. The scanned file stays on the purchase exactly as received. Lines can still be added by hand above, or on the purchase afterwards.</p>
+      </div>
+      <label className="flex items-start gap-2.5 text-sm">
+        <input type="checkbox" className="mt-0.5 size-4" checked={airport} onChange={(e) => setAirport(e.target.checked)} />
+        <span>
+          <span className="font-medium">Airport shipment, verify pieces on arrival</span>
+          <span className="block text-ink-muted">In stock as soon as it is saved, even before pickup. The pieces are checked later.</span>
+        </span>
+      </label>
+      {airport && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="tp-exp">Expected arrival</label>
+            <input id="tp-exp" type="date" className="input" value={expected} onChange={(e) => setExpected(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="tp-pcs">Pieces on the airway bill</label>
+            <input id="tp-pcs" className="input num" inputMode="numeric" maxLength={7} placeholder="Optional" value={pieces} onChange={(e) => setPieces(e.target.value.replace(/\D/g, ""))} />
+          </div>
+        </div>
+      )}
+      {dated.length > 0 && (
+        <fieldset className="space-y-2 rounded-ctl border border-line p-4">
+          <legend className="px-1 text-sm font-semibold">Expiry dates</legend>
+          <p className="text-sm text-ink-muted">These products track expiry. Enter the date printed on the goods or the documents.</p>
+          {dated.map((f) => (
+            <div key={f.id} className="flex flex-wrap items-center gap-3 text-sm">
+              <label className="min-w-0 flex-1 font-medium" htmlFor={`tp-x-${f.id}`}>{f.final_product_name ?? f.label}</label>
+              <input id={`tp-x-${f.id}`} type="date" className="input w-44" value={expiries[f.id] ?? ""} onChange={(e) => setExpiries((x) => ({ ...x, [f.id]: e.target.value }))} />
+            </div>
+          ))}
+        </fieldset>
+      )}
+      {quick.length > 0 && (
+        <fieldset className="space-y-3 rounded-ctl border border-warning/40 bg-warning/5 p-4">
+          <legend className="px-1 text-sm font-semibold">Already added by quick receive</legend>
+          <p className="text-sm text-ink-muted">These goods were put into stock earlier and are waiting for their invoice. If this is that invoice, they are not added a second time.</p>
+          {quick.map((q) => (
+            <div key={q.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm" role="group" aria-label={`Quick receive ${q.shipment_no}`}>
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{goodsText(q.items, q.line_count)}</span>
+                <span className="block text-xs text-ink-muted">{q.shipment_no} · added by {q.created_by_name}{q.quick_reason ? ` · “${q.quick_reason}”` : ""}</span>
+              </span>
+              <label className="inline-flex items-center gap-1.5">
+                <input type="radio" name={`tp-same-${q.id}`} checked={same[q.id] === true} onChange={() => setSame((s) => ({ ...s, [q.id]: true }))} />
+                Same goods, on this invoice
+              </label>
+              <label className="inline-flex items-center gap-1.5">
+                <input type="radio" name={`tp-same-${q.id}`} checked={same[q.id] === false} onChange={() => setSame((s) => ({ ...s, [q.id]: false }))} />
+                Different goods
+              </label>
+            </div>
+          ))}
+        </fieldset>
+      )}
+      {(needReason || reason) && (
+        <div>
+          <label className="label" htmlFor="tp-reason">Why does the invoice differ from what was added to stock? (required)</label>
+          <input id="tp-reason" className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+        </div>
+      )}
       {error && (
         <p role="alert" className="alert-danger">
           {error}
+        </p>
+      )}
+      {dup !== null && (
+        <p role="alert" className="alert-warning">
+          This invoice from this supplier was already entered as {dup}. Saving it again adds the goods to stock a second time.{" "}
+          <button type="button" className="font-medium underline" disabled={busy} onClick={() => { setDup(null); void go(true); }}>Save it again anyway</button>
         </p>
       )}
       {!vendor && <p className="text-sm text-warning">Choose the supplier at the top of the page first.</p>}
@@ -403,11 +525,11 @@ export function ToReceiving({ ex, ready, canReceive, onDone, vendor }: { ex: Ocr
       </label>
       <div className="flex justify-end">
         {canReceive ? (
-          <button type="button" className="btn-primary" disabled={busy || !ready || !checked || !vendor} onClick={() => void go()}>
-            Send to Receiving
+          <button type="button" className="btn-primary" disabled={busy || !ready || !checked || !vendor || undecided.length > 0 || missingExpiry} onClick={() => void go()}>
+            {busy ? "Saving…" : "Save & add to stock"}
           </button>
         ) : (
-          <span className="text-sm text-ink-muted">Someone who records receiving must send it.</span>
+          <span className="text-sm text-ink-muted">Someone who enters purchases must save it.</span>
         )}
       </div>
     </section>

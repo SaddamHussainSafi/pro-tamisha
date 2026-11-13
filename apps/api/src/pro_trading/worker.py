@@ -24,6 +24,7 @@ from .order_connect.intake import handle_received as handle_oc_received
 from .order_connect.review import purge_expired as purge_order_connect
 from .outbox import Handler, dispatch_pending
 from .payments import REMINDER_EVENT, handle_reminder, schedule_reminders
+from .purchases import remind_to_complete as remind_purchases
 from .search.indexer import drain as drain_search_queue
 from .trash import purge_expired as purge_trash_items
 
@@ -33,6 +34,8 @@ app.conf.beat_schedule = {
     "payment-reminders": {"task": "pro_trading.schedule_reminders", "schedule": 3600.0},
     "order-connect-retention": {"task": "pro_trading.order_connect_retention", "schedule": 86400.0},
     "purge-trash": {"task": "pro_trading.purge_trash", "schedule": 3600.0},
+    # Purchases: once a day per company while quick receives still wait for their invoice.
+    "purchases-to-complete": {"task": "pro_trading.purchases_to_complete", "schedule": 3600.0},
     # Universal search: rebuild documents for records changed since the last run.
     "search-index": {"task": "pro_trading.search_index", "schedule": 3.0},
     # Gmail Inbox: looks for new mail on a timer (the fallback when no Pub/Sub push arrives,
@@ -83,6 +86,13 @@ def purge_trash(*_: Any) -> int:
     """Delete forever whatever has been in the Trash for 30 days."""
     with get_sessionmaker()() as db:
         return purge_trash_items(db)
+
+
+@app.task(name="pro_trading.purchases_to_complete")  # type: ignore[untyped-decorator]
+def purchases_to_complete(*_: Any) -> int:
+    """Daily reminder of quick receives that still need their supplier invoice."""
+    with get_sessionmaker()() as db:
+        return remind_purchases(db)
 
 
 @app.task(name="pro_trading.gmail_poll")  # type: ignore[untyped-decorator]
