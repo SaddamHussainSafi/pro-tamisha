@@ -318,7 +318,6 @@ export function OcSubmissionPage() {
 
   return (
     <div className="space-y-5">
-      <Link to="/online-orders/requests" className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink"><Icon name="chevronLeft" size={16} />Order & quote requests</Link>
       <PageHeader
         title={sender(d)}
         subtitle={

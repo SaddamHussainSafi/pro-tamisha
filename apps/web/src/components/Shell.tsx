@@ -322,6 +322,7 @@ export function Shell() {
             <Icon name="menu" />
           </button>
           <div className="shrink-0 rounded-full bg-card p-1.5 pr-5 lg:hidden"><Wordmark /></div>
+          <Breadcrumbs place="header" />
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <div className="hidden md:block"><QuickJump ref={jump} /></div>
             <div className="md:hidden"><SearchButton /></div>
@@ -332,7 +333,7 @@ export function Shell() {
         <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-5">
           {/* Keyed by path: each screen fades in once when you arrive (not on every data refresh). */}
           <ConnectionBanner />
-          <Breadcrumbs />
+          <Breadcrumbs place="page" />
           <div key={loc.pathname} className="animate-enter">
             <ErrorBoundary scope="page" resetKey={loc.pathname}>
               <Suspense fallback={<PageSkeleton />}>

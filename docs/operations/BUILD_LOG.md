@@ -1130,3 +1130,9 @@ No application code has been generated or executed by this planning pack. This l
 - The two page-made trails (batch page, price list) were removed so there is only one. Supplier-document reviews no longer repeat their warnings above the page (they are listed once in Document details).
 - **Fixed with it:** the phone drawer (smooth-close change) kept a second copy of the menu in the page, which duplicated the user name and Email badge for tests; its contents now exist only while it is open or closing.
 - **Results:** `tsc` clean; vitest 309 passed (+5 breadcrumb tests); full Playwright run (minus the two Gemini-dependent OCR specs): 107 passed. Then email, order-connect, navigation, gmail: 33 passed after the drawer fix. Still failing, unrelated to these changes: `reports.spec` (stock movement table empty for the period), `documents.spec` (Drive copy), `scan-uploads` / `scan-processing` duplicate check (live worker reading with the real OCR engine).
+
+## 2026-11-12 — Breadcrumbs move into the top bar, larger
+
+- Wide screens (≥ 1024 px): the trail sits in the top bar, left of search, in a white pill like the search box; 17 px text, 40 px home button, current page in semibold. Phones/tablets: still at the top of the page (the top bar is full there), 15 px.
+- Removed the page-made "‹ Order & quote requests" back link on an online-order request (the trail covers it).
+- Results: tsc clean; vitest 309 passed; Playwright navigation, smoke, settings, shell-scroll, products, inventory, pricing, order-connect: 28 passed. `order-connect` "quote request (phone width)" fails here with or without the header trail (the live row never arrives in this environment), so it is not caused by this change.
