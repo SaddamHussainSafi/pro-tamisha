@@ -5,7 +5,7 @@ import { api, type OcrEngineReading, type OcrEngineStatus, type OcrExtraction, t
 import { FIELD_STATUS, lineNotes, trimQty, warningText } from "../../lib/ocr";
 import { StatusChip } from "../../ui/primitives";
 
-const NAME: Record<string, string> = { gemini: "Google Gemini", tesseract: "Built-in reader (Tesseract)", mixed: "Gemini + built-in reader", document_ai: "Google Document AI", fake: "Test reader", disabled: "Off" };
+const NAME: Record<string, string> = { gemini: "Online handwriting reader", tesseract: "Built-in reader", mixed: "Online + built-in reader", document_ai: "Online document reader", fake: "Test reader", disabled: "Off" };
 const pct = (a: string | null) => (a === null ? "—" : `${Math.round(Number(a) * 1000) / 10}%`);
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -62,7 +62,6 @@ export function OcrEngine() {
         <h2 id="ocr-engine" className="text-lg font-semibold">Reading engine</h2>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Fact label="Engine">{NAME[st.provider] ?? st.provider}</Fact>
-          <Fact label="Model">{st.provider === "gemini" ? st.model : "—"}</Fact>
           <Fact label="API key">{st.key_set ? "Set on the server" : "Not set"}</Fact>
           <Fact label="Scans may go to Google">{st.data_consent ? "Yes (owner agreed)" : "No"}</Fact>
           <Fact label="Falls back to">{NAME[st.fallback_provider] ?? st.fallback_provider}</Fact>
@@ -71,7 +70,7 @@ export function OcrEngine() {
           <Fact label="Per minute">{st.used_this_minute} of {st.requests_per_minute}</Fact>
         </dl>
         {st.quota_hit_today && <p className="alert-danger">Google's daily allowance is used up. Scans are read by the built-in reader until it resets (midnight Pacific time).</p>}
-        {st.breaker_open_seconds > 0 && <p className="alert-danger">Gemini is paused for {st.breaker_open_seconds} s after repeated failures. Scans are read by the built-in reader meanwhile.</p>}
+        {st.breaker_open_seconds > 0 && <p className="alert-danger">The online reader is paused for {st.breaker_open_seconds} s after repeated failures. Scans are read by the built-in reader meanwhile.</p>}
         <p className="text-sm text-ink-muted">Target: about {st.target_seconds} s a page. One request reads one page; unclear rows may take one more.</p>
       </section>
 
@@ -108,7 +107,6 @@ export function OcrEngine() {
           <div className="space-y-4">
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Fact label="Read by">{NAME[eng?.provider ?? reading.provider] ?? reading.provider}</Fact>
-              <Fact label="Model">{eng?.provider === "tesseract" || !eng?.model ? "—" : eng.model}</Fact>
               <Fact label="Pages">{reading.page_count ?? "—"}</Fact>
               <Fact label="Seconds">{eng?.seconds ?? "—"}</Fact>
               <Fact label="Lines found">{reading.lines}</Fact>
@@ -151,7 +149,7 @@ export function OcrEngine() {
                   {reading.tesseract_lines.map((t, i) => (
                     <li key={`${t.label}-${i}`} className="py-1.5"><span className="font-medium">{t.label}</span> <span className="num">{t.qty ?? "?"}</span> <span className="text-ink-muted">“{t.raw}”</span></li>
                   ))}
-                  {reading.tesseract_lines.length === 0 && <li className="py-1.5 text-ink-muted">{eng?.provider === "gemini" || eng?.provider === "mixed" ? "It found no lines." : "Not kept for this reading (it was not read by Gemini)."}</li>}
+                  {reading.tesseract_lines.length === 0 && <li className="py-1.5 text-ink-muted">{eng?.provider === "gemini" || eng?.provider === "mixed" ? "It found no lines." : "Not kept for this reading (it was not read by the online reader)."}</li>}
                 </ul>
               </div>
             </div>

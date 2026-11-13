@@ -43,14 +43,14 @@ Object.assign(WARNING, {
 });
 const WHY: Record<string, string> = {
   GEMINI_CONSENT_NEEDED: "sending scans to Google has not been agreed yet",
-  GEMINI_NOT_CONFIGURED: "no Gemini key is set on the server",
+  GEMINI_NOT_CONFIGURED: "the online reader is not set up on the server",
   GEMINI_DAILY_CAP: "today's free allowance is used up",
   GEMINI_QUOTA: "Google's daily allowance is used up",
   GEMINI_RATE_LIMIT: "Google asked to slow down",
-  GEMINI_CIRCUIT_OPEN: "Gemini is paused after repeated failures",
+  GEMINI_CIRCUIT_OPEN: "the online reader is paused after repeated failures",
   GEMINI_UNAVAILABLE: "Google could not be reached",
-  GEMINI_BAD_JSON: "Gemini's answer was not valid",
-  GEMINI_NO_ANSWER: "Gemini gave no answer",
+  GEMINI_BAD_JSON: "the online reader's answer was not valid",
+  GEMINI_NO_ANSWER: "the online reader gave no answer",
   GEMINI_REJECTED: "Google refused the request",
   GEMINI_TOO_LARGE: "the page is too large to send",
 };
@@ -61,11 +61,12 @@ const DOC: Record<string, string> = {
   SALES_INVOICE: "one of our own invoices or packing lists",
   UNKNOWN_DOCUMENT: "a document the reader doesn't know",
 };
+const HEADER_NAME: Record<string, string> = { document_no: "document number", awb_no: "airway bill number", document_date: "date", due_date: "due date", supplier: "supplier name" };
 const pagesOf = (a: string) => a.replace(/^p/, "page ");
 const WITH_ARG: Record<string, (arg: string) => string> = {
   GEMINI_FALLBACK: (a) => {
     const [why = "", where] = a.split(":");
-    return `Gemini wasn't used${where ? ` for ${pagesOf(where)}` : ""} (${WHY[why] ?? why}). The built-in reader was used instead, so check every line.`;
+    return `The online reader wasn't used${where ? ` for ${pagesOf(where)}` : ""} (${WHY[why] ?? why}). The built-in reader was used instead, so check every line.`;
   },
   CUSTOMER_UNSURE: (a) => `The customer name reads “${a}”, but not clearly. Choose the customer.`,
   CUSTOMER_NOT_FOUND: (a) => `No customer is called “${a}”. Choose the customer.`,
@@ -85,8 +86,11 @@ const WITH_ARG: Record<string, (arg: string) => string> = {
     return `Written in the margin of ${m[4] ? `page ${m[4]}` : "the sheet"}: ${written}. That doesn't match the ${m[2]} lines read (they add up to ${m[3]}). Look for a missed or extra line.`;
   },
   RECHECK_SKIPPED: () => "Unclear lines were not read a second time (today's allowance is nearly used up).",
-  HEADER_DIFFERS: (a) => `The two readers disagree on the ${a.replace(/_/g, " ")}. Check it.`,
-  LINE_COUNT_DIFFERS: (a) => `The two readers found a different number of lines (${a.replace("local=", "built-in ").replace(",gemini=", ", Gemini ")}). Check none is missing.`,
+  HEADER_DIFFERS: (a) => `A second check read the ${HEADER_NAME[a] ?? a.replace(/_/g, " ")} differently. Check it against the scan.`,
+  LINE_COUNT_DIFFERS: (a) => {
+    const m = /local=(\d+),\w+=(\d+)/.exec(a);
+    return m ? `${m[2]} ${m[2] === "1" ? "line was" : "lines were"} read, but a second check counted ${m[1]}. Check against the scan that no line is missing or extra.` : "A second check counted a different number of lines. Check that no line is missing or extra.";
+  },
   STAGE_A_SKIPPED: () => "The kind of document was not double-checked.",
 };
 export const warningText = (code: string) => {
@@ -102,9 +106,9 @@ const FLAG: Record<string, (arg: string) => string> = {
   NEIGHBOUR_UNREAD: () => "There is writing in the next row that was not read: check which row this number belongs to.",
   UNSURE: () => "Hard to read.",
   FRACTION: () => "A fraction or decimal: check it.",
-  LOCAL_READ_DIFFERS: (a) => `The built-in reader saw ${a}.`,
+  LOCAL_READ_DIFFERS: (a) => `A second check read ${a}.`,
   RECHECK_DIFFERS: (a) => `A second look read ${a === "-" ? "nothing" : a}.`,
-  GEMINI_SAW_NOTHING: () => "Found by the built-in reader only.",
+  GEMINI_SAW_NOTHING: () => "Found only by the second check.",
   DUPLICATE_ROW: () => "This row was read twice.",
   PRODUCT_GUESSED: () => "The product is a near match: check it.",
   UNIT_IN_QTY: () => "A unit was written with the quantity.",
@@ -132,14 +136,12 @@ export function lineNotes(d: OcrLineDetail | null | undefined): string[] {
   return out;
 }
 
-const ENGINE: Record<string, string> = { gemini: "Gemini", tesseract: "the built-in reader", mixed: "Gemini and the built-in reader", disabled: "nothing (reading is off)" };
-/** One line saying which engine really read the scan. Empty for readings made before engines were recorded. */
+/** One line saying how long the reading took. No reader or model names (owner, 2026-11-12).
+ * Empty for readings made before engines were recorded. */
 export function engineText(e: OcrEngine | undefined): string {
   if (!e?.provider) return "";
-  const who = ENGINE[e.provider] ?? e.provider;
-  const model = e.provider !== "tesseract" && e.model ? ` (${e.model})` : "";
-  const secs = typeof e.seconds === "number" ? ` in ${Math.round(e.seconds)} s` : "";
-  return `Read by ${who}${model}${secs}.`;
+  if (e.provider === "disabled") return "Not read: reading is turned off.";
+  return typeof e.seconds === "number" ? `Read in ${Math.round(e.seconds)} s.` : "";
 }
 
 /** Only clear readings may be confirmed as read; anything unclear needs a person to enter it. */

@@ -56,7 +56,9 @@ describe("ocr helpers", () => {
 
 describe("Gemini readings in words", () => {
   it("explains a fallback, an unsure customer and a file with two orders", () => {
-    expect(warningText("GEMINI_FALLBACK:GEMINI_DAILY_CAP")).toMatch(/Gemini wasn't used \(today's free allowance is used up\).*built-in reader/);
+    expect(warningText("GEMINI_FALLBACK:GEMINI_DAILY_CAP")).toMatch(/online reader wasn't used \(today's free allowance is used up\).*built-in reader/);
+    expect(warningText("LINE_COUNT_DIFFERS:local=1,gemini=2")).toBe("2 lines were read, but a second check counted 1. Check against the scan that no line is missing or extra.");
+    expect(warningText("GEMINI_FALLBACK:GEMINI_NOT_CONFIGURED") + warningText("HEADER_DIFFERS:document_no")).not.toMatch(/gemini/i);
     expect(warningText("GEMINI_FALLBACK:GEMINI_UNAVAILABLE:p2,3")).toMatch(/for page 2,3 \(Google could not be reached\)/);
     expect(warningText("CUSTOMER_UNSURE:Sarangan Miss")).toMatch(/“Sarangan Miss”, but not clearly/);
     expect(warningText("MIXED_ORDERS:p1=080778;p2=080781")).toMatch(/more than one order.*p1: order 080778; p2: order 080781/);
@@ -76,9 +78,9 @@ describe("Gemini readings in words", () => {
       "No writing was found in this row's box: the number may belong to another row.",
     ]);
   });
-  it("says which engine really read the scan", () => {
+  it("says how long the reading took, never which reader or model", () => {
     expect(engineText(undefined)).toBe("");
-    expect(engineText({ provider: "gemini", model: "gemini-3.8-flash", seconds: 13.6 })).toBe("Read by Gemini (gemini-3.8-flash) in 14 s.");
-    expect(engineText({ provider: "tesseract", model: "gemini-3.8-flash", seconds: 6 })).toBe("Read by the built-in reader in 6 s.");
+    expect(engineText({ provider: "gemini", model: "gemini-3.8-flash", seconds: 13.6 })).toBe("Read in 14 s.");
+    expect(engineText({ provider: "tesseract", model: "gemini-3.8-flash", seconds: 6 })).toBe("Read in 6 s.");
   });
 });

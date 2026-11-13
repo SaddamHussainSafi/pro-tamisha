@@ -267,6 +267,8 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
   const [rereading, setRereading] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [lens, setLens] = useState<{ seq: number; rect: DOMRect } | null>(null);
+  // Supplier documents: the supplier chosen at the top (null = the one the reading matched).
+  const [vendorChoice, setVendorChoice] = useState<string | null>(null);
   const lensTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** Show the magnifier for this row after `delay` ms (a short pause, so passing over rows
    * with the mouse doesn't flash it). */
@@ -484,7 +486,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
       <div className="space-y-5">
 
         <div className="min-w-0 space-y-4">
-          {supplierDoc && <SupplierHeader ex={ex} threshold={0.9} editable={reviewing} onFixed={setEx} />}
+          {supplierDoc && <SupplierHeader ex={ex} threshold={0.9} editable={reviewing} onFixed={setEx} vendor={vendorChoice ?? ex.vendor_id ?? ""} onVendor={setVendorChoice} />}
           <section aria-labelledby="lines-h" className="card space-y-5 p-6">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -656,7 +658,7 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
             )}
           </section>
 
-          {supplierDoc && (reviewing || ex.shipment_id) && <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} />}
+          {supplierDoc && (reviewing || ex.shipment_id) && <ToReceiving ex={ex} ready={open.length === 0 && kept.length > 0} canReceive={canReceive} onDone={setEx} vendor={vendorChoice ?? ex.vendor_id ?? ""} />}
           <p className="text-sm">
             <Link className={link} to={`/scan/${ex.scan_job_id}`}>Scan details</Link>
             {" · "}

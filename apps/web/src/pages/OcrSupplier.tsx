@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { errorText } from "../lib/errors";
 import { Link } from "react-router-dom";
-import { api, type OcrExtractionDetail as OcrExtraction, type OcrField, type Vendor } from "../api";
-import { engineText, warningText } from "../lib/ocr";
+import { api, has, type OcrExtractionDetail as OcrExtraction, type OcrField, type Vendor } from "../api";
+import { useAuth } from "../auth";
+import { warningText } from "../lib/ocr";
 import { Icon } from "../ui/Icon";
 
 type Box = { page: number; x0: string; y0: string; x1: string; y1: string } | null;
@@ -120,7 +121,7 @@ export function DocViewer({
 }
 
 const LABEL: Record<string, string> = {
-  supplier: "Supplier",
+  supplier: "Supplier as written",
   document_no: "Document number",
   document_date: "Date",
   due_date: "Due date",
@@ -135,7 +136,7 @@ const LABEL: Record<string, string> = {
 /** Shown only for airport packets or when the document has them. */
 const AIR_FIELDS = new Set(["awb_no", "carrier", "arrival_date"]);
 const WARN: Record<string, string> = {
-  SUPPLIER_NOT_FOUND: "The supplier isn't one of yours yet. Choose the supplier below.",
+  SUPPLIER_NOT_FOUND: "The supplier on the document isn't one of yours yet. Choose it above, or add it as a new supplier.",
   LINES_NOT_EQUAL_SUBTOTAL: "The lines don't add up to the subtotal.",
   TOTALS_DONT_ADD_UP: "Subtotal plus tax doesn't equal the total.",
   NO_LINES: "No product lines were found. Add them by hand.",
@@ -150,7 +151,7 @@ function warnText(w: string): string {
 }
 
 /** Header values as read, with engine confidence; low-confidence values are marked. */
-export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrExtraction; threshold: number; editable: boolean; onFixed: (e: OcrExtraction) => void }) {
+export function SupplierHeader({ ex, threshold, editable, onFixed, vendor, onVendor }: { ex: OcrExtraction; threshold: number; editable: boolean; onFixed: (e: OcrExtraction) => void; vendor: string; onVendor: (id: string) => void }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -167,12 +168,13 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
   return (
     <section aria-labelledby="hdr-h" className="card space-y-3 p-6">
       <h2 id="hdr-h" className="text-lg font-semibold">Document details</h2>
+      {!ex.shipment_id && <SupplierPicker ex={ex} vendor={vendor} onVendor={onVendor} editable={editable} />}
       {h.kind?.value === "AIR_PACKET" && (
         <p className="text-sm text-ink-muted">Read as an airport delivery packet (customs declaration, vendor invoice and CFIA Confirmation of Sale). Product lines come from the Confirmation of Sale, checked against the invoice.</p>
       )}
-      {(ex.warnings ?? []).length > 0 && (
+      {(ex.warnings ?? []).some((w) => !(w === "SUPPLIER_NOT_FOUND" && vendor)) && (
         <ul className="space-y-1">
-          {ex.warnings.map((w) => (
+          {ex.warnings.filter((w) => !(w === "SUPPLIER_NOT_FOUND" && vendor)).map((w) => (
             <li key={w} className="flex items-start gap-2 rounded-ctl bg-warning/10 px-3 py-2 text-sm">
               <Icon name="alert" size={16} className="mt-0.5 shrink-0 text-warning" />
               {warnText(w)}
@@ -180,7 +182,6 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
           ))}
         </ul>
       )}
-      {engineText(ex.engine) && <p className="text-xs text-ink-muted">{engineText(ex.engine)}</p>}
       {error && (
         <p role="alert" className="alert-danger">
           {error}
@@ -233,6 +234,106 @@ export function SupplierHeader({ ex, threshold, editable, onFixed }: { ex: OcrEx
   );
 }
 
+const NEW = "__new";
+const short = (t: string) => (t.length > 40 ? `${t.slice(0, 40).trimEnd()}…` : t);
+const codeFrom = (name: string) => name.toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 8);
+
+/** The supplier, at the top of the review: the one that was matched, any other one, or a new
+ * supplier made from the name on the document. Sending to Receiving uses this choice. */
+function SupplierPicker({ ex, vendor, onVendor, editable }: { ex: OcrExtraction; vendor: string; onVendor: (id: string) => void; editable: boolean }) {
+  const { session } = useAuth();
+  const canAdd = !!session && has(session, "catalog.manage");
+  const [vendors, setVendors] = useState<Vendor[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const h = ex.header ?? {};
+  const read = (h.supplier?.corrected ?? h.supplier?.value ?? "").trim();
+  const [name, setName] = useState(read);
+  const [code, setCode] = useState(codeFrom(read));
+  const [currency, setCurrency] = useState(((h.currency?.corrected ?? h.currency?.value) || "CAD").toUpperCase());
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.vendors({ active: true }).then(setVendors, () => setVendors([]));
+  }, []);
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const v = await api.createVendor({ code: code.trim().toUpperCase(), name: name.trim(), currency: currency.trim().toUpperCase() || "CAD" });
+      setVendors((list) => [...(list ?? []), v].sort((a, b) => a.name.localeCompare(b.name)));
+      onVendor(v.id);
+      setAdding(false);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const matched = !!ex.vendor_id && vendor === ex.vendor_id;
+  return (
+    <div className="space-y-2 rounded-ctl border border-line bg-subtle/60 p-4">
+      <label className="label" htmlFor="ocr-vendor">
+        Supplier
+      </label>
+      <select
+        id="ocr-vendor"
+        className="input max-w-md"
+        value={adding ? NEW : vendor}
+        disabled={!editable || vendors === null}
+        onChange={(e) => {
+          if (e.target.value === NEW) setAdding(true);
+          else {
+            setAdding(false);
+            onVendor(e.target.value);
+          }
+        }}
+      >
+        <option value="">{vendors === null ? "Loading suppliers…" : "Choose the supplier…"}</option>
+        {(vendors ?? []).map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+          </option>
+        ))}
+        {canAdd && <option value={NEW}>{read ? `+ Add “${short(read)}” as a new supplier` : "+ Add a new supplier"}</option>}
+      </select>
+      <p className="text-xs text-ink-muted">
+        {read ? `The document says “${read}”. ` : "No supplier name was found on the document. "}
+        {matched ? "Matched to your supplier list." : vendor ? "Chosen by you." : "Not one of your suppliers yet."}
+      </p>
+      {adding && (
+        <form className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_6rem_auto] sm:items-end" onSubmit={(e) => void add(e)} aria-label="New supplier">
+          <div>
+            <label className="label" htmlFor="nv-name">Name</label>
+            <input id="nv-name" className="input" required maxLength={200} value={name} onChange={(e) => { setName(e.target.value); setCode(codeFrom(e.target.value)); }} />
+          </div>
+          <div>
+            <label className="label" htmlFor="nv-code">Code</label>
+            <input id="nv-code" className="input uppercase" required maxLength={32} value={code} onChange={(e) => setCode(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="nv-cur">Currency</label>
+            <input id="nv-cur" className="input uppercase" required maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="btn-primary" disabled={busy || !name.trim() || !code.trim()}>
+              {busy ? "Adding…" : "Add supplier"}
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+          {error && (
+            <p role="alert" className="alert-danger sm:col-span-4">
+              {error}
+            </p>
+          )}
+        </form>
+      )}
+    </div>
+  );
+}
+
 /** Line prices as read (supplier documents). */
 export function PriceList({ fields }: { fields: OcrField[] }) {
   const rows = fields.filter((f) => f.read_unit_price || f.read_amount);
@@ -263,15 +364,10 @@ export function PriceList({ fields }: { fields: OcrField[] }) {
 }
 
 /** Reviewed supplier document → declared lines on a shipment. Never stock or costs. */
-export function ToReceiving({ ex, ready, canReceive, onDone }: { ex: OcrExtraction; ready: boolean; canReceive: boolean; onDone: (e: OcrExtraction) => void }) {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [vendor, setVendor] = useState(ex.vendor_id ?? "");
+export function ToReceiving({ ex, ready, canReceive, onDone, vendor }: { ex: OcrExtraction; ready: boolean; canReceive: boolean; onDone: (e: OcrExtraction) => void; vendor: string }) {
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    api.vendors({ active: true }).then(setVendors, () => setVendors([]));
-  }, []);
   const h = ex.header ?? {};
   const pick = (k: string) => (h[k]?.corrected !== undefined ? h[k]?.corrected : h[k]?.value) ?? null;
   async function go() {
@@ -300,17 +396,7 @@ export function ToReceiving({ ex, ready, canReceive, onDone }: { ex: OcrExtracti
           {error}
         </p>
       )}
-      <div className="max-w-md">
-        <label className="label" htmlFor="rcv-vendor">Supplier</label>
-        <select id="rcv-vendor" className="input" value={vendor} onChange={(e) => setVendor(e.target.value)}>
-          <option value="">Choose…</option>
-          {vendors.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!vendor && <p className="text-sm text-warning">Choose the supplier at the top of the page first.</p>}
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-0.5" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
         I checked every line and the document details against the scan.

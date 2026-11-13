@@ -1116,3 +1116,9 @@ No application code has been generated or executed by this planning pack. This l
 - Reduced-motion users still get no animation (existing global rule).
 - Tests: vitest 299 passed; Playwright navigation, smoke, settings, notifications, scans, gmail, shell-scroll, errors passed. `trash.spec` "Undo" now also matches the Customers page's "Undo changes" button (from ffc88c9, not this change).
 - Fixed: `trash.spec` clicks the toast's exact "Undo" button (it also matched Customers' "Undo changes"); 5 passed.
+
+## 2026-11-12 — Supplier documents: supplier on top, add a missing supplier, no reader/model names
+
+- **Supplier picker at the top of "Document details"** (supplier documents in scan review): matched supplier preselected; any other supplier can be chosen; "+ Add “<name on the document>” as a new supplier" opens a small form (name, code, currency, prefilled) for people with `catalog.manage` (`POST /vendors`, unchanged API). "Send to Receiving" now uses this choice and no longer has its own select. The "isn't one of yours" warning disappears once a supplier is chosen.
+- **No AI reader or model names anywhere in the app:** "Read by Gemini (model) in N s" is now "Read in N s." (and no longer shown twice); reader-disagreement warnings read "A second check…" with plain field names ("2 lines were read, but a second check counted 1…"); Settings › OCR engine shows "Online handwriting reader" / "Built-in reader" and no model row.
+- **Results:** `tsc` clean; vitest 304 passed (wording tests updated, +2); eslint clean; Playwright ocr-review-grid, receiving, settings: 10 passed. No e2e covers a supplier document end to end (needs a supplier-document fixture); checked by hand on a real supplier reading in the dev stack.
