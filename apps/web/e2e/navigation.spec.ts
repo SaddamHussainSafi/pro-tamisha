@@ -68,21 +68,24 @@ test("signing in returns to the page that was opened", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Inventory" })).toBeVisible();
 });
 
-test("sidebar auto-hides to an icon rail and widens when the pointer is on it", async ({ page }) => {
+test("sidebar auto-hides to an icon rail and slides open, pushing the page, when the pointer is on it", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page);
   const nav = page.getByRole("complementary", { name: "Sections" });
-  // the drawn layout: 88 px rail, 276 px when open (revealed with clip-path)
-  const width = async () => Math.round((await nav.locator("> div > div").first().boundingBox())?.width ?? 0);
+  // the sidebar's own width: 88 px rail, 276 px open; it pushes the page (never covers it)
+  const width = async () => Math.round((await nav.boundingBox())?.width ?? 0);
+  const pageLeft = async () => Math.round((await page.locator("#main").boundingBox())?.x ?? 0);
   await expect(nav.getByText("Packing", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Auto-hide sidebar" }).click();
   await page.mouse.move(800, 400);
   // not fully hidden: the icons stay
   await expect.poll(width).toBe(88);
+  await expect.poll(pageLeft).toBe(88);
   await expect(nav.getByRole("link", { name: /Packing/ })).toBeVisible();
   await page.screenshot({ path: "screenshots/sidebar-rail-1440.png" });
   await page.mouse.move(40, 450);
   await expect.poll(width).toBe(276);
+  await expect.poll(pageLeft).toBe(276); // pushed, not overlaid
   await expect(nav.getByText("Packing", { exact: true })).toBeVisible();
   await page.screenshot({ path: "screenshots/sidebar-peek-1440.png" });
   await nav.getByRole("link", { name: /Packing/ }).click();

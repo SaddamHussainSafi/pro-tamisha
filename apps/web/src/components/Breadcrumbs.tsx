@@ -8,7 +8,7 @@ const link = "truncate rounded-sm text-ink-muted underline-offset-4 transition-c
 
 const SIZE = {
   // In the top bar on wide screens: the page's place in the app, at reading size.
-  header: { nav: "hidden min-w-0 flex-1 text-[17px] lg:block", list: "h-12 w-fit max-w-full rounded-full bg-card pl-1 pr-5", home: "size-10", homeIcon: 20, sep: 16, item: "max-w-[16rem]" },
+  header: { nav: "hidden min-w-0 flex-1 text-[17px] lg:block", list: "h-12 w-fit max-w-full gap-2.5 rounded-full bg-card pl-1 pr-6 shadow-[0_1px_2px_rgb(24_24_27/0.04)]", home: "size-10", homeIcon: 20, sep: 16, item: "max-w-[16rem]" },
   // Phones and tablets: the top bar is full, so it sits at the top of the page.
   page: { nav: "mb-3 min-w-0 text-[15px] lg:hidden", list: "", home: "size-8", homeIcon: 17, sep: 14, item: "max-w-[14rem]" },
 } as const;

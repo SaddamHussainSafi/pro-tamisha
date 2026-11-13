@@ -286,10 +286,11 @@ export function Shell() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2">Skip to content</a>
 
       {autoHide ? (
-        // Auto-hide: the icon rail stays; pointing at it (or tabbing into it) widens it over the page.
+        // Auto-hide: the icon rail stays; pointing at it (or tabbing into it) slides it open and
+        // pushes the page to the right, and pulls the page back when it closes. Never covers the page.
         <aside
           aria-label="Sections"
-          className="relative hidden w-[88px] shrink-0 lg:block"
+          className={`hidden shrink-0 overflow-hidden transition-[width] duration-300 ease-[var(--ease-calm)] lg:block ${peek ? "w-[276px]" : "w-[88px]"}`}
           onMouseEnter={show}
           onMouseLeave={hideSoon}
           onFocus={show}
@@ -298,14 +299,8 @@ export function Shell() {
           }}
           onKeyDown={(e) => e.key === "Escape" && hideNow()}
         >
-          {/* Revealed with clip-path (no re-layout while it moves); the clip also limits where it can be pointed at. */}
-          <div
-            className="absolute inset-y-0 left-0 z-40 w-[276px] shadow-2xl transition-[clip-path] duration-300 ease-[var(--ease-calm)]"
-            style={{ clipPath: peek ? "inset(0 -48px 0 0)" : "inset(0 188px 0 0)" }}
-          >
-            <div key={wide ? "wide" : "rail"} className={`h-full animate-fade ${wide ? "w-[276px]" : "w-[88px]"}`}>
-              <SidebarPanel collapsed={!wide} autoHide onToggle={() => { remember(false); setAutoHide(false); hideNow(); }} />
-            </div>
+          <div key={wide ? "wide" : "rail"} className={`h-full animate-fade ${wide ? "w-[276px]" : "w-[88px]"}`}>
+            <SidebarPanel collapsed={!wide} autoHide onToggle={() => { remember(false); setAutoHide(false); hideNow(); }} />
           </div>
         </aside>
       ) : (
@@ -317,7 +312,7 @@ export function Shell() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-2 px-3 pt-3 sm:gap-3 sm:px-6 sm:pt-4">
+        <header className="flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
           <button ref={menuBtn} className="icon-btn border-transparent lg:hidden" onClick={() => { setDrawerShown(true); setDrawer(true); }} aria-label="Open navigation" aria-expanded={drawer}>
             <Icon name="menu" />
           </button>
@@ -330,7 +325,7 @@ export function Shell() {
             <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{initials(name)}</span>
           </div>
         </header>
-        <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-5">
+        <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-1 sm:px-6 sm:pb-8 sm:pt-2">
           {/* Keyed by path: each screen fades in once when you arrive (not on every data refresh). */}
           <ConnectionBanner />
           <Breadcrumbs place="page" />

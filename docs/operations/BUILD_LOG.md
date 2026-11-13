@@ -1136,3 +1136,10 @@ No application code has been generated or executed by this planning pack. This l
 - Wide screens (≥ 1024 px): the trail sits in the top bar, left of search, in a white pill like the search box; 17 px text, 40 px home button, current page in semibold. Phones/tablets: still at the top of the page (the top bar is full there), 15 px.
 - Removed the page-made "‹ Order & quote requests" back link on an online-order request (the trail covers it).
 - Results: tsc clean; vitest 309 passed; Playwright navigation, smoke, settings, shell-scroll, products, inventory, pricing, order-connect: 28 passed. `order-connect` "quote request (phone width)" fails here with or without the header trail (the live row never arrives in this environment), so it is not caused by this change.
+
+## 2026-11-12 — Sidebar slides and pushes; header spacing
+
+- **Auto-hide sidebar no longer covers the page:** the rail (88 px) slides open to 276 px and pushes the page to the right, and pulls it back when it closes (width transition, same easing as the rest of the app). The page is never overlaid.
+- **Header:** even padding above and below (12 px phones, 16 px desktop) so the bar never touches the page; the page starts closer under it. Breadcrumb pill: more inner padding and spacing, same 48 px height and soft shadow as the search box; left edge lines up with the page cards.
+- Leftover page-made trails removed (Orders list and order page, New invoice, Supplier page). The product page still has one: `Products.tsx` has another session's uncommitted edits, so it was left alone.
+- Results: tsc clean; eslint clean; Playwright navigation (auto-hide test now also checks the page moves 88 → 276 px), smoke, orders, new-invoice, suppliers, order-screen, invoices, shell-scroll, inventory, pricing: 31 passed.

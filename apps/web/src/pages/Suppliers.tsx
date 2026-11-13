@@ -353,12 +353,6 @@ export function SupplierDetailPage() {
   const nav = (key: string) => (key === "ledger" ? `/suppliers/${led.vendor_id}` : `/suppliers/${led.vendor_id}?tab=${key}`);
   return (
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm">
-        <Link className="text-brand-primary underline" to="/suppliers">
-          Suppliers
-        </Link>{" "}
-        / {led.code}
-      </nav>
       <PageHeader
         title={led.name}
         subtitle={

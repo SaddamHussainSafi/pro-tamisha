@@ -31,12 +31,6 @@ export function NewInvoicePage() {
   const tab = from === "direct" || from === "gmail" ? from : "sheet";
   return (
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm">
-        <Link className="text-brand-primary underline" to="/invoices">
-          Invoices
-        </Link>{" "}
-        / New
-      </nav>
       <PageHeader title="Create invoice" subtitle="Bill goods that were packed and checked, or a small sale handed over without a packing sheet." />
       <nav aria-label="How to invoice" className="flex flex-wrap gap-1.5">
         {tabs.map((t) => (

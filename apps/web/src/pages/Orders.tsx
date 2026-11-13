@@ -143,12 +143,6 @@ const UNIT_SHORT: Record<UnitCode, string> = { BOX: "boxes", PIECE: "pieces", LB
 export function NewOrderPage() {
   return (
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm">
-        <Link className="text-brand-primary underline" to="/orders">
-          Sales orders
-        </Link>{" "}
-        / New
-      </nav>
       <PageHeader
         title="Create sales order"
         subtitle="Saved as a draft. Prices are fixed when you confirm."
@@ -451,12 +445,6 @@ export function OrderPage() {
   if (o.status === "DRAFT" && manage)
     return (
       <div className="space-y-5">
-        <nav aria-label="Breadcrumb" className="text-sm">
-          <Link className="text-brand-primary underline" to="/orders">
-            Sales orders
-          </Link>{" "}
-          / {o.order_no}
-        </nav>
         <PageHeader
           title={o.order_no}
           subtitle={
