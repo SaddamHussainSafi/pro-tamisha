@@ -35,8 +35,9 @@ test("reports reconcile with an issued invoice, filter, and export CSV", async (
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   // The sidebar entry is live (no longer "Soon").
-  await page.getByRole("link", { name: "Reports", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Reports" })).toBeVisible();
+  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await expect(page).toHaveURL(/\/reports$/); // the address did not change with the name
+  await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
   await expect(page.getByText("No invoices in this period")).toBeVisible();
   // Seeded opening balances show up in the stock movement table.
   const stock = page.getByRole("table", { name: /^Stock movement/ });

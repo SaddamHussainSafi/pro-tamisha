@@ -130,7 +130,7 @@ export function ReportsPage() {
   if (!allowed)
     return (
       <div className="space-y-5">
-        <PageHeader title="Reports" />
+        <PageHeader title="Dashboard" />
         <EmptyState title="You don't have access to reports" hint="Ask a manager or finance if you need sales, stock or receiving figures." />
       </div>
     );
@@ -147,7 +147,7 @@ export function ReportsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Reports"
+        title="Dashboard"
         subtitle="Sales, stock movement and receiving for the period you choose. Figures come from issued invoices, the stock ledger and posted receipts."
         actions={
           canAging ? (

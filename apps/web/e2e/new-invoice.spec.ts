@@ -49,7 +49,7 @@ test("owner creates invoices from a sheet or directly", async ({ page }) => {
   // Two-step sign-in is optional (2026-11-09): the owner lands on Overview.
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Invoices", exact: true }).click();
+  await page.getByRole("link", { name: "Sales Invoices", exact: true }).click();
   await page.getByRole("link", { name: "Create invoice" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Create invoice" })).toBeVisible();
   const sheets = page.getByRole("table", { name: "Packing sheets ready to invoice" });

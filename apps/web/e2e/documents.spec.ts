@@ -64,7 +64,7 @@ test("issued invoice is filed and copied to the archive; POD upload is appended"
   await axe(page);
 
   // The archive page shows both, linked back to the invoice, and the bytes are the issued ones.
-  await page.getByRole("link", { name: /^Documents/ }).first().click();
+  await page.getByRole("link", { name: "Files", exact: true }).click(); // Documents › Files
   await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
   await page.getByPlaceholder("File name, invoice or shipment no.").fill(invoiceNo);
   const grid = page.getByRole("table");

@@ -3,21 +3,20 @@ import { Link, useLocation } from "react-router-dom";
 import { crumbsFor, headingLabel } from "../lib/breadcrumbs";
 import { Icon } from "../ui/Icon";
 
-
 const link = "truncate rounded-sm text-ink-muted underline-offset-4 transition-colors duration-150 hover:text-ink hover:underline";
 
 const SIZE = {
-  // In the top bar on wide screens: the page's place in the app, at reading size.
-  header: { nav: "hidden min-w-0 flex-1 text-[17px] lg:block", list: "h-12 w-fit max-w-full gap-2.5 rounded-full bg-card pl-1 pr-6 shadow-[0_1px_2px_rgb(24_24_27/0.04)]", home: "size-10", homeIcon: 20, sep: 16, item: "max-w-[16rem]" },
-  // Phones and tablets: the top bar is full, so it sits at the top of the page.
-  page: { nav: "mb-3 min-w-0 text-[15px] lg:hidden", list: "", home: "size-8", homeIcon: 17, sep: 14, item: "max-w-[14rem]" },
+  // Wide screens: one row above the page title, lined up with its left edge, in the top bar.
+  header: { nav: "hidden min-w-0 flex-1 text-[17px] lg:block", list: "h-12 w-fit max-w-full gap-2.5 rounded-full bg-card px-6 shadow-[0_1px_2px_rgb(24_24_27/0.04)]", sep: 16, item: "max-w-[16rem]" },
+  // Phones and tablets: the top bar is full, so the row sits at the top of the page.
+  page: { nav: "mb-3 min-w-0 text-[15px] lg:hidden", list: "", sep: 14, item: "max-w-[14rem]" },
 } as const;
 
 /**
- * Global breadcrumbs (Home › Section › Record) for every screen below the first level: in the
- * top bar on wide screens, at the top of the page on phones and tablets.
- * Built from the address; a record's name comes from the page's own heading once it loads.
- * Phones keep Home, the parent and the current page; the middle steps fold into "…".
+ * Global breadcrumbs, with the menu's own labels (Sales › Sales Invoices › New). Built from the
+ * address and nav.ts; a record's name comes from the page's own heading once it loads. A section
+ * without a page of its own is plain text; the current page is plain text with aria-current.
+ * Phones keep the parent and the current page; the earlier steps fold into "…".
  */
 export function Breadcrumbs({ place }: { place: keyof typeof SIZE }) {
   const z = SIZE[place];
@@ -41,20 +40,15 @@ export function Breadcrumbs({ place }: { place: keyof typeof SIZE }) {
     };
   }, [needsHeading, loc.pathname]);
 
-  if (crumbs.length < 2) return null; // first-level screens: the heading says it all
+  // On a phone a single step would only repeat the page title right below it.
+  if (crumbs.length === 0 || (place === "page" && crumbs.length < 2)) return null;
   const last = crumbs.length - 1;
   const folded = crumbs.length > 2;
   return (
     <nav aria-label="Breadcrumb" className={z.nav}>
       <ol className={`flex min-w-0 items-center gap-2 ${z.list}`}>
-        <li className="flex shrink-0 items-center">
-          <Link to="/" className={`grid ${z.home} place-items-center rounded-full text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink`} aria-label="Overview" title="Overview">
-            <Icon name="home" size={z.homeIcon} />
-          </Link>
-        </li>
         {folded && (
           <li className="flex shrink-0 items-center gap-2 sm:hidden" aria-hidden>
-            {sep}
             <span className="text-ink-muted">…</span>
           </li>
         )}
@@ -62,18 +56,21 @@ export function Breadcrumbs({ place }: { place: keyof typeof SIZE }) {
           const current = i === last;
           const text = c.label ?? heading ?? c.fallback ?? "Details";
           // On phones only the parent and the current page stay.
-          const hideOnPhone = i < last - 1 ? "hidden sm:flex" : "flex";
+          const early = i < last - 1;
           return (
-            <li key={`${c.to}-${i}`} className={`${hideOnPhone} min-w-0 items-center gap-2 ${current ? "flex-1" : `shrink-0 ${z.item}`}`}>
-              {sep}
+            <li key={`${c.to ?? c.label}-${i}`} className={`${early ? "hidden sm:flex" : "flex"} min-w-0 items-center gap-2 ${current ? "flex-1" : `shrink-0 ${z.item}`}`}>
+              {/* the separator before the first visible step: after "…" on phones, none at the very start */}
+              {i > 0 && <span className={i === last - 1 && folded ? "flex" : early || i === 1 ? "hidden sm:flex" : "flex"}>{sep}</span>}
               {current ? (
                 <span aria-current="page" className="truncate font-semibold text-ink" title={text}>
                   {text}
                 </span>
-              ) : (
+              ) : c.to ? (
                 <Link to={c.to} className={link} title={text}>
                   {text}
                 </Link>
+              ) : (
+                <span className="truncate text-ink-muted">{text}</span>
               )}
             </li>
           );

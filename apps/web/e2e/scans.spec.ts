@@ -33,7 +33,7 @@ test("New scan offers upload and Scan Box import only: no scanner device, no Sca
   await signIn(page, fx.users.owner);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByText(/^Scanner: /)).toHaveCount(0);
-  await page.getByRole("link", { name: /Scan Center/ }).first().click();
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Scan", exact: true }).click(); // the Scan label opens the Scan Center
   await expect(page.getByRole("heading", { name: "Scan Center" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Scanners" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "New scan", level: 2 })).toBeVisible();
@@ -57,7 +57,7 @@ test("New scan offers upload and Scan Box import only: no scanner device, no Sca
 test("upload works and a duplicate is recognised", async ({ page }) => {
   await signIn(page, fx.users.sales);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await page.getByRole("link", { name: /Scan Center/ }).first().click();
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Scan", exact: true }).click(); // the Scan label opens the Scan Center
   const png = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     "base64",

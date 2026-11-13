@@ -95,7 +95,8 @@ test("sign-in page: photo panel, reset link, show password", async ({ page }) =>
 
 test("activity timeline: everyone's actions, my own only, and one person", async ({ page }) => {
   await signIn(page, fx.users.owner);
-  await page.getByRole("link", { name: "Activity" }).first().click();
+  await page.getByRole("button", { name: "Settings menu" }).click();
+  await page.getByRole("link", { name: "Activity Log" }).click();
   await expect(page).toHaveURL(/\/activity$/);
   const rows = page.getByTestId("activity-row");
   await expect(rows.filter({ hasText: `E2E sales created an order — ${orderNo}` })).toHaveCount(1);

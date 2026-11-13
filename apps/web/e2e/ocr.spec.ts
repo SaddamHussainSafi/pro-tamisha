@@ -34,7 +34,7 @@ test("a scanned order sheet is read, every line is checked, and only a draft ord
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  await page.getByRole("link", { name: /Scan Center/ }).first().click();
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Scan", exact: true }).click(); // the Scan label opens the Scan Center
   await expect(page.getByRole("heading", { name: "Scan Center" })).toBeVisible();
   await page.getByTestId("scan-upload").setInputFiles({ name: "order-sheet.pdf", mimeType: "application/pdf", buffer: sheet });
   await expect(page.getByRole("status").filter({ hasText: "uploaded" })).toBeVisible();

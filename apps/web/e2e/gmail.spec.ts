@@ -50,11 +50,11 @@ const sideways = (page: Page) =>
     return Math.max(doc.scrollWidth - doc.clientWidth, main ? main.scrollWidth - main.clientWidth : 0);
   });
 
-test("the sidebar gains one entry and nothing else about it changes", async ({ page }) => {
+test("the sidebar lists the approved menu in order, with Scan Box under Scan", async ({ page }) => {
   await signIn(page);
   const nav = page.getByRole("navigation", { name: /main|primary/i }).first();
   const labels = (await nav.getByRole("link").allTextContents()).map((s) => s.trim()).filter(Boolean);
-  const want = ["Overview", "Orders", "Invoices", "Payments", "Online Orders", "Packing", "Inventory", "Receiving", "Scan Center", "Scan Box", "Products", "Customers", "Suppliers", "Reports", "Documents", "Activity"];
+  const want = ["Overview", "Sales Orders", "Sales Invoices", "Payments", "Customers", "Purchase Orders", "Suppliers", "Packing", "Receiving", "Inventory", "Products", "Product Packages", "Scan", "Scan Box", "Scan History", "Files", "Dashboard"];
   expect(labels.filter((l) => want.includes(l))).toEqual(want);
   await nav.getByRole("link", { name: "Scan Box" }).click();
   await expect(page).toHaveURL(/\/gmail$/);
@@ -276,7 +276,7 @@ test("returning from Google without consent connects nothing", async ({ page }) 
   expect(page.url()).not.toContain("state=");
   // administrators are told what the server still needs; nothing looks connected
   await page.getByRole("link", { name: "Back to Scan Box" }).click();
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click(); // the mailbox's own Settings, not the sidebar section
   const dlg = page.getByRole("dialog", { name: "Gmail connection" });
   await expect(dlg.getByText("Read-only. Pro Trading cannot send, delete or change mail.")).toBeVisible();
   // This synthetic company has no mailbox either way. Whether the server has a Google client

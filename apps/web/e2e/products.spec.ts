@@ -33,9 +33,8 @@ test("owner adds a 35 lb case size and changes a price from the product page", a
   // Two-step sign-in is optional (2026-11-09): the owner lands on Overview.
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  // Products › Case sizes
-  await page.getByRole("button", { name: "Products sections" }).click();
-  await page.getByRole("link", { name: "Case sizes", exact: true }).click();
+  // Warehouse › Product Packages (the case sizes)
+  await page.getByRole("link", { name: "Product Packages", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Case sizes" })).toBeVisible();
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "List" }).click(); // table assertions below
   const grid = page.getByRole("table", { name: /^Case sizes/ });

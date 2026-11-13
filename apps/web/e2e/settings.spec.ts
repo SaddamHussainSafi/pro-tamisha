@@ -52,7 +52,8 @@ const sections = (page: Page) => page.getByRole("navigation", { name: "Settings 
 test("Super Admin invites a user, changes the role, suspends and reactivates them", async ({ page }) => {
   await signIn(page, fx.users.owner);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible(); // no forced two-step
-  await page.getByRole("link", { name: /Settings/ }).click();
+  await page.getByRole("button", { name: "Settings menu" }).click();
+  await page.getByRole("link", { name: "General", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   // My account: wrong current password is refused.
   await page.getByLabel("Current password").fill("not-my-password");
@@ -134,7 +135,8 @@ test("the invited person sets a password from the email link and signs in", asyn
   await expect(status(page)).toHaveText("Your password is set. Sign in to start.");
   await signIn(page, hire, firstPw);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await page.getByRole("link", { name: /Settings/ }).click();
+  await page.getByRole("button", { name: "Settings menu" }).click();
+  await page.getByRole("link", { name: "General", exact: true }).click();
   for (const admin of ["User management", "Roles & permissions", "Security & sessions"])
     await expect(page.getByRole("link", { name: admin })).toHaveCount(0); // Warehouse: no admin tabs
   await expect(page.getByRole("definition").filter({ hasText: "Warehouse" }).first()).toBeVisible();

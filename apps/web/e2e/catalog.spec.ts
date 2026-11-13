@@ -31,7 +31,7 @@ test.describe.configure({ mode: "serial" });
 
 test("owner creates Cassava (205 lb = CAD 307.50) and sees unknown-conversion rejection", async ({ page }) => {
   await ownerSignIn(page);
-  await page.getByRole("link", { name: /Products/ }).click();
+  await page.getByRole("link", { name: "Products", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Products" })).toBeVisible();
   await page.getByRole("button", { name: "New product" }).click();
 
@@ -92,7 +92,7 @@ test("warehouse user can view products but not manage them", async ({ page }) =>
   await page.getByLabel("Email").fill(fx.users.warehouse);
   await page.getByLabel("Password").fill(fx.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("link", { name: /Products/ }).click();
+  await page.getByRole("link", { name: "Products", exact: true }).click();
   // Products open as cards (Grid view) since 2026-11-08.
   const cards = page.getByRole("list", { name: "Products" });
   await expect(cards.getByText(/^CEE /)).toBeVisible(); // not its packaged twin, CEEP

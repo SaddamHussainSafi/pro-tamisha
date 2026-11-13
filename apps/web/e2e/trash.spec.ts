@@ -73,9 +73,22 @@ async function turnOnTwoStep(page: Page) {
 const DELETE_ANY = /^(Delete|Request delete)\b/;
 let draftOrder = "";
 
+/** The sidebar's Settings section (closed until it is used or a settings page is open). */
+async function openSettings(page: Page) {
+  const settings = page.getByRole("button", { name: "Settings menu" });
+  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
+}
+/** Settings › ERP Trash in the sidebar. */
+async function openTrash(page: Page) {
+  await openSettings(page);
+  await page.getByRole("link", { name: "ERP Trash" }).click();
+}
+
 test("staff without edit rights see no Delete; sales can only ask for one", async ({ page }) => {
   await signIn(page, fx.users.warehouse);
-  await expect(page.getByRole("link", { name: "Trash" })).toHaveCount(0);
+  await openSettings(page);
+  await expect(page.getByRole("link", { name: "General", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ERP Trash" })).toHaveCount(0);
   await page.goto("/orders");
   await expect(page.getByRole("heading", { level: 1, name: "Orders" })).toBeVisible();
   await expect(page.getByText("Kingston Kitchen").first()).toBeVisible();
@@ -83,7 +96,8 @@ test("staff without edit rights see no Delete; sales can only ask for one", asyn
   await signOut(page);
 
   await signIn(page, fx.users.sales);
-  await expect(page.getByRole("link", { name: "Trash" })).toHaveCount(0);
+  await openSettings(page);
+  await expect(page.getByRole("link", { name: "ERP Trash" })).toHaveCount(0);
   await page.getByRole("link", { name: "Customers", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Customers" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Island Grocers/ })).toBeVisible();
@@ -147,7 +161,7 @@ test("Super Admin moves a customer to Trash, undoes, restores and deletes foreve
   await page.getByRole("button", { name: "Delete Trash Test Market" }).click();
   await page.getByRole("dialog", { name: "Move “Trash Test Market” to Trash?" }).getByRole("button", { name: "Move to Trash" }).click();
   await expect(page.getByRole("link", { name: /Trash Test Market/ })).toHaveCount(0);
-  await page.getByRole("link", { name: "Trash", exact: true }).click();
+  await openTrash(page);
   await expect(page.getByRole("heading", { level: 1, name: "Trash" })).toBeVisible();
   const row = page.getByRole("row", { name: /Trash Test Market/ });
   await expect(row).toBeVisible();
@@ -161,7 +175,7 @@ test("Super Admin moves a customer to Trash, undoes, restores and deletes foreve
   await page.goto("/customers");
   await page.getByRole("button", { name: "Delete Trash Test Market" }).click();
   await page.getByRole("dialog", { name: "Move “Trash Test Market” to Trash?" }).getByRole("button", { name: "Move to Trash" }).click();
-  await page.getByRole("link", { name: "Trash", exact: true }).click();
+  await openTrash(page);
   await page.getByRole("button", { name: "Delete Trash Test Market forever" }).click();
   await page.getByRole("dialog", { name: "Delete “Trash Test Market” forever?" }).getByRole("button", { name: "Delete forever" }).click();
   await expect(page.getByText("“Trash Test Market” was deleted forever.")).toBeVisible();
@@ -194,7 +208,7 @@ test("Super Admin deletes a scan that OCR reads use, and restores it whole", asy
   await expect(page.getByText("moved to Trash.")).toBeVisible();
   expect(await reads()).toBe(0);
 
-  await page.getByRole("link", { name: "Trash", exact: true }).click();
+  await openTrash(page);
   await page.getByRole("button", { name: `Restore ${label}` }).click();
   await expect(page.getByText(`“${label}” is back.`)).toBeVisible();
   expect(await reads()).toBe(1);
@@ -204,7 +218,7 @@ test("Super Admin deletes a scan that OCR reads use, and restores it whole", asy
 
 test("Super Admin sees the delete request and dismisses it", async ({ page }) => {
   await signIn(page, fx.users.owner);
-  await page.getByRole("link", { name: "Trash", exact: true }).click();
+  await openTrash(page);
   await page.getByRole("button", { name: /^Delete requests/ }).click();
   await expect(page.getByText("Customer called to cancel")).toBeVisible();
   await axe(page);

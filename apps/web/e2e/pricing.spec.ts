@@ -66,8 +66,8 @@ test.describe.configure({ mode: "serial" });
 test("owner imports a new price book; old rate stays on the old version; duplicates and bad units rejected", async ({ page }) => {
   await ownerSignIn(page);
   // Prices live under Products (the Pricing menu was folded in on 2026-11-08).
-  await page.getByRole("button", { name: "Products sections" }).click();
-  await page.getByRole("link", { name: "Prices", exact: true }).click();
+  await page.getByRole("link", { name: "Products", exact: true }).click();
+  await page.getByRole("navigation", { name: "Products pages" }).getByRole("link", { name: "Price book" }).click();
   await expect(page.getByRole("heading", { name: "Prices", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "PB-2026-01" })).toBeVisible();
 
@@ -117,7 +117,7 @@ test("owner imports a new price book; old rate stays on the old version; duplica
   await page.screenshot({ path: "screenshots/pricing-version-1440.png", fullPage: true });
 
   // New price applies now; the previous version still holds 1.50 (immutable, INV-005).
-  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Prices" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Price book" }).click();
   await check(page, "CFZ", "LB");
   await expect(page.getByTestId("quote")).toContainText("CAD 1.60");
   await expect(page.getByTestId("quote")).toContainText("PB-E2E-02");
@@ -127,7 +127,7 @@ test("owner imports a new price book; old rate stays on the old version; duplica
   await expect(oldRow).toContainText("CAD 1.50");
 
   // Uploading the same file again is caught before any version is created.
-  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Prices" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Price book" }).click();
   await page.getByRole("button", { name: "Import CSV" }).click();
   const imp2 = page.getByRole("form", { name: "Import price list (CSV)" });
   await imp2.getByText("Or paste CSV text").click();

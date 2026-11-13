@@ -1,54 +1,39 @@
-// Global breadcrumbs: where this screen sits, worked out from the address alone.
-// Static parts are named here; a record id is named by the page's own heading (see Breadcrumbs).
+// Global breadcrumbs: where this screen sits, worked out from the address and the menu (nav.ts).
+// The menu names the section and the entry; this file names the screens underneath an entry.
+// A record id is named by the page's own heading (see components/Breadcrumbs).
+import { locate } from "../nav";
 
 export type Crumb = {
   /** null = a record: the page heading names it (the shell fills it in). */
   label: string | null;
   /** Generic name used until the heading is there, or for a record in the middle of the trail. */
   fallback?: string;
-  to: string;
+  /** null = a menu section without a page of its own: shown as plain text. */
+  to: string | null;
 };
 
-/** Address patterns (":id" = a record) and their names. */
+/** Screens underneath a menu entry, by address pattern (":id" = a record). "" = not a step. */
 const NAMES: Record<string, string> = {
-  orders: "Orders",
-  "orders/new": "New order",
-  invoices: "Invoices",
-  "invoices/new": "New invoice",
-  payments: "Payments",
-  receivables: "Receivables",
-  "online-orders": "Online Orders",
+  "orders/new": "New",
+  "invoices/new": "New",
+  "purchases/new": "New",
+  "online-orders": "Online",
   "online-orders/forms": "Form builder",
   "online-orders/requests": "Requests",
   "online-orders/embed": "Embed & share",
-  "online-orders/settings": "Settings",
-  packing: "Packing",
   "packing/:id/invoice": "Issue invoice",
-  inventory: "Inventory",
   "inventory/lots": "Batches",
-  receiving: "Receiving",
-  scan: "Scan Center",
   "scan/review": "To review",
-  gmail: "Scan Box",
-  products: "Products",
-  "products/case-sizes": "Case sizes",
-  "products/prices": "Prices",
-  customers: "Customers",
-  suppliers: "Suppliers",
+  "gmail/oauth": "",
+  "gmail/oauth/callback": "Connecting",
+  "products/prices": "Price book",
   "suppliers/payments": "Supplier payments",
-  reports: "Reports",
-  documents: "Documents",
-  activity: "Activity",
-  search: "Search",
-  trash: "Trash",
-  email: "Email",
-  settings: "Settings",
+  receivables: "Receivables",
   "settings/notifications": "Notifications",
-  "settings/users": "User management",
   "settings/roles": "Roles & permissions",
   "settings/security": "Security & sessions",
   "settings/ocr": "OCR test",
-  "settings/email-services": "Email services",
+  search: "Search",
 };
 
 /** What a record is called before its heading loads (or in the middle of a trail). */
@@ -60,7 +45,7 @@ const RECORD: Record<string, string> = {
   "online-orders/requests": "Request",
   packing: "Packing sheet",
   "inventory/lots": "Batch",
-  receiving: "Shipment",
+  purchases: "Purchase",
   scan: "Scan",
   "scan/review": "Reading",
   products: "Product",
@@ -69,7 +54,7 @@ const RECORD: Record<string, string> = {
   suppliers: "Supplier",
 };
 
-/** A part of the trail that is not a page of its own links somewhere useful instead. */
+/** A step that is not a page of its own links somewhere useful instead. */
 const LINK: Record<string, string> = {
   "scan/review": "/scan?tab=review",
   "inventory/lots": "/inventory",
@@ -81,24 +66,36 @@ const TABS: Record<string, Record<string, string>> = {
   scan: { review: "To review" },
 };
 
+const parts = (path: string) => path.split("/").filter(Boolean);
+
 export function crumbsFor(pathname: string, search = ""): Crumb[] {
-  const parts = pathname.split("/").filter(Boolean);
+  const segs = parts(pathname);
   const out: Crumb[] = [];
-  const pattern: string[] = [];
-  parts.forEach((seg, i) => {
+  const hit = locate(pathname, search);
+  let start = 0; // first part of the address the menu has not named
+  if (hit) {
+    const { node, leaf } = hit;
+    if (leaf) out.push({ label: node.label, to: node.to }, { label: leaf.label, to: leaf.to });
+    else if (node.children) out.push({ label: node.label, to: node.to }, { label: node.self ?? node.label, to: node.to });
+    else out.push({ label: node.label, to: node.to });
+    // An entry that owns another address keeps that address's own name as the next step.
+    start = parts(hit.base).length - (hit.viaOwns ? 1 : 0);
+  }
+  const pattern = segs.slice(0, start);
+  segs.slice(start).forEach((seg, i) => {
     const parent = pattern.join("/");
-    const known = NAMES[[...pattern, seg].join("/")];
-    const to = `/${parts.slice(0, i + 1).join("/")}`;
-    if (known) {
+    const key = [...pattern, seg].join("/");
+    const to = `/${segs.slice(0, start + i + 1).join("/")}`;
+    if (key in NAMES) {
       pattern.push(seg);
-      out.push({ label: known, to: LINK[pattern.join("/")] ?? to });
+      if (NAMES[key]) out.push({ label: NAMES[key] as string, to: LINK[key] ?? to });
     } else {
       pattern.push(":id");
       out.push({ label: null, fallback: RECORD[parent] ?? "Details", to });
     }
   });
   const tab = new URLSearchParams(search).get("tab");
-  const named = tab && TABS[pattern.join("/")]?.[tab];
+  const named = !hit?.byQuery && tab ? TABS[pattern.join("/")]?.[tab] : undefined;
   if (named) out.push({ label: named, to: `${pathname}?tab=${tab}` });
   // A record in the middle of the trail is never named by the heading (that belongs to the last step).
   return out.map((c, i) => (c.label === null && i < out.length - 1 ? { label: c.fallback ?? "Details", to: c.to } : c));

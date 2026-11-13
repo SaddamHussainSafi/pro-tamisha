@@ -34,6 +34,7 @@ import {
 } from "../lib/orderConnect";
 import { DeleteAction } from "../ui/DeleteAction";
 import { Icon } from "../ui/Icon";
+import { OnlineOrdersNav } from "../components/OrdersTabs";
 import { CardTitle, ConfirmDialog, EmptyState, ErrorState, FilterBar, KpiCard, LoadingRows, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const errText = errorText;
@@ -129,6 +130,7 @@ export function OcOverviewPage() {
           </>
         }
       />
+      <OnlineOrdersNav />
       {error ? (
         <div className="card"><ErrorState title="Couldn't load Online Orders" detail={error} onRetry={load} /></div>
       ) : !o ? (
@@ -219,6 +221,7 @@ export function OcSubmissionsPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Order & quote requests" subtitle="Orders and quote requests from your website appear here live. Open one to review it." />
+      <OnlineOrdersNav />
       <FilterBar
         search={q}
         onSearch={setQ}
@@ -736,6 +739,7 @@ export function OcEmbedPage() {
     return (
       <div className="space-y-5">
         <PageHeader title="Embed & share" />
+        <OnlineOrdersNav />
         <div className="card"><EmptyState icon="globe" title="Create a form first" action={<button className="btn-primary" onClick={() => navigate("/online-orders/forms")}>Go to Form builder</button>} /></div>
       </div>
     );
@@ -756,6 +760,7 @@ export function OcEmbedPage() {
           )
         }
       />
+      <OnlineOrdersNav />
       {form && !form.published && (
         <p className="alert-warning">
           “{form.name}” is not published yet, so the code below shows “not available”. <Link className={link} to={`/online-orders/forms/${form.id}`}>Publish it</Link> first.

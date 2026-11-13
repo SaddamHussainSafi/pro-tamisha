@@ -22,6 +22,7 @@ import {
   type PreviewConfig,
 } from "../lib/orderConnect";
 import { Icon } from "../ui/Icon";
+import { OnlineOrdersNav } from "../components/OrdersTabs";
 import { EmptyState, ErrorState, PageHeader, PageSkeleton, StatusChip } from "../ui/primitives";
 
 const errText = errorText;
@@ -88,6 +89,7 @@ export function OcFormsPage() {
         subtitle="Order and quote forms customers fill in on your website. Requests arrive in Online Orders."
         actions={canManage && <button className="btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={18} />New form</button>}
       />
+      <OnlineOrdersNav />
       {creating && (
         <form onSubmit={create} className="card flex flex-wrap items-end gap-3 p-5" aria-label="New form">
           <div className="min-w-[16rem] flex-1">

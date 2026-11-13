@@ -68,7 +68,8 @@ test("owner records and voids a supplier payment; the ledger and balance follow"
   await axe(page);
 
   // Suppliers › Supplier payments lists it.
-  await page.getByRole("link", { name: "Supplier payments" }).click(); // sub-menu is open inside Suppliers
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Suppliers", exact: true }).click();
+  await page.getByRole("navigation", { name: "Suppliers pages" }).getByRole("link", { name: "Supplier payments" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Supplier payments" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Supplier payments" }).getByRole("row", { name: /Accra Roots Exports/ })).toContainText("Voided");
   await axe(page);

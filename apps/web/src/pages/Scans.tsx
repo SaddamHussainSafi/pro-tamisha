@@ -35,14 +35,15 @@ function Notice({ tone, children }: { tone: "error" | "ok"; children: React.Reac
 /* ================================ Scan Center ================================ */
 
 // The network-scanner bridge is not used: no Scanners tab (paired devices stay on the server).
-type Tab = "scans" | "review";
-const TAB_LABEL: Record<Tab, string> = { scans: "New scan", review: "To review" };
+type Tab = "scans" | "review" | "history";
+const TAB_LABEL: Record<Tab, string> = { scans: "New scan", review: "To review", history: "Scan History" };
 
 export function ScansPage() {
   const { session } = useAuth();
   const [params, setParams] = useSearchParams();
   const canReview = !!session && has(session, "scan.review");
-  const tabs: Tab[] = ["scans", ...(canReview ? (["review"] as const) : [])];
+  // Scan History (menu: Scan › Scan History) is the list of every scan on its own, without the upload card.
+  const tabs: Tab[] = ["scans", ...(canReview ? (["review"] as const) : []), "history"];
   const want = params.get("tab") as Tab | null;
   const tab: Tab = want && tabs.includes(want) ? want : "scans";
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -68,7 +69,7 @@ export function ScansPage() {
           ))}
         </div>
       )}
-      {tab === "scans" ? <ScansTab warehouses={warehouses} /> : <ReviewQueue warehouses={warehouses} />}
+      {tab === "review" ? <ReviewQueue warehouses={warehouses} /> : <ScansTab key={tab} warehouses={warehouses} historyOnly={tab === "history"} />}
     </div>
   );
 }
@@ -91,7 +92,7 @@ const VIEW_STATUS: Record<View, string | undefined> = {
   closed: "CANCELLED,EXPIRED",
 };
 
-function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
+function ScansTab({ warehouses, historyOnly = false }: { warehouses: Warehouse[]; historyOnly?: boolean }) {
   const { session } = useAuth();
   const nav = useNavigate();
   const [view, setView] = useState<View>("all");
@@ -146,7 +147,7 @@ function ScansTab({ warehouses }: { warehouses: Warehouse[] }) {
   ];
   return (
     <div className="space-y-5">
-      {createWh.length > 0 && <ScanStudio warehouses={createWh} onChanged={() => void load()} />}
+      {!historyOnly && createWh.length > 0 && <ScanStudio warehouses={createWh} onChanged={() => void load()} />}
       <FilterBar search={q} onSearch={setQ} options={VIEWS} value={view} onChange={setView} placeholder="Scan no. or file name" />
       <section className="card overflow-clip">
         {error ? (

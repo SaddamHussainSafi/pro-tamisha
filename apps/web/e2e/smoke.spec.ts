@@ -25,7 +25,8 @@ test("warehouse user signs in, sees shell, cannot manage, signs out", async ({ p
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Tamisha Trading Inc." }).first()).toBeVisible();
-  await page.getByRole("link", { name: /Settings/ }).click();
+  await page.getByRole("button", { name: "Settings menu" }).click();
+  await page.getByRole("link", { name: "General", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: fx.users.warehouse })).toBeVisible();
   // One warehouse only: no warehouse settings, no design previews.
@@ -51,7 +52,8 @@ test("owner signs in with a password alone (two-step sign-in is optional)", asyn
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page).not.toHaveURL(/\/mfa$/);
-  await page.getByRole("link", { name: /Settings/ }).click();
+  await page.getByRole("button", { name: "Settings menu" }).click();
+  await page.getByRole("link", { name: "General", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   await page.goto("/settings/warehouses"); // removed page: back to Settings
   await expect(page).toHaveURL(/\/settings$/);

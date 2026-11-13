@@ -1,10 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { has } from "../api";
+import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
-import { roleLabel } from "../lib/staff";
-import { NAV_GROUPS, SETTINGS, TRASH, type NavItem } from "../nav";
-import { canManageTrash } from "../lib/trash";
+import { initials } from "../lib/activity";
 import { TrashToastHost } from "../ui/DeleteAction";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -12,12 +9,12 @@ import { SessionExpiredDialog } from "./SessionExpired";
 import { Icon } from "../ui/Icon";
 import { PageSkeleton } from "../ui/primitives";
 import { NotificationBell } from "./notifications/NotificationBell";
-import { OrderConnectBadge } from "./OrderConnectLive";
-import { MailBadge } from "./mail/MailBadge";
 import { NotificationProvider } from "./notifications/NotificationProvider";
 import { QuickJump, SearchButton } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { SectionViews } from "./SectionViews";
+import { SidebarPanel } from "./Sidebar";
 
 /** "1" = the sidebar hides itself and slides in when the pointer reaches the left edge. */
 const COLLAPSE_KEY = "pt.sidebar.collapsed";
@@ -37,167 +34,6 @@ function recall(): boolean {
   }
 }
 
-function initials(name: string | undefined) {
-  if (!name) return "?";
-  const parts = name.replace(/[^\p{L}\p{N}\s]/gu, "").trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
-}
-
-const soon = (item: NavItem) => `${item.label} — available when the ${item.module} module ships`;
-const ROW = "flex items-center gap-3 rounded-ctl px-3 py-2.5 text-[15px] font-medium transition-colors duration-150";
-const ON = "bg-brand-accent/12 text-brand-primary-hover [&_svg]:text-brand-primary";
-const OFF = "text-ink hover:bg-brand-accent/8";
-const SQUARE = "relative grid size-12 place-items-center rounded-ctl transition-colors duration-150";
-
-/* ------------------------------- items ------------------------------- */
-
-function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
-  const loc = useLocation();
-  const inside = !!item.children && loc.pathname.startsWith(item.to);
-  const [open, setOpen] = useState(inside);
-  useEffect(() => {
-    if (inside) setOpen(true);
-  }, [inside]);
-
-  if (item.module)
-    return (
-      <span role="link" aria-disabled="true" tabIndex={0} title={soon(item)} className={`${collapsed ? SQUARE : ROW} cursor-not-allowed text-ink-muted/60`}>
-        <Icon name={item.icon} size={22} />
-        {collapsed ? (
-          <span className="sr-only">{soon(item)}</span>
-        ) : (
-          <>
-            <span className="flex-1 truncate">{item.label}</span>
-            <span className="sr-only"> — available when the {item.module} module ships</span>
-            <span aria-hidden className="rounded-full bg-subtle px-2 py-0.5 text-[11px] font-medium text-ink-muted">Soon</span>
-          </>
-        )}
-      </span>
-    );
-
-  if (collapsed)
-    return (
-      <NavLink to={item.to} end={item.to === "/"} title={item.label} className={({ isActive }) => `${SQUARE} ${isActive ? ON : OFF}`}>
-        <Icon name={item.icon} size={22} />
-        <span className="sr-only">{item.label}</span>
-        {item.badge === "order_connect" && <OrderConnectBadge collapsed />}
-        {item.badge === "mail" && <MailBadge collapsed />}
-      </NavLink>
-    );
-
-  const tab = new URLSearchParams(loc.search).get("tab") ?? "stock";
-  return (
-    <>
-      <div className="flex items-center gap-1">
-        <NavLink to={item.to} end={item.to === "/"} className={({ isActive }) => `${ROW} relative min-w-0 flex-1 ${isActive ? ON : OFF}`}>
-          <Icon name={item.icon} size={22} />
-          <span className="truncate">{item.label}</span>
-          {item.badge === "order_connect" && <OrderConnectBadge collapsed={false} />}
-          {item.badge === "mail" && <MailBadge collapsed={false} />}
-        </NavLink>
-        {item.children && (
-          <button
-            type="button"
-            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink"
-            aria-expanded={open}
-            aria-label={`${item.label} sections`}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <Icon name="chevronDown" size={18} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
-          </button>
-        )}
-      </div>
-      {item.children && (
-        // Opens and closes by height (grid rows 0fr → 1fr), so the items below glide instead of jumping.
-        <div inert={!open} className={`grid transition-[grid-template-rows,opacity,visibility] duration-300 ease-[var(--ease-calm)] ${open ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}>
-        <div className="min-h-0 overflow-hidden">
-        <ul className="mb-1 ml-[1.35rem] mt-0.5 space-y-0.5 border-l-2 border-line pl-3">
-          {item.children.map((c) => {
-            const [path, query] = c.to.split("?");
-            const want = new URLSearchParams(query ?? "").get("tab") ?? "stock";
-            const active = loc.pathname === path && want === tab;
-            return (
-              <li key={c.to}>
-                <Link
-                  to={c.to}
-                  aria-current={active ? "page" : undefined}
-                  className={`block rounded-ctl px-3 py-2 text-sm transition-colors duration-150 ${active ? "bg-brand-accent/12 font-semibold text-brand-primary-hover" : "text-ink-muted hover:bg-subtle hover:text-ink"}`}
-                >
-                  {c.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ------------------------------- panel ------------------------------- */
-
-function SidebarPanel({ collapsed, autoHide = false, onToggle, onClose }: { collapsed: boolean; autoHide?: boolean; onToggle?: () => void; onClose?: () => void }) {
-  const { session, logout } = useAuth();
-  const name = session?.employee.display_name;
-  const role = session?.roles?.length ? session.roles.map(roleLabel).join(", ") : session?.employee.email;
-  return (
-    <div className="flex h-full min-h-0 flex-col border-r border-line bg-card">
-      <div className={`flex shrink-0 items-center gap-2 p-4 ${collapsed ? "flex-col" : ""}`}>
-        <Link to="/" className={`rounded-full ${collapsed ? "" : "mr-auto"}`}>
-          <Wordmark compact={collapsed} />
-        </Link>
-        {onToggle && (
-          <button
-            type="button"
-            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl bg-subtle text-ink transition-colors duration-150 hover:bg-line"
-            onClick={onToggle}
-            aria-label={autoHide ? "Keep sidebar open" : "Auto-hide sidebar"}
-            title={autoHide ? "Keep the sidebar open" : "Hide the sidebar; it slides in when you point at the left edge"}
-            aria-pressed={autoHide}
-          >
-            <Icon name={autoHide ? "chevron" : "chevronLeft"} size={18} />
-          </button>
-        )}
-        {onClose && (
-          <button type="button" className="icon-btn size-10" onClick={onClose} aria-label="Close navigation" data-autofocus>
-            <Icon name="x" />
-          </button>
-        )}
-      </div>
-
-      <nav aria-label="Primary" className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-        {NAV_GROUPS.map((g, gi) => (
-          <div key={g.title ?? "top"} className={gi > 0 ? "mt-2 border-t border-line pt-2" : ""}>
-            {g.title && !collapsed && <div className="px-3 pb-1 pt-2 text-xs font-medium text-ink-muted">{g.title}</div>}
-            <ul className={`space-y-0.5 ${collapsed ? "flex flex-col items-center" : ""}`}>
-              {g.items.filter((item) => !item.perm || (!!session && has(session, item.perm))).map((item) => <li key={item.to}><Item item={item} collapsed={collapsed} /></li>)}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      <div className={`shrink-0 space-y-1 border-t border-line p-3 ${collapsed ? "flex flex-col items-center" : ""}`}>
-        {session && canManageTrash(session) && <Item item={TRASH} collapsed={collapsed} />}
-        <Item item={SETTINGS} collapsed={collapsed} />
-        <div className={`mt-2 flex items-center gap-3 rounded-ctl ${collapsed ? "flex-col" : "border border-line p-2"}`} title={collapsed ? name : undefined}>
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-accent/15 text-sm font-semibold text-brand-primary-hover">{initials(name)}</span>
-          {!collapsed && (
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="truncate text-[15px] font-semibold" data-testid="user-name">{name}</div>
-              <div className="truncate text-sm text-ink-muted">{role}</div>
-            </div>
-          )}
-          <button type="button" className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-ctl text-ink transition-colors duration-150 hover:bg-subtle" onClick={() => void logout()} aria-label="Sign out" title="Sign out">
-            <Icon name="logout" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function Shell() {
   const { session } = useAuth();
   const loc = useLocation();
@@ -211,9 +47,11 @@ export function Shell() {
   const [wide, setWide] = useState(false);
   const hideTimer = useRef<number | undefined>(undefined);
   const narrowTimer = useRef<number | undefined>(undefined);
+  const railOpenedAt = useRef(-1e9);
   const show = () => {
     window.clearTimeout(hideTimer.current);
     window.clearTimeout(narrowTimer.current);
+    if (!peek) railOpenedAt.current = performance.now();
     setWide(true);
     setPeek(true);
   };
@@ -299,8 +137,9 @@ export function Shell() {
           }}
           onKeyDown={(e) => e.key === "Escape" && hideNow()}
         >
-          <div key={wide ? "wide" : "rail"} className={`h-full animate-fade ${wide ? "w-[276px]" : "w-[88px]"}`}>
-            <SidebarPanel collapsed={!wide} autoHide onToggle={() => { remember(false); setAutoHide(false); hideNow(); }} />
+          {/* One panel for the rail and the open sidebar (no re-mount: keyboard focus and taps survive the slide). */}
+          <div className={`h-full ${wide ? "w-[276px]" : "w-[88px]"}`}>
+            <SidebarPanel collapsed={!wide} autoHide railOpenedAt={railOpenedAt} onExpand={show} onToggle={() => { remember(false); setAutoHide(false); hideNow(); }} />
           </div>
         </aside>
       ) : (
@@ -322,13 +161,14 @@ export function Shell() {
             <div className="hidden md:block"><QuickJump ref={jump} /></div>
             <div className="md:hidden"><SearchButton /></div>
             <NotificationBell />
-            <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{initials(name)}</span>
+            <span aria-hidden title={name} className="grid size-12 place-items-center rounded-full bg-card text-sm font-semibold text-brand-primary-hover lg:hidden">{name ? initials(name) : "?"}</span>
           </div>
         </header>
         <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-1 sm:px-6 sm:pb-8 sm:pt-2">
           {/* Keyed by path: each screen fades in once when you arrive (not on every data refresh). */}
           <ConnectionBanner />
           <Breadcrumbs place="page" />
+          <SectionViews />
           <div key={loc.pathname} className="animate-enter">
             <ErrorBoundary scope="page" resetKey={loc.pathname}>
               <Suspense fallback={<PageSkeleton />}>

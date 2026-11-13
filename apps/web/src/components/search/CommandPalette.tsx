@@ -16,7 +16,7 @@ import {
   type RecentItem,
   type SearchResponse,
 } from "../../lib/search";
-import { NAV_GROUPS, SETTINGS } from "../../nav";
+import { navScreens } from "../../nav";
 import { Icon, type IconName } from "../../ui/Icon";
 import { Highlight } from "./Highlight";
 import { SearchPreview } from "./SearchPreview";
@@ -39,17 +39,7 @@ type Option = {
 };
 
 type Screen = { label: string; group: string; to: string; icon: IconName };
-const SCREENS: Screen[] = [
-  ...NAV_GROUPS.flatMap((g) =>
-    g.items.flatMap((item) => {
-      const group = g.title ?? "General";
-      const own: Screen = { label: item.label, group, to: item.to, icon: item.icon };
-      const kids = (item.children ?? []).filter((c) => c.to !== item.to).map((c) => ({ label: `${item.label} › ${c.label}`, group, to: c.to, icon: item.icon }));
-      return [own, ...kids];
-    }),
-  ),
-  { label: SETTINGS.label, group: "General", to: SETTINGS.to, icon: SETTINGS.icon },
-];
+const SCREENS: Screen[] = navScreens();
 
 /**
  * Universal search (⌘K / Ctrl K). Spotlight-style dialog: results grouped by kind with a few per
