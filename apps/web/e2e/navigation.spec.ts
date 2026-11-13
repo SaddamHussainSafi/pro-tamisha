@@ -232,6 +232,9 @@ test("menu by role: Super Admin sees the admin entries, other staff do not; phon
   const nav = sidebar(page);
   await nav.getByRole("button", { name: "Settings menu" }).click();
   for (const name of ["General", "Users & Roles", "Online Order Settings", "Activity Log", "ERP Trash"]) await expect(nav.getByRole("link", { name, exact: true })).toBeVisible();
+  // Purchases shows its two working entries; Purchase Invoices stays hidden until it has a page.
+  await expect(nav.getByRole("link", { name: "Purchase Orders" })).toBeVisible();
+  await expect(nav.getByText("Purchase Invoices")).toHaveCount(0);
   await page.screenshot({ path: "screenshots/sidebar-menu-1440.png" });
   await nav.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login/);

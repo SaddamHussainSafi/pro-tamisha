@@ -1197,3 +1197,8 @@ Not done / to know:
 - Old helpers for the count screen remain in `lib/receiving.ts` (unused now, still unit-tested).
 - Open questions recorded: D-50 (propose a credit note / count for flagged stock?), D-51 (should Sales quick receive?), D-54 (do shortages reduce what the supplier is owed?).
 
+
+## 2026-11-13 — Sidebar: Purchase Invoices hidden for now
+
+- Owner's choice: "Hide it for now". The entry stays in `apps/web/src/nav.ts` with `hidden: true` (no page lists supplier invoices yet); the sidebar skips hidden entries. To show it later: give it an address and remove `hidden`.
+- Results: tsc and eslint clean; vitest 326 passed; Playwright navigation (9) and the gmail sidebar-order test passed.

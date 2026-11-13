@@ -45,7 +45,7 @@ function rememberOpen(open: string[]) {
 
 /** Role-based visibility, as before: a permission, user management, or the Trash. */
 const allowed = (s: Session, e: NavLeaf) =>
-  (!e.perm || has(s, e.perm)) && (e.gate === "admin" ? hasCompanyWide(s, "employee.manage") : e.gate === "trash" ? canManageTrash(s) : true);
+  !e.hidden && (!e.perm || has(s, e.perm)) && (e.gate === "admin" ? hasCompanyWide(s, "employee.manage") : e.gate === "trash" ? canManageTrash(s) : true);
 
 function Badge({ node, collapsed }: { node: NavNode; collapsed: boolean }) {
   return node.badge === "order_connect" ? <OrderConnectBadge collapsed={collapsed} /> : node.badge === "mail" ? <MailBadge collapsed={collapsed} /> : null;

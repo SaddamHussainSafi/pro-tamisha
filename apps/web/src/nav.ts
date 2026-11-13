@@ -13,6 +13,8 @@ export type NavLeaf = {
   perm?: string;
   /** Shown only to: people who manage users / people who may open the Trash. */
   gate?: "admin" | "trash";
+  /** Part of the approved menu, but not shown yet (owner, 2026-11-13: hide until its page exists). */
+  hidden?: boolean;
   /** Sub-screens offered as a row of links above the page. */
   views?: { label: string; to: string }[];
 };
@@ -48,8 +50,9 @@ export const NAV_MAIN: NavNode[] = [
     to: null,
     children: [
       { label: "Purchase Orders", to: "/purchases" },
-      // No list of supplier invoices exists yet (each purchase carries its invoice number).
-      { label: "Purchase Invoices", to: null },
+      // No list of supplier invoices exists yet (each purchase carries its invoice number): hidden
+      // until that page is built. Give it an address and drop `hidden` to show it.
+      { label: "Purchase Invoices", to: null, hidden: true },
       {
         label: "Suppliers",
         to: "/suppliers",

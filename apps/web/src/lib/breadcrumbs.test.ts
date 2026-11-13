@@ -45,6 +45,8 @@ describe("the approved menu", () => {
     expect(s.find((x) => x.to === "/scan")?.label).toBe("Scan Center");
     expect(s.find((x) => x.to === "/products/prices")?.label).toBe("Warehouse › Price book");
     expect(s.some((x) => x.label.includes("Purchase Invoices"))).toBe(false); // no page yet
+    // …and it is kept out of the sidebar until it has one
+    expect(NAV_ALL.flatMap((n) => n.children ?? []).filter((c) => c.hidden).map((c) => c.label)).toEqual(["Purchase Invoices"]);
   });
 });
 
