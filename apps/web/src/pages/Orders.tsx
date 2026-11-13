@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   ApiError,
+  hasCompanyWide,
   canInWarehouse,
   has,
   type Customer,
@@ -87,6 +88,8 @@ export function OrdersPage() {
   ];
   const tabs = [
     { id: "sales" as const, label: "Sales orders", to: "/orders", show: canSell },
+    // Online orders are a tab of Sales Orders (approved menu, 2026-11-13); its screens show the same tabs (components/OrdersTabs).
+    { id: "online" as const, label: "Online", to: "/online-orders", show: hasCompanyWide(session, "order_connect.read") },
     { id: "purchases" as const, label: "Purchases", to: "/purchases", show: canBuy },
   ].filter((t) => t.show || t.id === tab);
   const tabCls = (on: boolean) => `-mb-px border-b-2 px-3 py-2 text-sm font-medium ${on ? "border-brand-primary text-ink" : "border-transparent text-ink-muted hover:text-ink"}`;
