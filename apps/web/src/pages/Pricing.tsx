@@ -526,7 +526,6 @@ export function PriceVersionPage() {
 
   return (
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm"><Link className="text-brand-primary-hover underline" to="/products">Products</Link> / <Link className="text-brand-primary-hover underline" to="/products/prices">Prices</Link> / {v.version_code}</nav>
       <PageHeader
         title={v.version_code}
         subtitle={

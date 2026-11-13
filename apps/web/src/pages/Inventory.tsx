@@ -718,7 +718,6 @@ export function LotPage() {
 
   return (
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm"><Link className={link} to="/inventory">Inventory</Link> / {lot.lot_code}</nav>
       <PageHeader
         title={`Lot ${lot.lot_code}`}
         subtitle={<>{lot.sku} — {lot.product_name} <LiveBadge live={live} /></>}

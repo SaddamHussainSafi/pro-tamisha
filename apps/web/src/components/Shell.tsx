@@ -17,6 +17,7 @@ import { MailBadge } from "./mail/MailBadge";
 import { NotificationProvider } from "./notifications/NotificationProvider";
 import { QuickJump, SearchButton } from "./QuickJump";
 import { Wordmark } from "./Wordmark";
+import { Breadcrumbs } from "./Breadcrumbs";
 
 /** "1" = the sidebar hides itself and slides in when the pointer reaches the left edge. */
 const COLLAPSE_KEY = "pt.sidebar.collapsed";
@@ -201,6 +202,8 @@ export function Shell() {
   const { session } = useAuth();
   const loc = useLocation();
   const [drawer, setDrawer] = useState(false);
+  // The drawer's contents exist only while it is open or sliding shut (no second copy of the menu in the page).
+  const [drawerShown, setDrawerShown] = useState(false);
   const [autoHide, setAutoHide] = useState(recall);
   const [peek, setPeek] = useState(false);
   // `wide`: the full layout is drawn. It switches on at once when the rail opens and only
@@ -315,7 +318,7 @@ export function Shell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center gap-2 px-3 pt-3 sm:gap-3 sm:px-6 sm:pt-4">
-          <button ref={menuBtn} className="icon-btn border-transparent lg:hidden" onClick={() => setDrawer(true)} aria-label="Open navigation" aria-expanded={drawer}>
+          <button ref={menuBtn} className="icon-btn border-transparent lg:hidden" onClick={() => { setDrawerShown(true); setDrawer(true); }} aria-label="Open navigation" aria-expanded={drawer}>
             <Icon name="menu" />
           </button>
           <div className="shrink-0 rounded-full bg-card p-1.5 pr-5 lg:hidden"><Wordmark /></div>
@@ -329,6 +332,7 @@ export function Shell() {
         <main ref={main} id="main" className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-5">
           {/* Keyed by path: each screen fades in once when you arrive (not on every data refresh). */}
           <ConnectionBanner />
+          <Breadcrumbs />
           <div key={loc.pathname} className="animate-enter">
             <ErrorBoundary scope="page" resetKey={loc.pathname}>
               <Suspense fallback={<PageSkeleton />}>
@@ -345,9 +349,10 @@ export function Shell() {
         ref={drawerEl}
         aria-label="Navigation"
         inert={!drawer}
+        onTransitionEnd={(e) => e.target === e.currentTarget && !drawer && setDrawerShown(false)}
         className={`fixed inset-y-0 left-0 z-40 w-[276px] max-w-[88vw] transition-[transform,visibility] duration-300 ease-[var(--ease-calm)] lg:hidden ${drawer ? "visible translate-x-0" : "invisible -translate-x-full"}`}
       >
-        <SidebarPanel collapsed={false} onClose={() => setDrawer(false)} />
+        {drawerShown && <SidebarPanel collapsed={false} onClose={() => setDrawer(false)} />}
       </aside>
       <TrashToastHost />
       <SessionExpiredDialog />

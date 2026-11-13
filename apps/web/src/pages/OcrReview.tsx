@@ -455,7 +455,8 @@ export function OcrReviewPage({ id: given, embedded = false }: { id?: string; em
       />}
       {error && <Notice tone="error">{error}</Notice>}
       {notice && <Notice tone="ok">{notice}</Notice>}
-      {ex.warnings.map((w) => <Info key={w} tone="warn">{warningText(w)}</Info>)}
+      {/* Supplier documents list their warnings once, inside Document details. */}
+      {!supplierDoc && ex.warnings.map((w) => <Info key={w} tone="warn">{warningText(w)}</Info>)}
       {engineText(ex.engine) && <p className="text-xs text-ink-muted">{engineText(ex.engine)}</p>}
       {ex.status === "ACCEPTED" && ex.sales_order_id && (
         <Notice tone="ok">
